@@ -1,0 +1,17 @@
+{
+  "version": "v2-0.1",
+  "note": "校准基线：起始值来自《重设计稿》，数值待模拟器重拟（下一刀）。所有建筑/升级参数以本文件为准。",
+  "start": {"minerals": 140.0, "credits": 90.0, "science": 0.0},
+  "upgrade": {"output_mult": 1.6, "cost_mult": 2.2, "max_level": 5},
+  "buildings": {
+    "miner":    {"name": "矿机",     "cost_minerals": 40.0,  "cost_credits": 20.0,  "energy": 2.0, "output": 5.0,   "needs_deposit": true},
+    "solar":    {"name": "太阳能阵列", "cost_minerals": 50.0,  "cost_credits": 25.0,  "energy": 0.0, "output": 15.0,  "gen": true},
+    "fusion":   {"name": "聚变堆",   "cost_minerals": 800.0, "cost_credits": 400.0, "energy": 0.0, "output": 120.0, "gen": true},
+    "lab":      {"name": "科研站",   "cost_minerals": 120.0, "cost_credits": 60.0,  "energy": 3.0, "output": 2.0,   "kind": "science"},
+    "commerce": {"name": "商业中心", "cost_minerals": 90.0,  "cost_credits": 40.0,  "energy": 2.0, "output": 3.0,   "kind": "credits"}
+  },
+  "milestones": {
+    "spaceport": {"name": "星港",     "cost_minerals": 1500.0, "cost_credits": 800.0},
+    "elevator":  {"name": "太空电梯", "cost_minerals": 6000.0, "cost_credits": 3000.0}
+  }
+}
