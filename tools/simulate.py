@@ -72,7 +72,8 @@ def dep_of(idx):
     return 6 + (idx * 7 + 3) % 5
 
 
-def simulate(p, verbose=False):
+def simulate(p, verbose=False, series=None):
+    """series: 若传入 list，会按 30s 间隔记录 (t, 矿物收入/s, 星球数)，供绘图/审计用。"""
     minerals = 20.0
     credits = 0.0
     sci = 0.0
@@ -167,6 +168,8 @@ def simulate(p, verbose=False):
         minerals += min_income() * DT
         sci += sci_income() * DT
         credits += cred_income() * DT
+        if series is not None and int(t) % 30 == 0:
+            series.append((t, min_income(), len(planets)))
 
         # --- 能源优先 ---
         if e < 0.95:
