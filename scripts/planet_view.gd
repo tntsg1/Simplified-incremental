@@ -270,9 +270,9 @@ func _draw() -> void:
 		draw_polyline(top, Color(0.85, 1.0, 1.0, 0.90), 2.0)
 		draw_arc(Vector2(tp.x, tp.y), trr * 1.35, 0.0, TAU, 48, Color(0.85, 1.0, 1.0, 0.55), 1.5)
 		var bob := sin(_time * 2.4) * 5.0
-		var ay := tp.y - trr * 2.4 + bob
-		var tri := PackedVector2Array([Vector2(tp.x, ay + 13.0), Vector2(tp.x - 9.0, ay - 3.0), Vector2(tp.x + 9.0, ay - 3.0)])
-		draw_colored_polygon(tri, Color(0.90, 1.0, 1.0, 0.90))
+		var ay := tp.y - trr * 1.9 + bob
+		var tri := PackedVector2Array([Vector2(tp.x, ay + 17.0), Vector2(tp.x - 12.0, ay - 2.0), Vector2(tp.x + 12.0, ay - 2.0)])
+		draw_colored_polygon(tri, Color(0.90, 1.0, 1.0, 0.95))
 
 	# ---- 飘字 ----
 	var f2: Font = get_theme_default_font()
