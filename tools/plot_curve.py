@@ -28,7 +28,10 @@ for cand in ["Microsoft YaHei", "SimHei", "Noto Sans CJK SC"]:
 plt.rcParams["axes.unicode_minus"] = False
 
 base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-with open(os.path.join(base, "fitted_params.json"), encoding="utf-8") as f:
+cands = [os.path.join(base, "tools", "fitted_params.json"),
+         os.path.join(base, "fitted_params.json")]
+fp = next(p for p in cands if os.path.exists(p))
+with open(fp, encoding="utf-8") as f:
     data = json.load(f)
 P = data["params"]
 
