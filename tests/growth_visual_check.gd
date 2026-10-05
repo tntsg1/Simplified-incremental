@@ -20,7 +20,6 @@ func run() -> void:
 	var out: String = OS.get_cmdline_user_args()[0] if not OS.get_cmdline_user_args().is_empty() else "res://proofs/growth"
 	game = preload("res://scenes/main.tscn").instantiate()
 	game.store.enabled = false
-	game.pause_on_focus_loss = false
 	root.add_child(game)
 	await process_frame
 	game.saved = {}

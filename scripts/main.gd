@@ -51,8 +51,6 @@ var display_mode: String=""
 var display_stage: int=-1
 # Money rolls toward the real value and pops on income.
 var shown_money: float=0
-# UI tests drive an unfocused window; they turn the focus-loss pause off.
-var pause_on_focus_loss: bool=true
 var money_pulse: float=0
 
 func panel_style(color: Color, edge: Color = Color("373737"), radius: int = 12) -> StyleBoxFlat:
@@ -631,8 +629,6 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
 	if what==NOTIFICATION_WM_CLOSE_REQUEST:
 		save_game()
-	elif what==NOTIFICATION_APPLICATION_FOCUS_OUT and pause_on_focus_loss and not proof and menu=="" and sim.mode in ["wave","boss","intermission","transition"]:
-		open_pause()
 
 func parse_proof() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
