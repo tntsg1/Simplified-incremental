@@ -300,10 +300,12 @@ func confirm_new() -> void:
 func start_game() -> void:
 	close_modal()
 	sim.start_new()
+	field.reset_growth()
 	show_notice("点击或按住来袭目标发射导弹 · 升级面板暂停战斗")
 
 func continue_game() -> void:
 	if sim.restore(saved):
+		field.reset_growth()
 		close_modal()
 		show_notice("战役已恢复 · 没有离线时间结算")
 	else:
@@ -709,6 +711,7 @@ func parse_proof() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(store.path+".bak"))
 		if not passed:
 			get_tree().quit(1)
+	field.reset_growth()
 	if proof_mode=="wave" and not benchmark:
 		for i in range(idx+1):
 			if not sim.enemies.is_empty():

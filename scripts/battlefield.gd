@@ -33,6 +33,16 @@ var muzzle_limits: Array[float] = [0, 0, 0, 0, 0, 0]
 var spark_limits: Array[float] = [0, 0, 0, 0, 0, 0]
 var pierce_limits: Array[float] = [0, 0, 0, 0, 0, 0]
 var core_pulse: float = 0
+# Visible growth: purchases made in the (paused) upgrade panel replay on the
+# battlefield once combat resumes, so the defense is seen to grow.
+const GROWTH_NAMES := {"damage": "弹头", "speed": "射程", "reload": "装填", "crit": "暴击", "area": "范围", "pierce": "贯穿", "targets": "锁定"}
+var prev_levels: Dictionary = {}
+var prev_owned: Array = []
+var growth: Array[Dictionary] = []
+var growth_bounce: float = 0
+var dock_age: Array[float] = [-1, -1, -1, -1, -1, -1]
+var shown_range: float = -1
+var core_outer: float = 20
 
 func _ready() -> void:
 	font = SystemFont.new()
@@ -185,6 +195,51 @@ func animate(delta: float) -> void:
 		if float(feedback[i].age) >= float(feedback[i].duration):
 			feedback_pool.append(feedback[i])
 			feedback.remove_at(i)
+	track_growth(delta)
+
+func reset_growth() -> void:
+	prev_levels = {}
+	growth.clear()
+	shown_range = -1
+	for i in range(6):
+		dock_age[i] = -1
+
+func track_growth(delta: float) -> void:
+	growth_bounce = maxf(0, growth_bounce - delta * 3)
+	if sim == null or sim.paused or sim.mode == "title":
+		return
+	if prev_levels.is_empty():
+		prev_levels = sim.levels.duplicate()
+		prev_owned = sim.owned.duplicate()
+	else:
+		var delay: float = 0
+		for key in sim.levels:
+			var gained: int = int(sim.levels[key]) - int(prev_levels.get(key, 0))
+			if gained > 0:
+				growth.append({"key": key, "gained": gained, "age": -delay, "slot": growth.size() % 6})
+				delay += .22
+		for i in range(6):
+			if sim.owned[i] and not bool(prev_owned[i]):
+				dock_age[i] = 0.0
+		prev_levels = sim.levels.duplicate()
+		prev_owned = sim.owned.duplicate()
+	var target_range: float = sim.weapon_range()
+	shown_range = target_range if shown_range < 0 else lerpf(shown_range, target_range, minf(1, delta * 3))
+	for i in range(growth.size() - 1, -1, -1):
+		var before: float = float(growth[i].age)
+		growth[i].age = before + delta
+		if before < 0 and float(growth[i].age) >= 0:
+			growth_bounce = 1.0
+			core_pulse = 1.0
+		if float(growth[i].age) > 1.6:
+			growth.remove_at(i)
+	for i in range(6):
+		if dock_age[i] >= 0:
+			dock_age[i] += delta
+			if dock_age[i] >= .9:
+				dock_age[i] = -1
+				add_feedback("shards", sim.weapon_origin(i), i, 26, .6)
+				trauma = minf(.5, trauma + .2)
 
 func shake_offset() -> Vector2:
 	if reduced_effects:
@@ -244,14 +299,46 @@ func galaxy(center: Vector2, size: float, rotation: float = 0) -> void:
 	draw_circle(Vector2.ZERO, 10, Color(GREY, .5))
 	draw_set_transform_matrix(scene_transform)
 
-func core(center: Vector2, layers: int) -> void:
-	# The defense core gains a hexagonal shell per scale reached.
-	var swell: float = 1 + core_pulse * .08
-	for i in range(layers, 0, -1):
-		var radius: float = (9 + i * 7) * swell
+func core(center: Vector2, layers: int, live: bool = false) -> void:
+	# One hexagonal shell per scale reached; the live core also shows upgrades:
+	# damage grows the heart and adds a shell per doubling milestone, launcher
+	# tiers orbit as nodes, crit lights amber sparks, pierce/lock links the nodes.
+	var swell: float = 1 + core_pulse * .08 + (growth_bounce * .22 if live else 0.0)
+	var inner: float = 9.0
+	var shells: int = layers
+	if live:
+		var damage: int = int(sim.levels.damage)
+		inner += minf(10.0, damage * .06)
+		for threshold in [10, 25, 50, 75, 100, 125, 150]:
+			if damage >= threshold:
+				shells += 1
+		shells = mini(shells, 10)
+	inner *= swell
+	var gap: float = 5.0 * swell
+	for i in range(shells, 0, -1):
 		var spin: float = clock * (.25 if i % 2 else -.18) + i * .3
-		shape(center, radius, 6, spin, Color(0, 0, 0, 0), Color(GREY if i == 1 else DIM, .9), 1.4)
-	shape(center, 9 * swell, 6, clock * .4, INK)
+		shape(center, inner + i * gap, 6, spin, Color(0, 0, 0, 0), Color(GREY if i == 1 else DIM, .9), 1.4 if i <= layers else 1.0)
+	shape(center, inner, 6, clock * .4, INK)
+	var outer: float = inner + shells * gap
+	if not live:
+		return
+	var tier: int = mini(14, int(sim.levels.reload) / 10)
+	var orbit: float = outer + 11
+	var nodes := PackedVector2Array()
+	for j in range(tier):
+		var a: float = j * TAU / maxi(1, tier) + clock * .45
+		nodes.append(center + Vector2(cos(a), sin(a)) * orbit)
+	if tier >= 3 and (int(sim.levels.pierce) > 0 or int(sim.levels.targets) > 0):
+		var loop := nodes.duplicate()
+		loop.append(nodes[0])
+		draw_polyline(loop, Color(GREY, .35), 1.0, true)
+	for j in range(nodes.size()):
+		shape(nodes[j], 3.4 * swell, 4, clock * 1.2 + j, INK)
+	var sparks: int = mini(16, int(sim.levels.crit) / 3)
+	for j in range(sparks):
+		var a: float = j * TAU / maxi(1, sparks) - clock * .3
+		draw_circle(center + Vector2(cos(a), sin(a)) * (outer + 4), 1.6, ACCENT)
+	core_outer = orbit + 4
 
 func stage_scene(index: int) -> void:
 	var c := Vector2(500, 325)
@@ -302,11 +389,19 @@ func stage_scene(index: int) -> void:
 				draw_circle(p, 2 + i % 3, DIM)
 			ring(c, 300, DARK, 1.4)
 			ink("可观测宇宙 · 防御枢纽", c + Vector2(-65, 56), DIM, 13)
-	core(Vector2(500, 572) if index == 0 else c, index + 1)
+	core(Vector2(500, 572) if index == 0 else c, index + 1, index == sim.stage and sim.mode != "transition")
 
 func weapon(index: int, point: Vector2, small: bool = false) -> void:
 	# Turret i is a (3+i)-gon, so older weapons stay recognisable at larger scales.
 	var s: float = .7 if small else 1.0
+	if dock_age[index] >= 0 and not small:
+		# A newly deployed turret flies out of the core and snaps into place.
+		var k: float = clampf(dock_age[index] / .9, 0, 1)
+		var travel: float = 1 - pow(1 - k, 3)
+		var from: Vector2 = sim.defense_position()
+		draw_line(from, from.lerp(point, travel), Color(INK, .35 * (1 - k)), 1.5, true)
+		point = from.lerp(point, travel)
+		s *= .4 + .6 * travel + sin(k * PI) * .35
 	var direction := Vector2(cos(aims[index]), sin(aims[index]))
 	var p: Vector2 = point - direction * recoil[index] * (3 + index)
 	var radius: float = (10 + index * 1.2) * s
@@ -466,7 +561,7 @@ func _draw() -> void:
 			var segments: int = 96
 			var step: float = (TAU - ring_from) / segments
 			for j in range(0, segments, 2):
-				draw_arc(sim.defense_position(), sim.weapon_range(), ring_from + j * step, ring_from + (j + 1) * step, 4, Color(GREY, .32), 1.4, true)
+				draw_arc(sim.defense_position(), shown_range if shown_range > 0 else sim.weapon_range(), ring_from + j * step, ring_from + (j + 1) * step, 4, Color(GREY, .32), 1.4, true)
 		for i in range(6):
 			if sim.owned[i]:
 				weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
@@ -498,6 +593,17 @@ func _draw() -> void:
 		if sim.mode == "intermission":
 			ink("拦截完成 · 下一波即将来袭", Vector2(395, 190), GREY, 18)
 	draw_feedback()
+	if sim.mode != "transition":
+		var center: Vector2 = sim.defense_position()
+		for g in growth:
+			if float(g.age) < 0:
+				continue
+			var t: float = float(g.age) / 1.6
+			var col: Color = ACCENT if g.key == "crit" else INK
+			ring(center, core_outer + t * 150, Color(col, (1 - t) * .8), 2.0 * (1 - t) + .5)
+			var label: String = "%s +%d" % [GROWTH_NAMES.get(g.key, g.key), int(g.gained)]
+			var rise: float = 8 * (1 - pow(1 - minf(1, t * 3), 2))
+			ink_outlined(label, center + Vector2(core_outer + 18, -20 - int(g.slot) * 23 - rise), Color(col, 1 - t * t * t), 15)
 	for n in numbers:
 		var t: float = float(n.age) / .75
 		var lift: float = 22 * (1 - pow(1 - t, 2))
