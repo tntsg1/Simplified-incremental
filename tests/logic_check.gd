@@ -130,6 +130,7 @@ func autobuy(c: RefCounted) -> void:
 				"area": weight=.65 if level<c.stage*12 else .12
 				"pierce": weight=.24 if level<c.stage*6 else .08
 				"targets": weight=.3 if level<30 else .12
+				"turrets": weight=.9
 			if weight/cost>score:
 				score=weight/cost
 				best=i

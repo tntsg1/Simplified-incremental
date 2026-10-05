@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/upgrade_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+key="turrets"
+title="增设炮台"
+base_cost=25
+unlock_stage=0
+cost_growth=1.25
+description="每级在防线核心旁增设一座炮台，全体系伤害 +5%。价格增长较快。"

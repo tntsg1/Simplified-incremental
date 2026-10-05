@@ -6,7 +6,12 @@ static func damage_multiplier(ctx: RefCounted) -> float:
 	for threshold in [10, 25, 50, 75, 100, 125, 150]:
 		if l >= threshold:
 			bonuses += 1
-	return pow(1.15, l) * pow(2.0, bonuses)
+	return pow(1.15, l) * pow(2.0, bonuses) * turret_multiplier(ctx)
+
+
+static func turret_multiplier(ctx: RefCounted) -> float:
+	# Each turret adds +5% linearly; steeper pricing keeps it a steady side line.
+	return 1.0 + int(ctx.levels.get("turrets", 0)) * 0.05
 
 
 static func launcher_count(ctx: RefCounted) -> int:
@@ -63,7 +68,8 @@ static func nominal_dps(ctx: RefCounted) -> float:
 static func upgrade_cost(ctx: RefCounted, index: int, count: int = 1) -> float:
 	var u: Resource = ctx.catalog.upgrades[index]
 	var level: int = int(ctx.levels[u.key])
-	return float(u.base_cost) * pow(1.18, level) * (pow(1.18, count) - 1.0) / 0.18
+	var g: float = float(u.cost_growth)
+	return float(u.base_cost) * pow(g, level) * (pow(g, count) - 1.0) / (g - 1.0)
 
 
 static func buy_upgrade(ctx: RefCounted, index: int, requested: int = 1) -> int:

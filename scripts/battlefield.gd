@@ -35,7 +35,7 @@ var pierce_limits: Array[float] = [0, 0, 0, 0, 0, 0]
 var core_pulse: float = 0
 # Visible growth: purchases made in the (paused) upgrade panel replay on the
 # battlefield once combat resumes, so the defense is seen to grow.
-const GROWTH_NAMES := {"damage": "弹头", "speed": "射程", "reload": "装填", "crit": "暴击", "area": "范围", "pierce": "贯穿", "targets": "锁定"}
+const GROWTH_NAMES := {"damage": "弹头", "speed": "射程", "reload": "装填", "crit": "暴击", "area": "范围", "pierce": "贯穿", "targets": "锁定", "turrets": "炮台"}
 var prev_levels: Dictionary = {}
 var prev_owned: Array = []
 var growth: Array[Dictionary] = []
@@ -46,7 +46,7 @@ var core_outer: float = 20
 # Barrage layer: purely cosmetic rounds that show the real launcher count and
 # fire rate. Combat timing and damage stay in the simulation untouched.
 const BULLET_CAP: int = 1500
-const ARRAY_RINGS: Array[int] = [14, 18, 22]
+const ARRAY_RINGS: Array[int] = [12, 16, 20]
 var b_from := PackedVector2Array()
 var b_ctrl := PackedVector2Array()
 var b_to := PackedVector2Array()
@@ -533,35 +533,47 @@ func core(center: Vector2, layers: int, live: bool = false) -> void:
 		draw_circle(center + Vector2(cos(a), sin(a)) * (outer + 4), 1.6, ACCENT)
 	# Launcher array: one small turret per real launcher (2^tier), ringed around
 	# the core, up to 54 drawn; the city keeps them above ground.
-	var turrets: int = mini(54, int(sim.launcher_count()))
+	var owned_turrets: int = int(sim.levels.get("turrets", 0))
 	var city: bool = sim.stage == 0
+	var turrets: int = mini(40 if city else 48, owned_turrets)
 	turret_spots.resize(0)
-	var placed: int = 0
-	var ring_radius: float = outer + 12
-	var aim: float = aims[0]
-	for capacity in ARRAY_RINGS:
-		var in_ring: int = mini(capacity, turrets - placed)
-		if in_ring <= 0:
-			break
-		for j in range(in_ring):
-			var a: float = (PI + (j + .5) * PI / in_ring) if city else (j * TAU / in_ring + clock * .12 * (1 if capacity % 4 else -1))
-			turret_spots.append(center + Vector2(cos(a), sin(a)) * ring_radius)
-		placed += in_ring
-		ring_radius += 11
+	var ring_radius: float = outer + 16
+	if city:
+		# City: the battery spreads along the ground, alternating left and right.
+		for j in range(turrets):
+			var side: float = -1.0 if j % 2 == 0 else 1.0
+			turret_spots.append(Vector2(center.x + side * (56 + (j / 2) * 32), 586))
+	else:
+		var placed: int = 0
+		for capacity in ARRAY_RINGS:
+			var in_ring: int = mini(capacity, turrets - placed)
+			if in_ring <= 0:
+				break
+			for j in range(in_ring):
+				var a: float = j * TAU / in_ring + clock * .12 * (1 if capacity % 8 else -1)
+				turret_spots.append(center + Vector2(cos(a), sin(a)) * ring_radius)
+			placed += in_ring
+			ring_radius += 15
 	if turret_flash.size() != turret_spots.size():
 		turret_flash.resize(turret_spots.size())
 	var linked: bool = int(sim.levels.pierce) > 0 or int(sim.levels.targets) > 0
-	if linked and turret_spots.size() >= 3:
+	if linked and not city and turret_spots.size() >= 3:
 		var loop := turret_spots.slice(0, mini(ARRAY_RINGS[0], turret_spots.size()))
-		if not city:
-			loop.append(loop[0])
+		loop.append(loop[0])
 		draw_polyline(loop, Color(GREY, .3), 1.0, true)
+	var aim: float = aims[0]
+	var barrel := Vector2.from_angle(aim)
 	begin_batch()
 	for j in range(turret_spots.size()):
 		var lit: bool = turret_flash[j] > 0
-		shape(turret_spots[j], (3.6 if lit else 2.8) * swell, 3, aim, INK if lit else GREY)
+		var spot: Vector2 = turret_spots[j] - barrel * (2.0 if lit else 0.0)
+		shape(spot, (5.6 if lit else 4.6) * swell * (1.4 if city else 1.0), 3, aim, INK if lit else GREY)
+		stroke(spot, spot + barrel * 9, Color(INK if lit else GREY, .9))
 	flush_batch()
-	core_outer = ring_radius
+	if owned_turrets > turrets:
+		var tag: Vector2 = Vector2(turret_spots[turret_spots.size() - 1].x + 18, 594) if city else center + Vector2(ring_radius - 6, -ring_radius + 8)
+		ink("×" + str(owned_turrets), tag, GREY, 12)
+	core_outer = outer + 16 if city else ring_radius
 
 func stage_scene(index: int) -> void:
 	var c := Vector2(500, 325)

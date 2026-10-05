@@ -420,7 +420,8 @@ func update_shop() -> void:
 		var count: int = purchase_count
 		if count==1000:
 			var first: float = sim.upgrade_cost(int(c.index))
-			count = maxi(1,int(floor(log(1+sim.money*.18/first)/log(1.18))))
+			var g: float=float(sim.catalog.upgrades[int(c.index)].cost_growth)
+			count = maxi(1,int(floor(log(1+sim.money*(g-1)/first)/log(g))))
 		var price: float = sim.upgrade_cost(int(c.index),count)
 		c.button.text = "+%d  ·  $%s" %[count,Catalog.number(price)]
 		c.button.disabled = sim.money+0.00001<price

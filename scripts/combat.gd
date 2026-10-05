@@ -23,7 +23,7 @@ var stage: int = 0
 var wave: int = 1
 var money: float = 0.0
 var health: float = 100.0
-var levels: Dictionary = {"damage": 0, "speed": 0, "reload": 0, "crit": 0, "area": 0, "pierce": 0, "targets": 0}
+var levels: Dictionary = {"damage": 0, "speed": 0, "reload": 0, "crit": 0, "area": 0, "pierce": 0, "targets": 0, "turrets": 0}
 var owned: Array[bool] = [true, false, false, false, false, false]
 var automation: bool = false
 var paused: bool = false
@@ -466,6 +466,9 @@ func restore(data: Dictionary) -> bool:
 	if not data.get("levels", {}) is Dictionary or not data.get("owned", []) is Array or data.get("owned", []).size() != 6:
 		return false
 	for key in levels:
+		# Saves from before the turret upgrade simply start it at zero.
+		if key == "turrets" and not data.levels.has(key):
+			continue
 		if not data.levels.has(key) or int(data.levels[key]) < 0 or int(data.levels[key]) > 1000:
 			return false
 	var saved_money: float = float(data.get("money", -1))
@@ -501,7 +504,7 @@ func restore(data: Dictionary) -> bool:
 	money = saved_money
 	health = clampf(float(data.health), 0.0, 100.0)
 	for key in levels:
-		levels[key] = int(data.levels[key])
+		levels[key] = int(data.levels.get(key, 0))
 	for i in range(6):
 		owned[i] = bool(data.owned[i])
 		cooldowns[i] = float(data.get("cooldowns", [0, 0, 0, 0, 0, 0])[i])
