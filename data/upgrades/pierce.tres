@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/upgrade_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+key="pierce"
+title="贯穿能力"
+base_cost=180
+unlock_stage=3
+description="每级覆盖 +25%；溢出火力继续命中邻近敌人。"

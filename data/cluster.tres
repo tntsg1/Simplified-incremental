@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="星系团"
+subtitle="CLUSTER / QUASAR NETWORK"
+scale_label="星系团防线 · 100 Mly"
+accent=Color(0.95,0.48,0.73,1)
+count_multiplier=4194304
+reward_multiplier=0.10546875
+regular_seconds=2400.0
+boss_hp=900000000000000000.0
+boss_window=65.0
+boss_title="外星巨构战舰 · CATHEDRAL"
+boss_kind="mothership"
+weapon_price=9000000.0
+boss_reward=176947200.0
+briefing="类星体炮同时覆盖多支舰队。独立精英仍需优先处理。"

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="银河"
+subtitle="GALAXY / STELLAR LANCE"
+scale_label="银河防线 · 100,000 ly"
+accent=Color(0.7,0.53,1,1)
+count_multiplier=65536
+reward_multiplier=0.28125
+regular_seconds=2100.0
+boss_hp=38500000000000.0
+boss_window=60.0
+boss_title="失控恒星 · VESPER"
+boss_kind="star"
+weapon_price=380000.0
+boss_reward=7372800.0
+briefing="恒星炮贯穿来袭路径。曾经的太阳系，现在只是银河中的一个节点。"

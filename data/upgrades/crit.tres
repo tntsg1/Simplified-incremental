@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/upgrade_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+key="crit"
+title="能量暴击"
+base_cost=80
+unlock_stage=1
+description="每级暴击率 +2%，最高 50%；每二十五级提高暴击倍率。"

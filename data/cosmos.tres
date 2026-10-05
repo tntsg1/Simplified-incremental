@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="宇宙"
+subtitle="COSMOS / LAST HORIZON"
+scale_label="宇宙防线 · 93 Gly"
+accent=Color(0.65,0.87,1,1)
+count_multiplier=1073741824
+reward_multiplier=0.0098876953125
+regular_seconds=2880.0
+boss_hp=1300000000000000000000.0
+boss_window=70.0
+boss_title="宇宙灾变核心 · THE SILENCE"
+boss_kind="rift"
+weapon_price=210000000.0
+boss_reward=4246732800.0
+briefing="六层火力汇聚在最后的边界。击毁灾变核心，让所有防线迎来黎明。"

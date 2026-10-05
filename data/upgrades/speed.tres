@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/upgrade_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+key="speed"
+title="拦截速度"
+base_cost=15
+unlock_stage=0
+description="每级弹速 +8%。能量武器更快完成扫描与锁定；弹道最高 4,400 m/s。"

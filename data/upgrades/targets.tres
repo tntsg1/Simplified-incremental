@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/upgrade_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+key="targets"
+title="多重锁定"
+base_cost=260
+unlock_stage=4
+description="每级齐射伤害 +25%、覆盖 +30%，增加弹头与攻击束。"

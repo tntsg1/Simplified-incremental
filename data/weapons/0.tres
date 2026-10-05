@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/weapon_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="导弹发射井"
+role="高频拦截 / 蜂群弹头"
+interval=1.2
+damage_multiplier=1.0
+coverage=1
+color=Color(0.35,0.88,0.76,1)
+beam=false

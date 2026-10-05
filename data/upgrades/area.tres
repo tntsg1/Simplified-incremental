@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/upgrade_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+key="area"
+title="火力范围"
+base_cost=120
+unlock_stage=2
+description="每级增加 18% 基础覆盖；Lv.10 群落爆裂使覆盖额外 +30%，Lv.25 区域轰击额外 +25%。"

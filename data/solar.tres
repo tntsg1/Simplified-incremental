@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+wave_density=PackedInt32Array(1,1,1,2,2,4,4,8,12,16)
+title="太阳系"
+subtitle="SOL / PLANETARY ARRAY"
+scale_label="恒星系防线 · 100 AU"
+accent=Color(1,0.72,0.32,1)
+count_multiplier=1024
+reward_multiplier=0.75
+regular_seconds=1800.0
+boss_hp=37500000000.0
+boss_window=55.0
+boss_title="外星攻城母舰 · LEVIATHAN"
+boss_kind="mothership"
+weapon_price=16000.0
+boss_reward=307200.0
+briefing="陨石云与外星舰队共同来袭。行星炮的范围攻击可以清除密集群落。"

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/upgrade_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+key="damage"
+title="弹头伤害"
+base_cost=20
+unlock_stage=0
+description="每级伤害 +15%。Lv.10 / 25 / 50，伤害翻倍；高阶弹头提高群落覆盖。"

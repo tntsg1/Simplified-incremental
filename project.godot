@@ -10,25 +10,22 @@ config_version=5
 
 [application]
 
-config/name="Stellar Ascension"
-config/description="2D 星际殖民 + Incremental + 轻量自动化"
+config/name="天穹防线"
+config/description="从城市到宇宙的科幻防御增量战役"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://assets/emblem.svg"
 
 [display]
 
-window/size/viewport_width=1280
-window/size/viewport_height=720
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/size/window_width_override=1600
+window/size/window_height_override=900
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
-
-[physics]
-
-3d/physics_engine="Jolt Physics"
 
 [rendering]
 
-rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.018, 0.027, 0.055, 1)

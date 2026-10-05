@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="城市"
+subtitle="CITY / FIRST LIGHT"
+scale_label="地表防线 · 10 km"
+accent=Color(0.35,0.88,0.76,1)
+count_multiplier=1
+reward_multiplier=1.0
+regular_seconds=480.0
+boss_hp=50000.0
+boss_window=45.0
+boss_title="毁城小行星 · CHIRON"
+boss_kind="asteroid"
+weapon_price=0.0
+boss_reward=400.0
+briefing="点击或按住陨石发射导弹。拦截获得资金，升级防御体系。"

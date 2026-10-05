@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/weapon_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="行星炮阵列"
+role="区域清除 / 行星阵列"
+interval=1.8
+damage_multiplier=1.275
+coverage=5
+color=Color(1,0.75,0.35,1)
+beam=true

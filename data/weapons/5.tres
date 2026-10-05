@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/weapon_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="宇宙炮"
+role="全域扫掠 / 宇宙共振"
+interval=8.0
+damage_multiplier=21.2
+coverage=60
+color=Color(0.7,0.88,1,1)
+beam=true
