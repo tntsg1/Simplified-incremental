@@ -1,512 +1,507 @@
 extends Node2D
+# Minimal monochrome battlefield: flat grey geometry, white threats, one amber
+# accent for criticals, bosses and danger. Every shape is drawn in _draw; no textures.
+
+const BG := Color("141414")
+const DOT := Color("262626")
+const INK := Color("ededed")
+const GREY := Color("b4b4b4")
+const DIM := Color("6a6a6a")
+const DARK := Color("2c2c2c")
+const SHADE := Color("1c1c1c")
+const ACCENT := Color("ffc94d")
 
 var sim: RefCounted
 var font: Font
 var clock: float = 0.0
 var hover: Vector2 = Vector2(-1000, -1000)
-var stars: Array[Vector3] = []
-var galaxy_points: PackedVector2Array = []
 var scene_transform := Transform2D.IDENTITY
-var draw_ms: float=0
-var star_mesh: MultiMesh
+var draw_ms: float = 0
+var reduced_effects: bool = false
+var trauma: float = 0
+var labels_left: int = 24
+var dot_mesh: MultiMesh
 var galaxy_mesh: MultiMesh
-var warm_galaxy_mesh: MultiMesh
-var labels_left: int=24
-var reduced_effects: bool=false
-var trauma: float=0
-var feedback: Array[Dictionary]=[]
-var feedback_pool: Array[Dictionary]=[]
-var recoil: Array[float]=[0,0,0,0,0,0]
-var aims: Array[float]=[0,0,0,0,0,0]
-var muzzle_limits: Array[float]=[0,0,0,0,0,0]
-var spark_limits: Array[float]=[0,0,0,0,0,0]
-var pierce_limits: Array[float]=[0,0,0,0,0,0]
-# Floating damage numbers: the visible half of number inflation.
-var numbers: Array[Dictionary]=[]
-var number_limits: Array[float]=[0,0,0,0,0,0]
-var tint:=Color.WHITE
-const RockTexture=preload("res://assets/rock.svg")
-const ShipTexture=preload("res://assets/ship.svg")
-const StarTexture=preload("res://assets/star.svg")
-const Fleet=[preload("res://assets/fleet/ship_0.svg"),preload("res://assets/fleet/ship_1.svg"),preload("res://assets/fleet/ship_2.svg"),preload("res://assets/fleet/ship_3.svg"),preload("res://assets/fleet/ship_4.svg"),preload("res://assets/fleet/ship_5.svg")]
-const Hazards=[preload("res://assets/fleet/hazard_0.svg"),preload("res://assets/fleet/hazard_1.svg"),preload("res://assets/fleet/hazard_2.svg"),preload("res://assets/fleet/hazard_3.svg"),preload("res://assets/fleet/hazard_4.svg"),preload("res://assets/fleet/hazard_5.svg")]
-const Guns=[preload("res://assets/fleet/weapon_0.svg"),preload("res://assets/fleet/weapon_1.svg"),preload("res://assets/fleet/weapon_2.svg"),preload("res://assets/fleet/weapon_3.svg"),preload("res://assets/fleet/weapon_4.svg"),preload("res://assets/fleet/weapon_5.svg")]
-const BossShip=preload("res://assets/fleet/boss_ship.svg")
-const EarthTexture=preload("res://assets/worlds/earth.svg")
-const PlanetTexture=preload("res://assets/worlds/rocky.svg")
-const SunTexture=preload("res://assets/worlds/sun.svg")
-var cyan := Color("65e2c1")
-var muted := Color("647e92")
+var galaxy_points: PackedVector2Array = []
+var feedback: Array[Dictionary] = []
+var feedback_pool: Array[Dictionary] = []
+var numbers: Array[Dictionary] = []
+var number_limits: Array[float] = [0, 0, 0, 0, 0, 0]
+var recoil: Array[float] = [0, 0, 0, 0, 0, 0]
+var aims: Array[float] = [-PI * .5, -PI * .5, -PI * .5, -PI * .5, -PI * .5, -PI * .5]
+var muzzle_limits: Array[float] = [0, 0, 0, 0, 0, 0]
+var spark_limits: Array[float] = [0, 0, 0, 0, 0, 0]
+var pierce_limits: Array[float] = [0, 0, 0, 0, 0, 0]
+var core_pulse: float = 0
 
 func _ready() -> void:
 	font = SystemFont.new()
 	font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC"])
+	dot_mesh = MultiMesh.new()
+	dot_mesh.transform_format = MultiMesh.TRANSFORM_2D
+	dot_mesh.use_colors = true
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2, 2)
+	dot_mesh.mesh = quad
+	var dots: Array[Vector2] = []
+	for x in range(-144, 1150, 24):
+		for y in range(-12, 640, 24):
+			dots.append(Vector2(x, y))
+	dot_mesh.instance_count = dots.size()
+	for i in range(dots.size()):
+		dot_mesh.set_instance_transform_2d(i, Transform2D(0, dots[i]))
+		dot_mesh.set_instance_color(i, DOT)
 	var random := RandomNumberGenerator.new()
 	random.seed = 9294
-	for i in range(260):
-		stars.append(Vector3(random.randf_range(-250, 1250), random.randf_range(-120, 720), random.randf_range(0.4, 1.7)))
-	for i in range(1800):
+	for i in range(1400):
 		var t: float = random.randf()
 		var r: float = sqrt(t) * 235
 		var a: float = t * 7.5 + (i % 4) * TAU / 4 + random.randfn(0, 0.13)
-		galaxy_points.append(Vector2(cos(a) * r, sin(a) * r))
-	star_mesh=MultiMesh.new()
-	star_mesh.transform_format=MultiMesh.TRANSFORM_2D
-	star_mesh.use_colors=true
-	var quad:=QuadMesh.new()
-	quad.size=Vector2(2,2)
-	star_mesh.mesh=quad
-	star_mesh.instance_count=stars.size()
-	for i in range(stars.size()):
-		var s: Vector3=stars[i]
-		star_mesh.set_instance_transform_2d(i,Transform2D(0,Vector2.ONE*s.z,0,Vector2(s.x,s.y)))
-		star_mesh.set_instance_color(i,Color(.6,.77,.91,.2+s.z*.2))
-	galaxy_mesh=make_galaxy_mesh(Color("9aa7d4"))
-	warm_galaxy_mesh=make_galaxy_mesh(Color("c1a4c6"))
-	for i in range(144):feedback_pool.append({})
-
-func add_feedback(kind: String, point: Vector2, index: int, size: float, duration: float, destination: Vector2=Vector2.ZERO) -> void:
-	if feedback.size()>=48:return
-	var fx: Dictionary=feedback_pool.pop_back() if not feedback_pool.is_empty() else {}
-	fx.clear()
-	fx.merge({"kind":kind,"pos":point,"weapon":index,"size":size,"age":0.0,"duration":duration,"end":destination,"seed":int(point.x*17+point.y*23)})
-	feedback.append(fx)
-
-func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
-	recoil[index]=1.0
-	aims[index]=(destination-point).angle()
-	if muzzle_limits[index]>0:return
-	muzzle_limits[index]=.075
-	add_feedback("muzzle",point,index,18+index*6,.16)
-	if index>=2:add_feedback("beam",point,index,1.5+index*.8,.19,destination)
-	if critical:add_feedback("critical",destination,index,24,.28)
-
-func on_hit(point: Vector2, index: int, amount: float, critical: bool, boss: bool, _kind: String) -> void:
-	if amount>0 and (number_limits[index]<=0 or critical) and numbers.size()<28:
-		if boss:
-			# One weapon at a time over the boss, spread across its hull.
-			for i in range(6):number_limits[i]=maxf(number_limits[i],.22)
-		number_limits[index]=.12 if not boss else .22
-		var spread: Vector2=Vector2(randf_range(-45,45),randf_range(-30,20)) if boss else Vector2(randf_range(-10,10),-6)
-		numbers.append({"pos":point+spread,"text":sim.Catalog.number(amount),"age":0.0,"size":21 if boss else 17 if critical else 13,"color":Color("ffd27a") if critical else Color("e8f1f6")})
-	if spark_limits[index]>0:return
-	spark_limits[index]=.085
-	add_feedback("spark",point,index,22 if critical else 13,.28)
-	trauma=minf(.42,trauma+(.07 if boss else .025))
-
-func on_members_removed(point: Vector2, index: int, members: int, kind: String) -> void:
-	add_feedback("debris_ship" if kind.contains("ship") else "debris_rock",point,index,12+minf(15,log(maxf(1,members))*1.2),.48)
-
-func on_pierced(origin: Vector2, destination: Vector2, index: int) -> void:
-	if pierce_limits[index]>0:return
-	pierce_limits[index]=.14
-	add_feedback("pierce",origin,index,1,.23,destination)
-
-func on_destroyed(point: Vector2, index: int, members: int, boss: bool, kind: String) -> void:
-	if boss and feedback.size()>=48:feedback_pool.append(feedback.pop_front())
-	var size: float=92 if boss else 20+minf(22,log(maxf(1,members))*2)
-	add_feedback("boss_death" if boss else "debris_ship" if kind.contains("ship") else "debris_rock",point,index,size,2.3 if boss else .85)
-	trauma=.95 if boss else minf(.45,trauma+.1)
-
-func animate(delta: float) -> void:
-	trauma=maxf(0,trauma-delta*2.3)
-	for i in range(6):
-		recoil[i]=maxf(0,recoil[i]-delta*5.5)
-		muzzle_limits[i]=maxf(0,muzzle_limits[i]-delta)
-		spark_limits[i]=maxf(0,spark_limits[i]-delta)
-		pierce_limits[i]=maxf(0,pierce_limits[i]-delta)
-		number_limits[i]=maxf(0,number_limits[i]-delta)
-	for i in range(numbers.size()-1,-1,-1):
-		numbers[i].age=float(numbers[i].age)+delta
-		if float(numbers[i].age)>=.75:
-			numbers.remove_at(i)
-	for i in range(feedback.size()-1,-1,-1):
-		feedback[i].age=float(feedback[i].age)+delta
-		if float(feedback[i].age)>=float(feedback[i].duration):
-			feedback_pool.append(feedback[i])
-			feedback.remove_at(i)
-
-func shake_offset() -> Vector2:
-	if reduced_effects:return Vector2.ZERO
-	return Vector2(sin(clock*47),sin(clock*59+1.7))*trauma*trauma*7
-
-func draw_feedback() -> void:
-	for fx in feedback:
-		var t: float=float(fx.age)/float(fx.duration)
-		var p: Vector2=fx.pos
-		var c: Color=sim.catalog.weapons[int(fx.weapon)].color
-		c.a=(1-t)*(.5 if reduced_effects else 1)
-		var r: float=float(fx.size)
-		match str(fx.kind):
-			"pierce":
-				var destination: Vector2=fx.end
-				for j in range(4):draw_line(p.lerp(destination,j*.25),p.lerp(destination,j*.25+.15),Color(c,c.a*.6),1.2,true)
-				draw_arc(destination,5+6*t,0,TAU,16,Color(c,c.a*.6),1,true)
-			"beam":
-				var destination: Vector2=fx.end
-				draw_line(p,destination,Color(c,c.a*.045),r*7,true)
-				draw_line(p,destination,Color(c,c.a*.65),r,true)
-				draw_line(p,destination,Color(1,1,1,c.a*.8),.8,true)
-			"muzzle":
-				draw_texture_rect(StarTexture,Rect2(p-Vector2.ONE*r,Vector2.ONE*r*2),false,c)
-			"spark","critical":
-				draw_texture_rect(StarTexture,Rect2(p-Vector2.ONE*r*(1+t),Vector2.ONE*r*(2+2*t)),false,Color(1,.9,.78,c.a*.8))
-				for j in range(3):
-					var angle: float=j*TAU/5+int(fx.seed)
-					var dir:=Vector2(cos(angle),sin(angle))
-					draw_line(p+dir*r*t,p+dir*r*(t+.24),c,1.5,true)
-				if fx.kind=="critical":ink("暴击",p+Vector2(16,-18-t*14),c,12)
-			"debris_rock","debris_ship","boss_death":
-				var boss: bool=fx.kind=="boss_death"
-				draw_arc(p,r*(.3+t*2.2),0,TAU,48 if boss else 20,Color(c,c.a*.65),2.5 if boss else 1,true)
-				draw_texture_rect(StarTexture,Rect2(p-Vector2.ONE*r*(1-t*.7),Vector2.ONE*r*2*(1-t*.7)),false,Color(c,c.a*.9))
-				if not reduced_effects:
-					for j in range(22 if boss else 4):
-						var angle: float=j*2.399+int(fx.seed)
-						var direction:=Vector2(cos(angle),sin(angle))
-						var q: Vector2=p+direction*r*(1-pow(1-t,2))*(.6+(j%4)*.5)
-						var shard: float=(4 if not boss else 9)*(1-t)+.2
-						draw_texture_rect(ShipTexture if fx.kind=="debris_ship" else RockTexture,Rect2(q-Vector2.ONE*shard,Vector2.ONE*shard*2),false,Color(c,c.a))
-						draw_line(q-direction*5,q,c,1,true)
-
-func make_galaxy_mesh(color: Color) -> MultiMesh:
-	var mesh:=MultiMesh.new()
-	mesh.transform_format=MultiMesh.TRANSFORM_2D
-	mesh.use_colors=true
-	var quad:=QuadMesh.new()
-	quad.size=Vector2(2,2)
-	mesh.mesh=quad
-	mesh.instance_count=galaxy_points.size()
+		galaxy_points.append(Vector2(cos(a), sin(a)) * r)
+	galaxy_mesh = MultiMesh.new()
+	galaxy_mesh.transform_format = MultiMesh.TRANSFORM_2D
+	galaxy_mesh.use_colors = true
+	galaxy_mesh.mesh = quad
+	galaxy_mesh.instance_count = galaxy_points.size()
 	for i in range(galaxy_points.size()):
-		mesh.set_instance_transform_2d(i,Transform2D(0,Vector2.ONE*(1.0 if i%4 else 2.1),0,galaxy_points[i]))
-		mesh.set_instance_color(i,Color(color,.22+(i%7)*.07))
-	return mesh
+		galaxy_mesh.set_instance_transform_2d(i, Transform2D(0, Vector2.ONE * (0.8 if i % 4 else 1.6), 0, galaxy_points[i]))
+		galaxy_mesh.set_instance_color(i, Color(GREY, .18 + (i % 7) * .05))
+	for i in range(160):
+		feedback_pool.append({})
 
-func ink(text: String, pos: Vector2, color: Color = Color("8fa5b8"), size: int = 12) -> void:
+# ---------- shape helpers ----------
+
+func ngon(sides: int, radius: float, rotation: float, center: Vector2 = Vector2.ZERO) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for i in range(sides):
+		var a: float = rotation + i * TAU / sides
+		points.append(center + Vector2(cos(a), sin(a)) * radius)
+	return points
+
+func shape(center: Vector2, radius: float, sides: int, rotation: float, fill: Color, outline: Color = Color(0, 0, 0, 0), width: float = 1.5) -> void:
+	if radius <= .3:
+		return
+	var points := ngon(sides, radius, rotation, center)
+	if fill.a > 0:
+		draw_colored_polygon(points, fill)
+	if outline.a > 0:
+		points.append(points[0])
+		draw_polyline(points, outline, width, true)
+
+func star(center: Vector2, radius: float, rotation: float, color: Color) -> void:
+	var points := PackedVector2Array()
+	for i in range(10):
+		var a: float = rotation + i * TAU / 10
+		points.append(center + Vector2(cos(a), sin(a)) * (radius if i % 2 == 0 else radius * .48))
+	draw_colored_polygon(points, color)
+
+func ink(text: String, pos: Vector2, color: Color = DIM, size: int = 12) -> void:
 	if not scene_transform.is_equal_approx(Transform2D.IDENTITY):
 		return
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
-func orbit(center: Vector2, radius: Vector2, color: Color, width: float = 1.0) -> void:
-	var points := PackedVector2Array()
-	for j in range(81):
-		var a: float = j * TAU / 80
-		points.append(center + Vector2(cos(a), sin(a)) * radius)
-	draw_polyline(points, color, width, true)
+func ink_outlined(text: String, pos: Vector2, color: Color, size: int) -> void:
+	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(BG, .9 * color.a))
+	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
-func glow(center: Vector2, radius: float, color: Color) -> void:
-	draw_texture_rect(StarTexture,Rect2(center-Vector2.ONE*radius*2,Vector2.ONE*radius*4),false,Color(color,color.a*.33))
-	draw_circle(center, radius, color)
+func ring(center: Vector2, radius: float, color: Color, width: float = 1.0) -> void:
+	draw_arc(center, radius, 0, TAU, maxi(32, int(radius * .6)), color, width, true)
 
-func planet(center: Vector2, radius: float, earth: bool = true) -> void:
-	# Flat disc + outline: pure 2D, no lighting or atmosphere.
-	var fill: Color=Color("1d5670") if earth else Color("5a5668")
-	draw_circle(center,radius,fill*tint)
-	draw_arc(center,radius,0,TAU,maxi(24,int(radius)),Color("7fd3e6") if earth else Color("9a94a8"),maxf(1.0,radius*.04),true)
+func pop(age: float) -> float:
+	# Ease-out-back from 0 to 1 over ~0.28 s for spawns.
+	var t: float = clampf(age / .28, 0, 1)
+	var c: float = 1.70158
+	return 1 + (c + 1) * pow(t - 1, 3) + c * pow(t - 1, 2)
 
-func city() -> void:
-	for i in range(7):
-		draw_line(Vector2(-220, 525 + i * 7), Vector2(1220, 525 + i * 7), Color(0.2, 0.48, 0.52, 0.025), 8)
-	for layer in range(3):
-		for i in range(35):
-			var x: float = -210 + i * 43 + layer * 17
-			var height: float = 28 + fmod(i * 39.3 + layer * 43, 104) + (40 if i % 8 == 0 else 0)
-			var y: float = 555 + layer * 22
-			var shade := Color("0b1c2d") if layer == 0 else Color("102739") if layer == 1 else Color("163347")
-			draw_rect(Rect2(x, y - height, 28 + layer * 7, height), shade)
-			draw_line(Vector2(x, y - height), Vector2(x + 28 + layer * 7, y - height), Color("365166"), 1)
-			if i % 5 == 0:
-				draw_line(Vector2(x + 12, y-height), Vector2(x+12,y-height-15), muted, 1)
-			for row in range(int(height / 12) - 1):
-				for col in range(3):
-					if (row + col + i) % 4 != 0:
-						draw_rect(Rect2(x + 5 + col * 7, y - height + 9 + row * 11, 2, 3), Color("658779") if layer < 2 else Color("afaf73"))
-	draw_rect(Rect2(-250, 600, 1500, 130), Color("081725"))
-	draw_line(Vector2(-250, 601), Vector2(1250, 601), cyan * Color(1,1,1,0.25), 1)
-	for x in range(-200, 1200, 80):
-		draw_line(Vector2(x, 617), Vector2(x + 30, 617), Color("254155"), 2)
-	ink("01  /  防御控制中心", Vector2(555, 579), Color("b4c9d1"), 12)
-	ink("地表发射阵列  ──────", Vector2(190, 650), muted)
+# ---------- feedback events ----------
 
-func galaxy(center: Vector2, size: float, color: Color, rotation: float = 0) -> void:
-	draw_set_transform_matrix(scene_transform * Transform2D(rotation,Vector2.ONE*size,0,center))
-	draw_multimesh(warm_galaxy_mesh if color.r>color.b*.95 else galaxy_mesh,StarTexture)
-	glow(Vector2.ZERO, 14, Color(color, 0.7))
+func add_feedback(kind: String, point: Vector2, index: int, size: float, duration: float, destination: Vector2 = Vector2.ZERO) -> void:
+	if feedback.size() >= 64:
+		return
+	var fx: Dictionary = feedback_pool.pop_back() if not feedback_pool.is_empty() else {}
+	fx.clear()
+	fx.merge({"kind": kind, "pos": point, "weapon": index, "size": size, "age": 0.0, "duration": duration, "end": destination, "seed": int(point.x * 17 + point.y * 23)})
+	feedback.append(fx)
+
+func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
+	recoil[index] = 1.0
+	aims[index] = (destination - point).angle()
+	core_pulse = 1.0
+	if muzzle_limits[index] > 0:
+		return
+	muzzle_limits[index] = .075
+	add_feedback("muzzle", point + Vector2(cos(aims[index]), sin(aims[index])) * 14, index, 7 + index, .12)
+	if index >= 2:
+		add_feedback("beam", point, index, 1.2 + index * .25, .16, destination)
+	if critical:
+		add_feedback("critical", destination, index, 16, .3)
+
+func on_hit(point: Vector2, index: int, amount: float, critical: bool, boss: bool, _kind: String) -> void:
+	if amount > 0 and (number_limits[index] <= 0 or critical) and numbers.size() < 28:
+		if boss:
+			# One weapon at a time over the boss, spread across its hull.
+			for i in range(6):
+				number_limits[i] = maxf(number_limits[i], .22)
+		number_limits[index] = .12 if not boss else .22
+		var spread: Vector2 = Vector2(randf_range(-90, 90), randf_range(-60, 50)) if boss else Vector2(randf_range(-10, 10), -6)
+		numbers.append({"pos": point + spread, "text": sim.Catalog.number(amount), "age": 0.0, "size": 21 if boss else 17 if critical else 13, "color": ACCENT if critical else INK if boss else Color("d6d6d6")})
+	if spark_limits[index] > 0:
+		return
+	spark_limits[index] = .085
+	add_feedback("spark", point, index, 16 if critical else 10, .22)
+	trauma = minf(.42, trauma + (.07 if boss else .02))
+
+func on_members_removed(point: Vector2, index: int, members: int, _kind: String) -> void:
+	add_feedback("shards", point, index, 10 + minf(14, log(maxf(1, members)) * 1.2), .5)
+
+func on_pierced(origin: Vector2, destination: Vector2, index: int) -> void:
+	if pierce_limits[index] > 0:
+		return
+	pierce_limits[index] = .14
+	add_feedback("pierce", origin, index, 1, .22, destination)
+
+func on_destroyed(point: Vector2, index: int, members: int, boss: bool, _kind: String) -> void:
+	if boss and feedback.size() >= 64:
+		feedback_pool.append(feedback.pop_front())
+	var size: float = 110 if boss else 18 + minf(20, log(maxf(1, members)) * 2)
+	add_feedback("boss_death" if boss else "shards", point, index, size, 2.2 if boss else .7)
+	trauma = .95 if boss else minf(.45, trauma + .08)
+
+func animate(delta: float) -> void:
+	trauma = maxf(0, trauma - delta * 2.3)
+	core_pulse = maxf(0, core_pulse - delta * 6)
+	for i in range(6):
+		recoil[i] = maxf(0, recoil[i] - delta * 6.5)
+		muzzle_limits[i] = maxf(0, muzzle_limits[i] - delta)
+		spark_limits[i] = maxf(0, spark_limits[i] - delta)
+		pierce_limits[i] = maxf(0, pierce_limits[i] - delta)
+		number_limits[i] = maxf(0, number_limits[i] - delta)
+	for i in range(numbers.size() - 1, -1, -1):
+		numbers[i].age = float(numbers[i].age) + delta
+		if float(numbers[i].age) >= .75:
+			numbers.remove_at(i)
+	for i in range(feedback.size() - 1, -1, -1):
+		feedback[i].age = float(feedback[i].age) + delta
+		if float(feedback[i].age) >= float(feedback[i].duration):
+			feedback_pool.append(feedback[i])
+			feedback.remove_at(i)
+
+func shake_offset() -> Vector2:
+	if reduced_effects:
+		return Vector2.ZERO
+	return Vector2(sin(clock * 47), sin(clock * 59 + 1.7)) * trauma * trauma * 7
+
+func draw_feedback() -> void:
+	for fx in feedback:
+		var t: float = float(fx.age) / float(fx.duration)
+		var p: Vector2 = fx.pos
+		var fade: float = (1 - t) * (.55 if reduced_effects else 1.0)
+		var r: float = float(fx.size)
+		var seed_value: int = int(fx.seed)
+		match str(fx.kind):
+			"pierce":
+				var destination: Vector2 = fx.end
+				for j in range(4):
+					draw_line(p.lerp(destination, j * .25), p.lerp(destination, j * .25 + .14), Color(GREY, fade * .7), 1.2, true)
+				ring(destination, 4 + 6 * t, Color(GREY, fade * .6))
+			"beam":
+				var destination: Vector2 = fx.end
+				draw_line(p, destination, Color(INK, fade * .08), r * 6, true)
+				draw_line(p, destination, Color(INK, fade * .9), r, true)
+			"muzzle":
+				draw_circle(p, r * (1 - t * .5), Color(INK, fade))
+			"spark", "critical":
+				var col: Color = ACCENT if fx.kind == "critical" else INK
+				ring(p, r * (.4 + t), Color(col, fade), 1.5)
+				for j in range(4):
+					var a: float = j * TAU / 4 + seed_value
+					var dir := Vector2(cos(a), sin(a))
+					draw_line(p + dir * r * t, p + dir * r * (t + .35), Color(col, fade), 1.5, true)
+				if fx.kind == "critical":
+					ink("暴击", p + Vector2(14, -16 - t * 12), Color(ACCENT, fade), 12)
+			"shards", "boss_death":
+				var boss: bool = fx.kind == "boss_death"
+				var travel: float = 1 - pow(1 - t, 3)
+				if boss:
+					for k in range(3):
+						ring(p, r * (.2 + travel * (1.2 + k * .5)), Color(ACCENT if k == 0 else INK, fade * .7), 3.0 - k)
+				else:
+					ring(p, r * (.3 + travel * 1.4), Color(INK, fade * .5), 1.0)
+				if not reduced_effects or boss:
+					for j in range(24 if boss else 7):
+						var a: float = j * 2.399 + seed_value
+						var dir := Vector2(cos(a), sin(a))
+						var reach: float = r * (.7 + (j % 4) * .35)
+						var q: Vector2 = p + dir * reach * travel
+						var size: float = (6.0 if boss else 3.2) * (1 - t * .8) + .6
+						shape(q, size, 3, a + t * 9, Color(INK if j % 3 else GREY, fade))
+
+# ---------- scene ----------
+
+func galaxy(center: Vector2, size: float, rotation: float = 0) -> void:
+	draw_set_transform_matrix(scene_transform * Transform2D(rotation + clock * .02, Vector2.ONE * size, 0, center))
+	draw_multimesh(galaxy_mesh, null)
+	draw_circle(Vector2.ZERO, 10, Color(GREY, .5))
 	draw_set_transform_matrix(scene_transform)
+
+func core(center: Vector2, layers: int) -> void:
+	# The defense core gains a hexagonal shell per scale reached.
+	var swell: float = 1 + core_pulse * .08
+	for i in range(layers, 0, -1):
+		var radius: float = (9 + i * 7) * swell
+		var spin: float = clock * (.25 if i % 2 else -.18) + i * .3
+		shape(center, radius, 6, spin, Color(0, 0, 0, 0), Color(GREY if i == 1 else DIM, .9), 1.4)
+	shape(center, 9 * swell, 6, clock * .4, INK)
 
 func stage_scene(index: int) -> void:
 	var c := Vector2(500, 325)
 	match index:
 		0:
-			city()
+			for i in range(30):
+				var x: float = -150 + i * 44
+				var height: float = 26 + fmod(i * 37.3, 96) + (34 if i % 7 == 0 else 0)
+				draw_rect(Rect2(x, 600 - height, 34, height), SHADE if i % 2 else Color("191919"))
+			draw_line(Vector2(-150, 600), Vector2(1150, 600), DIM, 1.5)
+			ink("01  /  防御控制中心", Vector2(540, 624), DIM, 12)
 		1:
-			orbit(c, Vector2.ONE*190, Color("294655"))
-			orbit(c, Vector2.ONE*247, Color("182f42"))
-			planet(c, 81)
-			planet(c + Vector2(247, -33), 12, false)
-			ink("地球", c + Vector2(-15, 109), Color("b1d9e9"), 14)
-			ink("城市防线", c + Vector2(92, -59))
-			draw_line(c + Vector2(47, 31), c + Vector2(91, -45), Color("497f8d"), 1)
-			draw_circle(c + Vector2(47,31), 3, cyan)
+			ring(c, 190, DARK)
+			ring(c, 247, DARK)
+			draw_circle(c, 81, SHADE)
+			ring(c, 81, DIM, 2)
+			draw_circle(c + Vector2(247, -33), 9, DARK)
+			ink("地球", c + Vector2(-15, 106), DIM, 13)
 		2:
 			for i in range(5):
-				orbit(c, Vector2.ONE*(70 + i*55), Color("30404c"))
-			glow(c, 37, Color("eabd63"))
-			draw_circle(c,40,Color("efc46b"))
-			draw_arc(c, 43, clock*.1, clock*.1+4.3, 48, Color("8d633e"), 1)
-			for i in range(5):
-				var a: float = i * 1.72 + 0.2
-				var p: Vector2 = c + Vector2(cos(a),sin(a))*(70+i*55)
-				planet(p, 5 + i * 2, i == 1)
-			ink("太阳", c + Vector2(-15, 65), Color("dfc287"), 14)
-			ink("地球轨道炮", c + Vector2(104, 52))
+				ring(c, 70 + i * 55, DARK)
+				var a: float = i * 1.72 + .2 + clock * .03 / (i + 1)
+				draw_circle(c + Vector2(cos(a), sin(a)) * (70 + i * 55), 4 + i * 1.5, DIM if i != 1 else GREY)
+			draw_circle(c, 42, SHADE)
+			ring(c, 42, GREY, 2)
+			ink("太阳", c + Vector2(-15, 62), DIM, 13)
 		3:
-			galaxy(c, 1.15, Color("909ece"), -0.2)
-			orbit(c, Vector2.ONE*285, Color("2d3552"))
-			ink("银河核心", c + Vector2(-29, 46), Color("c3b8e7"), 14)
-			draw_circle(c + Vector2(160, 16), 3, Color("eac37f"))
-			ink("太阳系", c + Vector2(170, 22))
+			galaxy(c, 1.15, -.2)
+			ring(c, 285, DARK)
+			draw_circle(c + Vector2(160, 16), 3, GREY)
+			ink("太阳系", c + Vector2(168, 22), DIM, 12)
 		4:
 			for i in range(7):
 				var a: float = i * 2.4
-				var p: Vector2 = c + Vector2(cos(a), sin(a))*215
-				draw_line(c, p, Color("263949"), 1)
-				galaxy(p, 0.33, Color("c1a4c6"), a*.3)
-			galaxy(c, 0.62, Color("a3b7dc"), -0.4)
-			orbit(c, Vector2.ONE*295, Color("3b304c"))
-			ink("本星系群", c + Vector2(-25, 68), Color("d3bdde"), 14)
+				var p: Vector2 = c + Vector2(cos(a), sin(a)) * 215
+				draw_line(c, p, DARK, 1)
+				galaxy(p, .3, a * .3)
+			galaxy(c, .6, -.4)
+			ring(c, 295, DARK)
+			ink("本星系群", c + Vector2(-25, 68), DIM, 13)
 		5:
 			for i in range(34):
 				var a: float = i * 2.399
-				var r: float = sqrt(float(i)/34)*290
-				var p: Vector2 = c + Vector2(cos(a), sin(a))*r
-				var p2: Vector2 = c + Vector2(cos(a+1.5), sin(a+1.5))*r*.75
-				draw_line(p,p2,Color("223d50"),1)
-				glow(p, 3 + i%3, Color("7696ba"))
-			orbit(c,Vector2.ONE*300, Color("456278"),1.4)
-			galaxy(c,.10,Color("c1a4c6"),-.4)
-			ink("可观测宇宙 · 防御枢纽", c+Vector2(-65,56),Color("bdd7e5"),14)
+				var r: float = sqrt(float(i) / 34) * 290
+				var p: Vector2 = c + Vector2(cos(a), sin(a)) * r
+				var p2: Vector2 = c + Vector2(cos(a + 1.5), sin(a + 1.5)) * r * .75
+				draw_line(p, p2, DARK, 1)
+				draw_circle(p, 2 + i % 3, DIM)
+			ring(c, 300, DARK, 1.4)
+			ink("可观测宇宙 · 防御枢纽", c + Vector2(-65, 56), DIM, 13)
+	core(Vector2(500, 572) if index == 0 else c, index + 1)
 
 func weapon(index: int, point: Vector2, small: bool = false) -> void:
-	var c: Color = sim.catalog.weapons[index].color
-	var tier: int = int(sim.levels.reload) / 10
-	var s: float = 0.72 if small else 1.0
-	var direction:=Vector2(cos(aims[index]),sin(aims[index]))
-	var position: Vector2=point-direction*recoil[index]*(3+index)
-	draw_set_transform_matrix(scene_transform * Transform2D(0 if index==0 else aims[index],Vector2.ONE*s,0,position))
-	if index==0 and tier>=1:
-		draw_texture_rect(Guns[index],Rect2(-59,-22,56,28),false)
-		draw_texture_rect(Guns[index],Rect2(3,-22,56,28),false)
-	else:
-		draw_texture_rect(Guns[index],Rect2(-42,-21,84,42),false)
-	for j in range(mini(5,tier)):
-		draw_line(Vector2(-17+j*7,17),Vector2(-13+j*7,17),c,2,true)
-	if index>=2:glow(Vector2(23,0),3+index*.4,c)
-	draw_set_transform_matrix(scene_transform)
-	if not small and (index==sim.stage or hover.distance_to(point)<48):
-		ink(sim.catalog.weapons[index].title,point+Vector2(-30,43),Color("a0b5c5"),10)
-	if hover.distance_to(point)<30:
-		var panel: Vector2=point+Vector2(-115,-96)
-		draw_rect(Rect2(panel,Vector2(230,65)),Color("0b1d2b"))
-		draw_rect(Rect2(panel,Vector2(230,65)),Color(c,.45),false,1)
-		ink(sim.catalog.weapons[index].title+" · 在役",panel+Vector2(10,19),c,13)
-		ink("齐射 "+sim.Catalog.number(sim.shot_damage(index))+" / "+("%.2f s"%sim.shot_interval(index)),panel+Vector2(10,38),Color("b1c4d2"),11)
-		ink("每次覆盖 "+sim.Catalog.number(sim.coverage(index))+" 成员",panel+Vector2(10,55),Color("89a5b8"),11)
+	# Turret i is a (3+i)-gon, so older weapons stay recognisable at larger scales.
+	var s: float = .7 if small else 1.0
+	var direction := Vector2(cos(aims[index]), sin(aims[index]))
+	var p: Vector2 = point - direction * recoil[index] * (3 + index)
+	var radius: float = (10 + index * 1.2) * s
+	shape(p, radius, 3 + index, aims[index], BG, INK, 1.6)
+	draw_line(p, p + direction * (radius + 7 * s), INK, 2.0 * s, true)
+	var tier: int = mini(5, int(sim.levels.reload) / 10)
+	for j in range(tier):
+		draw_circle(p + Vector2(-radius + j * 4.5, radius + 6), 1.3, GREY)
+	if not small and (index == sim.stage or hover.distance_to(point) < 48):
+		ink(sim.catalog.weapons[index].title, point + Vector2(-26, radius + 24), DIM, 10)
+	if hover.distance_to(point) < 30:
+		var panel: Vector2 = point + Vector2(-115, -96)
+		draw_rect(Rect2(panel, Vector2(230, 65)), Color("1a1a1a"))
+		draw_rect(Rect2(panel, Vector2(230, 65)), DARK, false, 1)
+		ink(sim.catalog.weapons[index].title + " · 在役", panel + Vector2(10, 19), INK, 13)
+		ink("齐射 " + sim.Catalog.number(sim.shot_damage(index)) + " / " + ("%.2f s" % sim.shot_interval(index)), panel + Vector2(10, 38), GREY, 11)
+		ink("每次覆盖 " + sim.Catalog.number(sim.coverage(index)) + " 成员", panel + Vector2(10, 55), DIM, 11)
 
-func asteroid(point: Vector2, radius: float, seed_value: int, boss: bool = false) -> void:
-	var shade: Color=Color("cbb5b6") if boss else Color(1,1,1,1) if seed_value%3 else Color("b8b1bf")
-	draw_set_transform_matrix(scene_transform*Transform2D(seed_value*.19+clock*.06,point))
-	draw_texture_rect(Hazards[sim.stage],Rect2(-Vector2.ONE*radius,Vector2.ONE*radius*2),false,shade*tint)
-	draw_set_transform_matrix(scene_transform)
-	if boss:
-		draw_line(point+Vector2(-radius*.6,-radius*.4),point+Vector2(radius*.3,radius*.55),Color("d77a5a"),2)
-
-func ship(point: Vector2, radius: float, boss: bool = false, angle: float=0) -> void:
-	draw_set_transform_matrix(scene_transform*Transform2D(angle,point))
-	draw_texture_rect(BossShip if boss else Fleet[sim.stage],Rect2(-Vector2.ONE*radius,Vector2.ONE*radius*2),false,tint)
-	if boss:
-		for i in range(4):
-			var x: float = (i-1.5)*radius*.35
-			draw_rect(Rect2(x-5,-radius*.2,10,radius*.45),Color("a07391"))
-			glow(Vector2(x,radius*.6),4,Color("d47ec1"))
-	draw_set_transform_matrix(scene_transform)
+func boss_shape(p: Vector2, radius: float, kind: String, flash: float) -> void:
+	var fill: Color = SHADE.lerp(INK, flash)
+	match kind:
+		"planet":
+			draw_circle(p, radius, fill)
+			ring(p, radius, INK, 3)
+			ring(p, radius * .62, Color(GREY, .8), 1.5)
+		"star":
+			star(p, radius * 1.1, clock * .3, fill)
+			ring(p, radius * .55, INK, 2.5)
+			draw_arc(p, radius + 12, clock, clock + 5.2, 80, Color(ACCENT, .7), 2, true)
+		"rift":
+			for j in range(6, 0, -1):
+				draw_arc(p, radius * (.5 + j * .1), clock * (.1 + j * .05), clock * (.1 + j * .05) + 5.4, 80, Color(GREY, .25 + j * .05), 2, true)
+			draw_circle(p, radius * .45, BG)
+			ring(p, radius * .45, INK, 3)
+		"mothership":
+			shape(p, radius, 5, -PI * .5, fill, INK, 3)
+			shape(p, radius * .55, 5, PI * .5 + clock * .4, Color(0, 0, 0, 0), GREY, 2)
+		_:
+			shape(p, radius, 7, clock * .15, fill, INK, 3)
+			shape(p, radius * .5, 4, -clock * .5, Color(0, 0, 0, 0), GREY, 2)
 
 func enemy(e: Dictionary) -> void:
 	var p: Vector2 = e.pos
 	var radius: float = float(e.radius)
 	var boss: bool = bool(e.boss)
-	var focused: bool=int(e.id)==sim.priority_id or hover.distance_to(p)<radius+13
-	var dense: bool=sim.enemies.size()>70
-	if dense and not boss and not focused:radius*=.75
-	var flash: float=clampf(float(e.get("flash",0))/.12,0,1)
-	tint=Color(1+flash*2,1+flash*2,1+flash*2,1)
-	p+=Vector2(sin(clock*70),cos(clock*63))*flash*(.5 if boss else 1.6)
-	var danger: float = float(e.age)/float(e.lifetime)
+	var focused: bool = int(e.id) == sim.priority_id or hover.distance_to(p) < radius + 13
+	var dense: bool = sim.enemies.size() > 70
 	if dense and not boss and not focused:
-		tint.a=clampf(.48+danger*.5+flash*.45,.48,1)
-	var trail: Vector2 = (Vector2(e.start)-Vector2(e.end)).normalized()
-	draw_line(p,p+trail*radius*3,Color(0.8,0.46,0.49,0.1),radius*.7,true)
-	var kind: String = e.kind
-	var heading: float=(-trail).angle()+PI*.5+sin(clock*.8+int(e.seed))*.035
-	if kind in ["ship","elite_ship","mothership"]:
-		ship(p,radius,boss,heading)
-	elif kind == "star":
-		glow(p,radius,Color("ee9671"))
-		draw_circle(p,radius,Color("f0a27a")*tint)
-		draw_arc(p,radius+12,clock,clock+5.2,80,Color("b875a0"),3,true)
-	elif kind == "planet":
-		planet(p,radius,false)
-	elif kind == "rift":
-		for j in range(7,0,-1):
-			draw_arc(p,radius+j*4,clock*(.08+j*.04),clock*(.08+j*.04)+5.6,80,Color(.45,.65,.86,.16),2,true)
-		draw_circle(p,radius*.65,Color("030912"))
-		draw_arc(p,radius*.72,-clock*.2,-clock*.2+5.5,80,Color("c2ddf2"),3,true)
+		radius *= .75
+	var flash: float = clampf(float(e.get("flash", 0)) / .12, 0, 1)
+	var appear: float = pop(float(e.age)) if not boss else 1.0
+	var danger: float = float(e.age) / float(e.lifetime)
+	var heading: float = (Vector2(e.end) - Vector2(e.start)).angle()
+	var trail: Vector2 = -Vector2(cos(heading), sin(heading))
+	if not boss:
+		draw_line(p, p + trail * radius * 2.6, Color(GREY, .14), maxf(1.0, radius * .35), true)
+	if boss:
+		boss_shape(p, radius * (1 + flash * .04), str(e.kind), flash)
 	else:
-		asteroid(p,radius,int(e.seed),boss)
-	if int(e.members)>1:
-		var companions: int=6 if not dense else 2 if focused or danger>.8 else 0
-		for j in range(mini(companions,int(e.members)-1)):
-			var a: float = j*2.39
-			var q: Vector2 = p + Vector2(cos(a),sin(a))*radius*1.5
-			if kind == "ship":
-				ship(q,5,false,heading)
-			else:
-				asteroid(q,4,int(e.seed)+j)
-		if labels_left>0 or int(e.id)==sim.priority_id or p.distance_to(hover)<radius+13:
-			ink("×"+sim.Catalog.number(e.members),p+Vector2(-15,radius+20),Color("b5c5d4"),12)
-			labels_left-=1
-	if bool(e.elite) and not boss:
-		draw_arc(p,radius+6,0,TAU,40,Color("c393a9"),1,true)
-		if sim.enemies.size()<60 or hover.distance_to(p)<radius+13 or int(e.id)==sim.priority_id:
-			ink("精英",p+Vector2(-12,-radius-11),Color("d8b9ce"),10)
-	if danger>.7:
-		draw_arc(p,radius+10,-PI*.5,-PI*.5+TAU*danger,40,Color("e99b77"),1.5,true)
-	if int(e.id)==sim.priority_id or p.distance_to(hover)<radius+13:
-		var col: Color = cyan if int(e.id)==sim.priority_id else Color("a4b6c7")
+		var size: float = radius * .78 * appear * (1 + flash * .18)
+		var spin: float = clock * (.6 + float(int(e.seed) % 7) * .15) + int(e.seed)
+		var ship: bool = str(e.kind).contains("ship")
+		var fill: Color = (INK if ship else GREY).lerp(Color.WHITE, flash)
+		if dense and not focused:
+			fill.a = clampf(.5 + danger * .5 + flash, .5, 1)
+		if bool(e.elite):
+			shape(p, size * 1.15, 6 if ship else 8, spin * .5, Color(0, 0, 0, 0), INK, 1.5)
+			shape(p, size * .7, 3 if ship else 4, heading if ship else spin, fill)
+		elif ship:
+			shape(p, size, 3, heading, fill)
+		else:
+			shape(p, size, 4, spin, fill)
+		if int(e.members) > 1:
+			var companions: int = 5 if not dense else 2 if focused or danger > .8 else 0
+			for j in range(mini(companions, int(e.members) - 1)):
+				var a: float = j * TAU / 5 + clock * .9 + int(e.seed)
+				var q: Vector2 = p + Vector2(cos(a), sin(a)) * radius * 1.45 * appear
+				shape(q, 2.6 * appear, 3 if ship else 4, a, Color(fill, fill.a * .8))
+			if labels_left > 0 or focused:
+				ink("×" + sim.Catalog.number(e.members), p + Vector2(-14, radius + 18), DIM, 11)
+				labels_left -= 1
+	if danger > .7 and not boss:
+		draw_arc(p, radius + 8, -PI * .5, -PI * .5 + TAU * danger, 40, Color(ACCENT, .85), 1.5, true)
+	if focused:
+		var col: Color = INK if int(e.id) == sim.priority_id else GREY
 		for j in range(4):
-			var a: float = PI*.25+j*PI*.5
-			draw_arc(p,radius+14,a,a+.45,8,col,2,true)
-		if not boss and int(e.id)==sim.priority_id and not hover.distance_to(p)<radius+13:
-			ink("HP %s   /   %.1fs" %[sim.Catalog.number(float(e.hp)+(int(e.members)-1)*float(e.unit_hp)),float(e.lifetime)-float(e.age)],p+Vector2(25,-radius-17),col,11)
-	tint=Color.WHITE
+			var a: float = PI * .25 + j * PI * .5
+			draw_arc(p, radius + 13, a, a + .45, 8, col, 2, true)
+		if not boss and int(e.id) == sim.priority_id and not hover.distance_to(p) < radius + 13:
+			ink("HP %s   /   %.1fs" % [sim.Catalog.number(float(e.hp) + (int(e.members) - 1) * float(e.unit_hp)), float(e.lifetime) - float(e.age)], p + Vector2(24, -radius - 16), col, 11)
 
 func inspector() -> void:
-	var selected: Dictionary={}
-	var distance: float=INF
+	var selected: Dictionary = {}
+	var distance: float = INF
 	for e in sim.enemies:
-		if bool(e.dead):continue
-		var d: float=hover.distance_to(e.pos)
-		if d<distance and d<float(e.radius)+13:
-			selected=e
-			distance=d
-	if selected.is_empty():return
-	var p:=Vector2(-120 if hover.x>500 else 865,35)
-	var col: Color=sim.stage_data().accent
-	draw_rect(Rect2(p,Vector2(260,209)),Color(.025,.06,.095,.97))
-	draw_rect(Rect2(p,Vector2(260,209)),Color(col,.45),false,1)
-	var kind: String=selected.kind
-	var boss: bool=selected.boss
-	var title: String=sim.stage_data().boss_title.split(" · ")[0] if boss else "精英舰船" if kind=="elite_ship" else "外星舰群" if kind=="ship" else "精英天体" if selected.elite else "自然威胁群" if int(selected.members)>1 else "来袭天体"
-	ink(title,p+Vector2(13,25),col,15)
-	var texture: Texture2D=BossShip if kind=="mothership" else Fleet[sim.stage] if kind.contains("ship") else SunTexture if kind=="star" else PlanetTexture if kind=="planet" else Hazards[sim.stage]
-	draw_texture_rect(texture,Rect2(p+Vector2(11,44),Vector2(88,88)),false)
-	ink("成员 "+sim.Catalog.number(selected.members),p+Vector2(109,60),Color("c7d7e1"),12)
-	ink("总生命",p+Vector2(109,82),muted,11)
-	var hp: float=float(selected.hp)+(int(selected.members)-1)*float(selected.unit_hp)
-	ink(sim.Catalog.number(hp),p+Vector2(109,104),Color("dce5e8"),14)
-	var remaining: float=maxf(0,float(selected.lifetime)-float(selected.age))
-	ink("撞击 %.1f 秒"%remaining,p+Vector2(13,155),Color("e5a485") if remaining<10 else Color("9eb9ca"),12)
-	ink("在途伤害 "+sim.Catalog.number(selected.reserved),p+Vector2(13,176),Color("7a9fae"),11)
-	ink("点击指定全体系优先目标" if sim.automation else "点击 / 按住目标发射",p+Vector2(13,195),col,11)
+		if bool(e.dead):
+			continue
+		var d: float = hover.distance_to(e.pos)
+		if d < distance and d < float(e.radius) + 13:
+			selected = e
+			distance = d
+	if selected.is_empty():
+		return
+	var p := Vector2(-120 if hover.x > 500 else 865, 35)
+	draw_rect(Rect2(p, Vector2(250, 190)), Color("1a1a1a"))
+	draw_rect(Rect2(p, Vector2(250, 190)), DARK, false, 1)
+	var kind: String = selected.kind
+	var boss: bool = selected.boss
+	var title: String = sim.stage_data().boss_title.split(" · ")[0] if boss else "精英舰船" if kind == "elite_ship" else "外星舰群" if kind == "ship" else "精英天体" if selected.elite else "自然威胁群" if int(selected.members) > 1 else "来袭天体"
+	ink(title, p + Vector2(14, 26), INK, 15)
+	var icon: Vector2 = p + Vector2(55, 92)
+	if boss:
+		boss_shape(icon, 34, kind, 0)
+	else:
+		shape(icon, 30, 3 if kind.contains("ship") else 4, clock * .5, INK if kind.contains("ship") else GREY)
+	ink("成员 " + sim.Catalog.number(selected.members), p + Vector2(110, 62), GREY, 12)
+	ink("总生命", p + Vector2(110, 84), DIM, 11)
+	var hp: float = float(selected.hp) + (int(selected.members) - 1) * float(selected.unit_hp)
+	ink(sim.Catalog.number(hp), p + Vector2(110, 106), INK, 14)
+	var remaining: float = maxf(0, float(selected.lifetime) - float(selected.age))
+	ink("撞击 %.1f 秒" % remaining, p + Vector2(14, 146), ACCENT if remaining < 10 else GREY, 12)
+	ink("在途伤害 " + sim.Catalog.number(selected.reserved), p + Vector2(14, 165), DIM, 11)
+	ink("点击指定全体系优先目标" if sim.automation else "点击 / 按住目标发射", p + Vector2(14, 182), DIM, 11)
 
 func _draw() -> void:
-	var started: int=Time.get_ticks_usec()
+	var started: int = Time.get_ticks_usec()
 	if sim == null or font == null:
 		return
-	draw_multimesh(star_mesh,StarTexture)
+	draw_multimesh(dot_mesh, null)
 	var idx: int = sim.stage
-	labels_left=6 if sim.enemies.size()>70 else 24
+	labels_left = 6 if sim.enemies.size() > 70 else 24
 	if sim.mode == "transition":
-		var t: float = smoothstep(0.0,1.0,sim.mode_time/sim.transition_length)
-		var future_scale: float = lerpf(3.0,1.0,t)
-		scene_transform = Transform2D(0,Vector2.ONE*future_scale,0,Vector2(500,325)*(1-future_scale))
+		# The previous defense shrinks into the next scale's centre.
+		var t: float = smoothstep(0.0, 1.0, sim.mode_time / sim.transition_length)
+		var future_scale: float = lerpf(3.0, 1.0, t)
+		scene_transform = Transform2D(0, Vector2.ONE * future_scale, 0, Vector2(500, 325) * (1 - future_scale))
 		draw_set_transform_matrix(scene_transform)
-		stage_scene(idx+1)
-		# The previous defense remains anchored at the next scene's central object.
-		var scale_value: float = pow(0.04,t)
-		var previous_center: Vector2 = Vector2(500,570) if idx==0 else Vector2(500,325)
-		var anchors: Array[Vector2]=[Vector2(547,356),Vector2(456,386),Vector2(660,341),Vector2(500,325),Vector2(500,325)]
-		var anchor: Vector2=Vector2(500,325)+(anchors[idx]-Vector2(500,325))*future_scale
-		scene_transform = Transform2D(0,Vector2.ONE*scale_value,0,anchor-previous_center*scale_value)
+		stage_scene(idx + 1)
+		var scale_value: float = pow(0.04, t)
+		var previous_center: Vector2 = Vector2(500, 570) if idx == 0 else Vector2(500, 325)
+		var anchors: Array[Vector2] = [Vector2(547, 356), Vector2(456, 386), Vector2(660, 341), Vector2(500, 325), Vector2(500, 325)]
+		var anchor: Vector2 = Vector2(500, 325) + (anchors[idx] - Vector2(500, 325)) * future_scale
+		scene_transform = Transform2D(0, Vector2.ONE * scale_value, 0, anchor - previous_center * scale_value)
 		draw_set_transform_matrix(scene_transform)
 		stage_scene(idx)
 		for i in range(6):
 			if sim.owned[i]:
-				weapon(i,sim.weapon_origin(i),idx>0 and i<idx)
+				weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
 		scene_transform = Transform2D.IDENTITY
 		draw_set_transform(Vector2.ZERO)
-		ink("尺度跃迁  /  "+sim.catalog.stages[idx+1].title,Vector2(405,100),Color("d5e2ed"),22)
+		ink("尺度跃迁  /  " + sim.catalog.stages[idx + 1].title, Vector2(405, 100), INK, 22)
 	else:
 		stage_scene(idx)
 		# Interception ring: threats are engaged once they cross it.
-		if sim.mode in ["wave","intermission"]:
-			var ring_from: float=PI if idx==0 else 0.0
-			var ring_to: float=TAU
-			var segments: int=96
-			var step: float=(ring_to-ring_from)/segments
-			for j in range(0,segments,2):
-				draw_arc(sim.defense_position(),sim.weapon_range(),ring_from+j*step,ring_from+(j+1)*step,4,Color(cyan,.42),1.6,true)
+		if sim.mode in ["wave", "intermission"]:
+			var ring_from: float = PI if idx == 0 else 0.0
+			var segments: int = 96
+			var step: float = (TAU - ring_from) / segments
+			for j in range(0, segments, 2):
+				draw_arc(sim.defense_position(), sim.weapon_range(), ring_from + j * step, ring_from + (j + 1) * step, 4, Color(GREY, .32), 1.4, true)
 		for i in range(6):
 			if sim.owned[i]:
-				weapon(i,sim.weapon_origin(i),idx>0 and i<idx)
+				weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
 		for e in sim.enemies:
 			if not bool(e.dead):
 				enemy(e)
 		for p in sim.shots:
-			var col: Color = sim.catalog.weapons[int(p.weapon)].color
 			if bool(p.beam):
-				draw_line(p.from,p.end,Color(col,.07),13+int(p.weapon)*2,true)
-				draw_line(p.from,p.end,Color(col,.48),2.0+int(p.weapon)*.3,true)
-				draw_line(p.from,p.end,Color("e3eff7"),.7,true)
+				draw_line(p.from, p.end, Color(INK, .06), 9 + int(p.weapon) * 1.5, true)
+				draw_line(p.from, p.end, Color(INK, .85), 1.2 + int(p.weapon) * .2, true)
 			else:
 				var pos: Vector2 = p.pos
-				var dir: Vector2 = (Vector2(p.end)-Vector2(p.from)).normalized()
-				var visible_rounds: int=mini(4,sim.launcher_count())
+				var dir: Vector2 = (Vector2(p.end) - Vector2(p.from)).normalized()
+				var visible_rounds: int = mini(4, sim.launcher_count())
 				for round_index in range(visible_rounds):
-					var q: Vector2=pos+dir.orthogonal()*(round_index-(visible_rounds-1)*.5)*4
-					draw_line(q-dir*22,q,Color(col,.22),3,true)
-					draw_line(q-dir*8,q,col,2,true)
-					draw_circle(q,2,Color("f1ebdd"))
-		var rewards_left: int=16
+					var q: Vector2 = pos + dir.orthogonal() * (round_index - (visible_rounds - 1) * .5) * 4
+					draw_line(q - dir * 14, q, Color(INK, .35), 1.5, true)
+					draw_circle(q, 1.8, INK)
+		var rewards_left: int = 16
 		for fx in sim.effects:
-			var t: float = float(fx.age)/float(fx.duration)
-			var col: Color = sim.catalog.weapons[int(fx.weapon)].color
-			col.a = 1-t
+			var t: float = float(fx.age) / float(fx.duration)
 			if fx.kind == "reward":
-				if rewards_left>0:
-					ink("+$"+sim.Catalog.number(fx.amount),Vector2(fx.pos)+Vector2(8,-18-t*22),Color(cyan,1-t),11)
-					rewards_left-=1
+				if rewards_left > 0:
+					ink("+$" + sim.Catalog.number(fx.amount), Vector2(fx.pos) + Vector2(8, -16 - t * 22), Color(GREY, 1 - t), 11)
+					rewards_left -= 1
 			else:
-				var r: float = 4+float(fx.amount)*(t+.1)
-				draw_arc(fx.pos,r,0,TAU,32,col,1.7,true)
-				if fx.kind=="burst" and sim.effects.size()<60:
-					for j in range(6):
-						var v: Vector2 = Vector2(cos(j*TAU/6),sin(j*TAU/6))
-						draw_line(Vector2(fx.pos)+v*r,Vector2(fx.pos)+v*(r+5),col,1,true)
+				var r: float = 4 + float(fx.amount) * (t + .1)
+				ring(fx.pos, r, Color(ACCENT if fx.kind == "breach" else GREY, (1 - t) * .7), 1.4)
 		if sim.mode == "intermission":
-			ink("拦截完成 · 下一波即将来袭",Vector2(395,190),Color("b9d4d7"),18)
+			ink("拦截完成 · 下一波即将来袭", Vector2(395, 190), GREY, 18)
 	draw_feedback()
 	for n in numbers:
-		var t: float=float(n.age)/.75
-		var lift: float=22*(1-pow(1-t,2))
-		var pop: float=1.0+.35*maxf(0,1-t*6)
-		var at: Vector2=Vector2(n.pos)+Vector2(-8,-lift)
-		var font_size: int=int(float(n.size)*pop)
-		draw_string_outline(font,at,n.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size,5,Color(.02,.04,.07,.85*(1-t*t)))
-		draw_string(font,at,n.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size,Color(n.color,1-t*t))
+		var t: float = float(n.age) / .75
+		var lift: float = 22 * (1 - pow(1 - t, 2))
+		var grow: float = 1.0 + .35 * maxf(0, 1 - t * 6)
+		ink_outlined(n.text, Vector2(n.pos) + Vector2(-8, -lift), Color(n.color, 1 - t * t), int(float(n.size) * grow))
 	inspector()
-	for corner in [Vector2(-140,0),Vector2(1140,0),Vector2(-140,620),Vector2(1140,620)]:
-		var dir := Vector2(1 if corner.x<0 else -1,1 if corner.y<100 else -1)
-		draw_line(corner,corner+Vector2(dir.x*18,0),Color("294258"),1)
-		draw_line(corner,corner+Vector2(0,dir.y*18),Color("294258"),1)
-	draw_ms=(Time.get_ticks_usec()-started)/1000.0
+	draw_ms = (Time.get_ticks_usec() - started) / 1000.0

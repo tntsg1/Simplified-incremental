@@ -14,6 +14,7 @@ func run() -> void:
 	root.add_child(game)
 	await process_frame
 	game.store.enabled=false
+	game.pause_on_focus_loss=false
 	game.close_modal()
 	game.sim.start_new(122)
 	game.sim.paused=true

@@ -8,6 +8,7 @@ func run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://proofs/action_frames"))
 	game=load("res://scenes/main.tscn").instantiate()
 	game.store.enabled=false
+	game.pause_on_focus_loss=false
 	root.add_child(game)
 	await process_frame
 	game.start_game()

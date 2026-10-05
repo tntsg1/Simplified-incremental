@@ -11,6 +11,7 @@ func screenshot(path: String) -> void:
 func run() -> void:
 	game=load("res://scenes/main.tscn").instantiate()
 	game.store.enabled=false
+	game.pause_on_focus_loss=false
 	root.add_child(game)
 	await process_frame
 	game.start_game()

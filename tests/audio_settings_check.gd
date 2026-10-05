@@ -23,6 +23,7 @@ func click(point: Vector2) -> void:
 func run() -> void:
 	game=load("res://scenes/main.tscn").instantiate()
 	game.store.enabled=false
+	game.pause_on_focus_loss=false
 	game.store.path="user://skyguard_audio_settings_check.json"
 	root.add_child(game)
 	await process_frame
@@ -52,6 +53,7 @@ func run() -> void:
 	var saved: Dictionary=game.store.read_game()
 	check(not saved.settings.sound and is_equal_approx(float(saved.settings.music_level),game.audio.music_level) and is_equal_approx(float(saved.settings.effects_level),game.audio.effects_level),"save retains both levels and mute")
 	game.store.enabled=false
+	game.pause_on_focus_loss=false
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(game.store.path))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(game.store.path+".bak"))
 	print("AUDIO_SETTINGS_RESULT failures=",failures)

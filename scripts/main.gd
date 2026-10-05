@@ -49,8 +49,13 @@ var old_kills: int = 0
 var old_shots: int = 0
 var display_mode: String=""
 var display_stage: int=-1
+# Money rolls toward the real value and pops on income.
+var shown_money: float=0
+# UI tests drive an unfocused window; they turn the focus-loss pause off.
+var pause_on_focus_loss: bool=true
+var money_pulse: float=0
 
-func panel_style(color: Color, edge: Color = Color("2b4357"), radius: int = 12) -> StyleBoxFlat:
+func panel_style(color: Color, edge: Color = Color("373737"), radius: int = 12) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = color
 	box.border_color = edge
@@ -62,7 +67,7 @@ func panel_style(color: Color, edge: Color = Color("2b4357"), radius: int = 12) 
 	box.content_margin_bottom = 16
 	return box
 
-func label(text: String, size: int = 18, color: Color = Color("dbe5ef")) -> Label:
+func label(text: String, size: int = 18, color: Color = Color("eeeeee")) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size",size)
@@ -74,12 +79,12 @@ func button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(0,46)
-	b.add_theme_stylebox_override("normal",panel_style(Color("16372f") if primary else Color("142638"),Color("396a5b") if primary else Color("30475d"),8))
-	b.add_theme_stylebox_override("hover",panel_style(Color("23483e") if primary else Color("20384c"),Color("76cfb7"),8))
-	b.add_theme_stylebox_override("pressed",panel_style(Color("305347"),Color("84e5c8"),8))
-	b.add_theme_stylebox_override("disabled",panel_style(Color("111d2a"),Color("253343"),8))
-	b.add_theme_color_override("font_color",Color("dce7ed"))
-	b.add_theme_color_override("font_disabled_color",Color("677c8f"))
+	b.add_theme_stylebox_override("normal",panel_style(Color("262626") if primary else Color("1e1e1e"),Color("8a8a8a") if primary else Color("3a3a3a"),8))
+	b.add_theme_stylebox_override("hover",panel_style(Color("303030") if primary else Color("282828"),Color("ededed"),8))
+	b.add_theme_stylebox_override("pressed",panel_style(Color("3a3a3a"),Color("ffffff"),8))
+	b.add_theme_stylebox_override("disabled",panel_style(Color("1a1a1a"),Color("2a2a2a"),8))
+	b.add_theme_color_override("font_color",Color("efefef"))
+	b.add_theme_color_override("font_disabled_color",Color("6c6c6c"))
 	b.pressed.connect(callback)
 	return b
 
@@ -92,7 +97,7 @@ func _ready() -> void:
 	skin.default_font_size = 16
 	theme = skin
 	var bg := ColorRect.new()
-	bg.color = Color("07111e")
+	bg.color = Color("141414")
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
@@ -105,7 +110,7 @@ func _ready() -> void:
 	add_child(ui)
 	build_hud()
 	shade = ColorRect.new()
-	shade.color = Color(0.015,0.028,0.05,0.88)
+	shade.color = Color(0.03,0.03,0.03,0.9)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(shade)
 	shade.hide()
@@ -141,25 +146,25 @@ func _ready() -> void:
 
 func build_hud() -> void:
 	var line := ColorRect.new()
-	line.color = Color("253547")
+	line.color = Color("2d2d2d")
 	line.position = Vector2(36,116)
 	line.size = Vector2(1528,1)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(line)
 	stage_label = label("城市",30)
 	ui.add_child(stage_label)
-	scale_label = label("",13,Color("71889d"))
+	scale_label = label("",13,Color("8a8a8a"))
 	ui.add_child(scale_label)
-	money_label = label("$ 0",28,Color("b8e3d2"))
+	money_label = label("$ 0",28,Color("ededed"))
 	ui.add_child(money_label)
 	wave_label = label("第 01 / 10 波",19)
 	ui.add_child(wave_label)
-	health_label = label("防线 100%",18,Color("9eafbd"))
+	health_label = label("防线 100%",18,Color("b4b4b4"))
 	ui.add_child(health_label)
 	wave_bar = ProgressBar.new()
 	wave_bar.show_percentage = false
-	wave_bar.add_theme_stylebox_override("background",panel_style(Color("172738"),Color("172738"),2))
-	wave_bar.add_theme_stylebox_override("fill",panel_style(Color("5fbea9"),Color("5fbea9"),2))
+	wave_bar.add_theme_stylebox_override("background",panel_style(Color("262626"),Color("262626"),2))
+	wave_bar.add_theme_stylebox_override("fill",panel_style(Color("ededed"),Color("ededed"),2))
 	for key in ["background","fill"]:
 		var bar_style: StyleBoxFlat = wave_bar.get_theme_stylebox(key)
 		bar_style.content_margin_top=0
@@ -168,17 +173,17 @@ func build_hud() -> void:
 	boss_box = Control.new()
 	boss_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(boss_box)
-	boss_title = label("巨型威胁",16,Color("e2b4b0"))
+	boss_title = label("巨型威胁",16,Color("ededed"))
 	boss_box.add_child(boss_title)
-	boss_timer = label("",16,Color("e8c4a3"))
+	boss_timer = label("",16,Color("ffc94d"))
 	boss_box.add_child(boss_timer)
 	boss_timer.position = Vector2(470,0)
 	boss_bar = ProgressBar.new()
 	boss_bar.show_percentage = false
 	boss_bar.position = Vector2(0,30)
 	boss_bar.size = Vector2(640,5)
-	boss_bar.add_theme_stylebox_override("background",panel_style(Color("352837"),Color("352837"),2))
-	boss_bar.add_theme_stylebox_override("fill",panel_style(Color("d29398"),Color("d29398"),2))
+	boss_bar.add_theme_stylebox_override("background",panel_style(Color("2a2a2a"),Color("2a2a2a"),2))
+	boss_bar.add_theme_stylebox_override("fill",panel_style(Color("ffc94d"),Color("ffc94d"),2))
 	for key in ["background","fill"]:
 		var bar_style: StyleBoxFlat = boss_bar.get_theme_stylebox(key)
 		bar_style.content_margin_top=0
@@ -186,10 +191,10 @@ func build_hud() -> void:
 	boss_box.add_child(boss_bar)
 	var bottom := Panel.new()
 	bottom.name = "Bottom"
-	bottom.add_theme_stylebox_override("panel",panel_style(Color("0d1b2a"),Color("273c50"),12))
+	bottom.add_theme_stylebox_override("panel",panel_style(Color("161616"),Color("323232"),12))
 	ui.add_child(bottom)
 	ui.move_child(boss_box,-1)
-	hint = label("",15,Color("8ca4b9"))
+	hint = label("",15,Color("a6a6a6"))
 	bottom.add_child(hint)
 	hint.position = Vector2(24,23)
 	hud_auto_button = button("开启自动防御 · $200",buy_automation_from_hud,true)
@@ -202,7 +207,7 @@ func build_hud() -> void:
 	var pause := button("暂停  [Esc]",func():open_pause())
 	pause.name = "PauseButton"
 	bottom.add_child(pause)
-	toast = label("",17,Color("badbdb"))
+	toast = label("",17,Color("dbdbdb"))
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(toast)
@@ -247,14 +252,14 @@ func new_modal(width: float, title: String, subtitle: String) -> VBoxContainer:
 		modal.queue_free()
 	shade.show()
 	modal = PanelContainer.new()
-	modal.add_theme_stylebox_override("panel",panel_style(Color("0d1c2b"),Color("3b5266"),16))
+	modal.add_theme_stylebox_override("panel",panel_style(Color("161616"),Color("454545"),16))
 	modal.size.x = width
 	add_child(modal)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation",16)
 	modal.add_child(v)
 	v.add_child(label(title,30))
-	v.add_child(label(subtitle,14,Color("88a0b4")))
+	v.add_child(label(subtitle,14,Color("a2a2a2")))
 	call_deferred("center_modal")
 	return v
 
@@ -273,8 +278,8 @@ func show_title() -> void:
 	emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	emblem.custom_minimum_size = Vector2(0,96)
 	v.add_child(emblem)
-	v.add_child(label("城市  →  地球  →  太阳系  →  银河  →  星系团  →  宇宙",15,Color("a7bfcf")))
-	var intro := label("击毁威胁赚取资金，让防御体系不断进化。\n早期点击目标发射；购买自动化后，点击指定集火。\n六道防线，六个巨型威胁，一场完整的太空战役。",16,Color("a2b6c7"))
+	v.add_child(label("城市  →  地球  →  太阳系  →  银河  →  星系团  →  宇宙",15,Color("c3c3c3")))
+	var intro := label("击毁威胁赚取资金，让防御体系不断进化。\n早期点击目标发射；购买自动化后，点击指定集火。\n六道防线，六个巨型威胁，一场完整的太空战役。",16,Color("bababa"))
 	intro.custom_minimum_size.y = 87
 	v.add_child(intro)
 	if not saved.is_empty():
@@ -285,7 +290,7 @@ func show_title() -> void:
 		else:
 			confirm_new(),saved.is_empty()))
 	v.add_child(button("退出",func():get_tree().quit()))
-	v.add_child(label("鼠标优先  ·  U 升级  ·  Esc 暂停  ·  F11 全屏",13,Color("647e92")))
+	v.add_child(label("鼠标优先  ·  U 升级  ·  Esc 暂停  ·  F11 全屏",13,Color("7f7f7f")))
 
 func confirm_new() -> void:
 	var v: VBoxContainer = new_modal(540,"开始新的防线？","新战役会覆盖当前进度。")
@@ -332,7 +337,7 @@ func open_shop() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation",12)
 	v.add_child(row)
-	var wallet := label("$ "+Catalog.number(sim.money),24,Color("b4e0d0"))
+	var wallet := label("$ "+Catalog.number(sim.money),24,Color("ededed"))
 	wallet.name = "Wallet"
 	wallet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(wallet)
@@ -363,14 +368,14 @@ func open_shop() -> void:
 		var p := PanelContainer.new()
 		var card_width: float=(minf(1120,size.x-80)-40-12*(grid.columns-1))/grid.columns
 		p.custom_minimum_size = Vector2(card_width,149)
-		p.add_theme_stylebox_override("panel",panel_style(Color("132638"),Color("2a4258"),9))
+		p.add_theme_stylebox_override("panel",panel_style(Color("1e1e1e"),Color("363636"),9))
 		grid.add_child(p)
 		var card := VBoxContainer.new()
 		card.add_theme_constant_override("separation",7)
 		p.add_child(card)
 		var title := label("",19)
 		card.add_child(title)
-		var detail := label(spec.description,12,Color("8faabd"))
+		var detail := label(spec.description,12,Color("acacac"))
 		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		detail.custom_minimum_size = Vector2(card_width-40,48 if grid.columns==4 else 36)
 		card.add_child(detail)
@@ -381,10 +386,10 @@ func open_shop() -> void:
 				update_shop(),true)
 		card.add_child(buy)
 		cards.append({"index":i,"title":title,"button":buy})
-	var milestones := label("",13,Color("7896ab"))
+	var milestones := label("",13,Color("969696"))
 	milestones.name="Milestones"
 	v.add_child(milestones)
-	var power := label("",14,Color("a8cbc6"))
+	var power := label("",14,Color("c9c9c9"))
 	power.name="Power"
 	v.add_child(power)
 	v.add_child(button("继续防御  [U / Esc]",close_modal,true))
@@ -464,7 +469,7 @@ func open_pause() -> void:
 		save_game()
 		saved = store.read_game()
 		show_title()))
-	v.add_child(label("累计防御 %.1f 分钟  ·  击毁 %s 个目标" %[sim.elapsed/60,Catalog.number(sim.kills)],14,Color("7896ab")))
+	v.add_child(label("累计防御 %.1f 分钟  ·  击毁 %s 个目标" %[sim.elapsed/60,Catalog.number(sim.kills)],14,Color("969696")))
 	save_game()
 
 func show_result() -> void:
@@ -475,8 +480,8 @@ func show_result() -> void:
 	var v: VBoxContainer = new_modal(660,"最后的光，留给文明。" if victory else "防线已被突破","战役完成  /  SKYGUARD" if victory else "本阶段重启，资金、全部升级与已购武器保留")
 	var advice: String="巨型威胁未在撞击前击毁。升级伤害与暴击，缩短 Boss 战。" if sim.health>0 else "群落超出了拦截能力。装填 Lv.%d 增加发射器。"%((int(sim.levels.reload)/10+1)*10)
 	if not victory and sim.health<=0 and sim.stage>=2:advice+="\n范围与贯穿能消灭更多成员；部署本阶段的新炮。"
-	v.add_child(label("六道防线全部守住。\n你让城市的第一座发射井，一直战斗到宇宙尽头。" if victory else advice,17,Color("a7bccd")))
-	v.add_child(label("防御时间 %.1f 分钟   ·   击毁 %s   ·   重试 %d" %[sim.elapsed/60,Catalog.number(sim.kills),sim.attempts],16,Color("b2d7d0")))
+	v.add_child(label("六道防线全部守住。\n你让城市的第一座发射井，一直战斗到宇宙尽头。" if victory else advice,17,Color("c1c1c1")))
+	v.add_child(label("防御时间 %.1f 分钟   ·   击毁 %s   ·   重试 %d" %[sim.elapsed/60,Catalog.number(sim.kills),sim.attempts],16,Color("d5d5d5")))
 	if victory:
 		v.add_child(button("返回主菜单",func():saved=store.read_game();show_title(),true))
 	else:
@@ -491,10 +496,9 @@ func buy_automation_from_hud() -> void:
 func update_hud() -> void:
 	stage_label.text = "%02d   %s" %[sim.stage+1,sim.stage_data().title]
 	scale_label.text = sim.stage_data().subtitle+"     /     "+sim.stage_data().scale_label
-	money_label.text = "$ "+Catalog.number(sim.money)
 	wave_label.text = "巨型威胁" if sim.mode=="boss" else "第 %02d / 10 波" %sim.wave
 	health_label.text = "防线 %.0f%%" %sim.health
-	health_label.modulate = Color("e6a092") if sim.health<40 else Color.WHITE
+	health_label.modulate = Color("ffc94d") if sim.health<40 else Color.WHITE
 	wave_bar.value = sim.progress()*100
 	boss_box.visible = sim.mode=="boss" and menu==""
 	if sim.mode=="boss":
@@ -565,6 +569,17 @@ func _process(delta: float) -> void:
 		while accumulator>=1.0/60:
 			sim.advance(1.0/60)
 			accumulator -= 1.0/60
+	if sim.money<shown_money or shown_money<=0 or sim.money<=0:
+		shown_money=sim.money
+	elif sim.money>shown_money*1.0001+.5:
+		money_pulse=1.0
+		shown_money=exp(lerpf(log(shown_money),log(sim.money),minf(1,delta*9)))
+	else:
+		shown_money=sim.money
+	money_pulse=maxf(0,money_pulse-delta*4)
+	money_label.text="$ "+Catalog.number(shown_money)
+	money_label.pivot_offset=Vector2(0,money_label.size.y*.5)
+	money_label.scale=Vector2.ONE*(1+money_pulse*.07)
 	ui_timer += delta
 	if ui_timer>.1 or display_mode!=sim.mode or display_stage!=sim.stage:
 		ui_timer = 0
@@ -614,7 +629,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
 	if what==NOTIFICATION_WM_CLOSE_REQUEST:
 		save_game()
-	elif what==NOTIFICATION_APPLICATION_FOCUS_OUT and not proof and menu=="" and sim.mode in ["wave","boss","intermission","transition"]:
+	elif what==NOTIFICATION_APPLICATION_FOCUS_OUT and pause_on_focus_loss and not proof and menu=="" and sim.mode in ["wave","boss","intermission","transition"]:
 		open_pause()
 
 func parse_proof() -> void:
