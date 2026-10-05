@@ -600,7 +600,7 @@ func _process(delta: float) -> void:
 		if benchmark and proof_frame>60:
 			performance_frames.append(delta*1000)
 			if proof_frame%30==0:
-				print("BENCH_PROGRESS frame=",proof_frame," fps=",Engine.get_frames_per_second()," actors=",sim.enemies.size()," process_ms=",(Time.get_ticks_usec()-started)/1000.0," draw_ms=",field.draw_ms," shots=",sim.shots.size())
+				print("BENCH_PROGRESS frame=",proof_frame," fps=",Engine.get_frames_per_second()," actors=",sim.enemies.size()," process_ms=",(Time.get_ticks_usec()-started)/1000.0," draw_ms=",field.draw_ms," shots=",sim.shots.size()," bullets=",field.b_age.size())
 		if proof_frame==capture_at:
 			capture_frame.call_deferred()
 
