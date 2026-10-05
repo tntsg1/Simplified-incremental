@@ -4,6 +4,6 @@
 script=ExtResource("1")
 key="area"
 title="火力范围"
-base_cost=120
+base_cost=20000
 unlock_stage=2
 description="每级增加 18% 基础覆盖；Lv.10 群落爆裂使覆盖额外 +30%，Lv.25 区域轰击额外 +25%。"

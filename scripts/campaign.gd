@@ -68,7 +68,7 @@ static func start_boss(ctx: RefCounted) -> void:
 	ctx.serial += 1
 	var e: Dictionary = ctx.enemy_pool.pop_back() if not ctx.enemy_pool.is_empty() else {}
 	e.clear()
-	var hp: float = float(ctx.stage_data().boss_hp)
+	var hp: float = ctx.boss_max_hp()
 	var origin := Vector2(500.0, 52.0)
 	var end: Vector2 = Vector2(500.0, 525.0) if ctx.stage == 0 else Vector2(500.0, 225.0)
 	e.merge({"id": ctx.serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": float(ctx.stage_data().boss_window), "members": 1, "initial_members": 1, "unit_hp": hp, "hp": hp, "kind": ctx.stage_data().boss_kind, "elite": true, "seed": 995 + ctx.stage * 17, "reserved": 0.0, "radius": 68.0 + ctx.stage * 6.0, "boss": true, "dead": false})
@@ -78,7 +78,7 @@ static func start_boss(ctx: RefCounted) -> void:
 
 
 static func finish_boss(ctx: RefCounted) -> void:
-	ctx.money += float(ctx.stage_data().boss_reward)
+	ctx.money += float(ctx.stage_data().boss_reward) * ctx.reward_scale()
 	ctx.stage_bosses += 1
 	ctx.clear_battle()
 	ctx.health = 100.0

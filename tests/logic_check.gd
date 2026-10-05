@@ -28,13 +28,16 @@ func run() -> void:
 	c.clear_battle()
 	c.spawn_enemy(1)
 	c.spawn_enemy(1)
-	c.enemies[0].pos=Vector2(200,200)
-	c.enemies[1].pos=Vector2(700,200)
-	check(c.select_target(Vector2(700,200))==c.enemies[1].id,"target switch")
+	c.enemies[0].pos=Vector2(350,350)
+	c.enemies[1].pos=Vector2(650,350)
+	check(c.select_target(Vector2(650,350))==c.enemies[1].id,"target switch")
 	check(c.target_for_weapon().id==c.enemies[1].id,"shared priority")
-	c.enemies[1].reserved=100
+	c.enemies[1].reserved=1000
 	check(c.target_for_weapon().id==c.enemies[0].id,"reserved lethal damage avoids overkill")
+	c.enemies[0].pos=Vector2(200,100)
+	check(not c.in_range(c.enemies[0]) and c.target_for_weapon().is_empty(),"threats outside the interception ring are not engaged")
 	c.clear_battle()
+	c.wave=1
 	c.spawn_enemy(10)
 	c.money=0
 	c.apply_damage(c.enemies[0],350,4,0)
@@ -180,7 +183,7 @@ func campaign(seed_value: int) -> void:
 			if c.mode=="transition":
 				transitions+=1
 			if c.mode=="boss":
-				print("BOSS stage=",c.stage," dps=",snappedf(c.nominal_dps(),1)," required=",float(c.stage_data().boss_hp)/float(c.stage_data().boss_window)," levels=",c.levels)
+				print("BOSS stage=",c.stage," dps=",snappedf(c.nominal_dps(),1)," required=",c.boss_max_hp()/float(c.stage_data().boss_window)," levels=",c.levels)
 			previous_mode=c.mode
 		if c.mode=="failed":
 			print("RETRY stage=",c.stage," wave=",c.wave," levels=",c.levels," cash=",c.money)
@@ -193,7 +196,8 @@ func campaign(seed_value: int) -> void:
 	check(c.mode=="victory","six bosses seed "+str(seed_value))
 	check(ordinary>=60 and transitions==5 and c.stage_bosses==6,"60 waves 6 bosses 5 transitions")
 	check(auto_wave>=6 and auto_wave<=8,"city automation wave6-8")
-	check(c.elapsed>=10800 and c.elapsed<=18000,"active time 3-5 hours")
+	# Short dense waves: the length comes from upgrade/push loops, not slow spawns.
+	check(c.elapsed>=2880 and c.elapsed<=9000,"active time 0.8-2.5 hours")
 	check(early_passes>=10,"first two waves survived")
 	for stage in range(6):
 		check(c.owned[stage] and c.weapon_damage[stage]>0,"old weapon contributes "+str(stage))

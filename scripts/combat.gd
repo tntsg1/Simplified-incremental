@@ -13,6 +13,9 @@ signal destroyed(point: Vector2, weapon: int, members: int, boss: bool, kind: St
 const Growth = preload("res://scripts/growth.gd")
 const Campaign = preload("res://scripts/campaign.gd")
 const Catalog = preload("res://scripts/catalog.gd")
+# Rewards grow slower than enemy HP, so upgrades must outpace each wave (sawtooth growth).
+const REWARD_HP_EXPONENT: float = 0.4
+const WAVE_GROUPS: Array[int] = [8, 12, 16, 20, 26, 32, 40, 48, 56, 64]
 var catalog = Catalog.new()
 var rng := RandomNumberGenerator.new()
 var mode: String = "title"
@@ -75,7 +78,7 @@ func weapon_origin(index: int) -> Vector2:
 		return Vector2(380.0 + index * 48.0, 565.0)
 	var angle: float = -PI * 0.15 + index * TAU / 6.0
 	var radius: float = 108.0 + index * 11.0
-	return defense_position() + Vector2(cos(angle), sin(angle) * 0.7) * radius
+	return defense_position() + Vector2(cos(angle), sin(angle)) * radius
 
 func damage_multiplier() -> float:
 	return Growth.damage_multiplier(self)
@@ -132,16 +135,26 @@ func clear_battle() -> void:
 func start_wave() -> void:
 	Campaign.start_wave(self)
 
+func hp_scale(at_wave: int = -1) -> float:
+	var w: int = wave if at_wave < 0 else at_wave
+	return float(stage_data().hp_base_scale) * pow(float(stage_data().hp_growth), w - 1)
+
+func reward_scale() -> float:
+	return pow(hp_scale(), REWARD_HP_EXPONENT)
+
+func wave_seconds() -> float:
+	return 25.0 + 7.0 * (wave - 1)
+
 func group_size() -> int:
 	if stage == 0:
 		return 1
-	return maxi(1, int(stage_data().count_multiplier) / 64)*wave_density()
+	return maxi(1, ceili(float(wave_total) / WAVE_GROUPS[wave - 1]))
 
 func wave_density() -> int:
 	return 1 if stage==0 else int(stage_data().wave_density[wave-1])
 
 func spawn_interval(members: int) -> float:
-	return float(stage_data().regular_seconds) / (176.0 * int(stage_data().count_multiplier)*wave_density()) * members
+	return wave_seconds() * members / maxf(1.0, float(wave_total))
 
 func spawn_enemy(members: int) -> void:
 	var e: Dictionary = enemy_pool.pop_back() if not enemy_pool.is_empty() else {}
@@ -163,12 +176,12 @@ func spawn_enemy(members: int) -> void:
 		end = Vector2(origin.x + rng.randf_range(-70.0, 70.0), 570.0)
 	else:
 		var a: float = rng.randf_range(-PI, PI)
-		origin = Vector2(500.0, 315.0) + Vector2(cos(a) * 535.0, sin(a) * 350.0)
+		origin = Vector2(500.0, 315.0) + Vector2(cos(a) * 560.0, sin(a) * 300.0)
 		end = defense_position() + (origin - defense_position()).normalized() * 68.0
-	var lifetime: float = rng.randf_range(29.0, 40.0) if stage == 0 else rng.randf_range(38.0, 55.0)
+	var lifetime: float = rng.randf_range(16.0, 22.0) if stage == 0 else rng.randf_range(17.0, 23.0)
 	if elite:
 		lifetime *= 0.74
-	var unit_hp: float = 300.0 if elite else 100.0
+	var unit_hp: float = (300.0 if elite else 100.0) * hp_scale()
 	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": lifetime, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": kind, "elite": elite, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 12.0 + (8.0 if elite else 0.0) + (minf(22.0, log(float(members)) * 3.0) if members > 1 else 0.0), "boss": false, "dead": false})
 	enemies.append(e)
 
@@ -195,17 +208,26 @@ func select_target(point: Vector2) -> int:
 		priority_id = result
 	return result
 
+# Threats are only engaged inside the interception ring, so they visibly fly in;
+# growth shows as kills happening closer to the ring's edge. Bosses are always engaged.
+func weapon_range() -> float:
+	var base: float = 360.0 if stage == 0 else 215.0
+	return base * minf(1.0 + int(levels.speed) * 0.03, 1.45 if stage == 0 else 1.35)
+
+func in_range(e: Dictionary) -> bool:
+	return bool(e.boss) or Vector2(e.pos).distance_to(defense_position()) <= weapon_range()
+
 func pending_hp(e: Dictionary) -> float:
 	return float(e.hp) + (int(e.members) - 1) * float(e.unit_hp) - float(e.reserved)
 
 func target_for_weapon() -> Dictionary:
 	var explicit: Dictionary = find_enemy(priority_id)
-	if not explicit.is_empty() and pending_hp(explicit) > 0.0001:
+	if not explicit.is_empty() and pending_hp(explicit) > 0.0001 and in_range(explicit):
 		return explicit
 	var best: Dictionary = {}
 	var remaining: float = INF
 	for e in enemies:
-		if bool(e.dead) or pending_hp(e) <= 0.0001:
+		if bool(e.dead) or pending_hp(e) <= 0.0001 or not in_range(e):
 			continue
 		var t: float = float(e.lifetime) - float(e.age)
 		if t < remaining:
@@ -276,7 +298,7 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 	else:
 		e.hp = 0.0
 		e.dead = true
-	var reward: float = removed * 10.0 * float(stage_data().reward_multiplier) / wave_density() * (2.0 if bool(e.elite) else 1.0)
+	var reward: float = removed * 10.0 * float(stage_data().reward_multiplier) / wave_density() * (2.0 if bool(e.elite) else 1.0) * reward_scale()
 	money += reward
 	last_reward = reward
 	kills += removed
@@ -313,7 +335,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 				members = 1
 			spawn_enemy(members)
 			spawn_left -= members
-			spawn_clock += maxf(0.08, spawn_interval(members))
+			spawn_clock += maxf(0.05, spawn_interval(members))
 	for e in enemies:
 		if bool(e.dead):
 			continue
@@ -328,7 +350,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 			continue
 		if automation or manual_held or manual_queued:
 			var target: Dictionary = target_for_weapon() if automation else find_enemy(priority_id)
-			if not target.is_empty() and pending_hp(target)<=0:
+			if not target.is_empty() and (pending_hp(target)<=0 or not in_range(target)):
 				target={}
 			if not target.is_empty():
 				fire_weapon(i, target)
@@ -509,3 +531,6 @@ func restore(data: Dictionary) -> bool:
 	paused = false
 	manual_held = false
 	return true
+
+func boss_max_hp() -> float:
+	return float(stage_data().boss_hp) * hp_scale(10)

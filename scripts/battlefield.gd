@@ -21,6 +21,9 @@ var aims: Array[float]=[0,0,0,0,0,0]
 var muzzle_limits: Array[float]=[0,0,0,0,0,0]
 var spark_limits: Array[float]=[0,0,0,0,0,0]
 var pierce_limits: Array[float]=[0,0,0,0,0,0]
+# Floating damage numbers: the visible half of number inflation.
+var numbers: Array[Dictionary]=[]
+var number_limits: Array[float]=[0,0,0,0,0,0]
 var tint:=Color.WHITE
 const RockTexture=preload("res://assets/rock.svg")
 const ShipTexture=preload("res://assets/ship.svg")
@@ -46,7 +49,7 @@ func _ready() -> void:
 		var t: float = random.randf()
 		var r: float = sqrt(t) * 235
 		var a: float = t * 7.5 + (i % 4) * TAU / 4 + random.randfn(0, 0.13)
-		galaxy_points.append(Vector2(cos(a) * r, sin(a) * r * 0.46))
+		galaxy_points.append(Vector2(cos(a) * r, sin(a) * r))
 	star_mesh=MultiMesh.new()
 	star_mesh.transform_format=MultiMesh.TRANSFORM_2D
 	star_mesh.use_colors=true
@@ -78,7 +81,14 @@ func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -
 	if index>=2:add_feedback("beam",point,index,1.5+index*.8,.19,destination)
 	if critical:add_feedback("critical",destination,index,24,.28)
 
-func on_hit(point: Vector2, index: int, _amount: float, critical: bool, boss: bool, _kind: String) -> void:
+func on_hit(point: Vector2, index: int, amount: float, critical: bool, boss: bool, _kind: String) -> void:
+	if amount>0 and (number_limits[index]<=0 or critical) and numbers.size()<28:
+		if boss:
+			# One weapon at a time over the boss, spread across its hull.
+			for i in range(6):number_limits[i]=maxf(number_limits[i],.22)
+		number_limits[index]=.12 if not boss else .22
+		var spread: Vector2=Vector2(randf_range(-45,45),randf_range(-30,20)) if boss else Vector2(randf_range(-10,10),-6)
+		numbers.append({"pos":point+spread,"text":sim.Catalog.number(amount),"age":0.0,"size":21 if boss else 17 if critical else 13,"color":Color("ffd27a") if critical else Color("e8f1f6")})
 	if spark_limits[index]>0:return
 	spark_limits[index]=.085
 	add_feedback("spark",point,index,22 if critical else 13,.28)
@@ -105,6 +115,11 @@ func animate(delta: float) -> void:
 		muzzle_limits[i]=maxf(0,muzzle_limits[i]-delta)
 		spark_limits[i]=maxf(0,spark_limits[i]-delta)
 		pierce_limits[i]=maxf(0,pierce_limits[i]-delta)
+		number_limits[i]=maxf(0,number_limits[i]-delta)
+	for i in range(numbers.size()-1,-1,-1):
+		numbers[i].age=float(numbers[i].age)+delta
+		if float(numbers[i].age)>=.75:
+			numbers.remove_at(i)
 	for i in range(feedback.size()-1,-1,-1):
 		feedback[i].age=float(feedback[i].age)+delta
 		if float(feedback[i].age)>=float(feedback[i].duration):
@@ -184,8 +199,10 @@ func glow(center: Vector2, radius: float, color: Color) -> void:
 	draw_circle(center, radius, color)
 
 func planet(center: Vector2, radius: float, earth: bool = true) -> void:
-	var extent: float=radius*256.0/224
-	draw_texture_rect(EarthTexture if earth else PlanetTexture,Rect2(center-Vector2.ONE*extent,Vector2.ONE*extent*2),false,tint)
+	# Flat disc + outline: pure 2D, no lighting or atmosphere.
+	var fill: Color=Color("1d5670") if earth else Color("5a5668")
+	draw_circle(center,radius,fill*tint)
+	draw_arc(center,radius,0,TAU,maxi(24,int(radius)),Color("7fd3e6") if earth else Color("9a94a8"),maxf(1.0,radius*.04),true)
 
 func city() -> void:
 	for i in range(7):
@@ -223,8 +240,8 @@ func stage_scene(index: int) -> void:
 		0:
 			city()
 		1:
-			orbit(c, Vector2(190, 85), Color("294655"))
-			orbit(c, Vector2(247, 128), Color("182f42"))
+			orbit(c, Vector2.ONE*190, Color("294655"))
+			orbit(c, Vector2.ONE*247, Color("182f42"))
 			planet(c, 81)
 			planet(c + Vector2(247, -33), 12, false)
 			ink("地球", c + Vector2(-15, 109), Color("b1d9e9"), 14)
@@ -233,41 +250,40 @@ func stage_scene(index: int) -> void:
 			draw_circle(c + Vector2(47,31), 3, cyan)
 		2:
 			for i in range(5):
-				orbit(c, Vector2(70 + i*58, 36 + i*29), Color("30404c"))
+				orbit(c, Vector2.ONE*(70 + i*55), Color("30404c"))
 			glow(c, 37, Color("eabd63"))
-			draw_texture_rect(SunTexture,Rect2(c-Vector2.ONE*43,Vector2.ONE*86),false)
+			draw_circle(c,40,Color("efc46b"))
 			draw_arc(c, 43, clock*.1, clock*.1+4.3, 48, Color("8d633e"), 1)
 			for i in range(5):
 				var a: float = i * 1.72 + 0.2
-				var p: Vector2 = c + Vector2(cos(a)*(70+i*58),sin(a)*(36+i*29))
+				var p: Vector2 = c + Vector2(cos(a),sin(a))*(70+i*55)
 				planet(p, 5 + i * 2, i == 1)
 			ink("太阳", c + Vector2(-15, 65), Color("dfc287"), 14)
 			ink("地球轨道炮", c + Vector2(104, 52))
 		3:
-			galaxy(c, 1.35, Color("909ece"), -0.2)
-			orbit(c, Vector2(275, 130), Color("2d3552"))
+			galaxy(c, 1.15, Color("909ece"), -0.2)
+			orbit(c, Vector2.ONE*285, Color("2d3552"))
 			ink("银河核心", c + Vector2(-29, 46), Color("c3b8e7"), 14)
 			draw_circle(c + Vector2(160, 16), 3, Color("eac37f"))
 			ink("太阳系", c + Vector2(170, 22))
 		4:
 			for i in range(7):
 				var a: float = i * 2.4
-				var p: Vector2 = c + Vector2(cos(a)*230, sin(a)*140)
+				var p: Vector2 = c + Vector2(cos(a), sin(a))*215
 				draw_line(c, p, Color("263949"), 1)
 				galaxy(p, 0.33, Color("c1a4c6"), a*.3)
 			galaxy(c, 0.62, Color("a3b7dc"), -0.4)
-			orbit(c, Vector2(313,183), Color("3b304c"))
+			orbit(c, Vector2.ONE*295, Color("3b304c"))
 			ink("本星系群", c + Vector2(-25, 68), Color("d3bdde"), 14)
 		5:
 			for i in range(34):
 				var a: float = i * 2.399
-				var r: float = sqrt(float(i)/34)*360
-				var p: Vector2 = c + Vector2(cos(a)*r, sin(a)*r*.63)
-				var p2: Vector2 = c + Vector2(cos(a+1.5)*r*.75, sin(a+1.5)*r*.63)
+				var r: float = sqrt(float(i)/34)*290
+				var p: Vector2 = c + Vector2(cos(a), sin(a))*r
+				var p2: Vector2 = c + Vector2(cos(a+1.5), sin(a+1.5))*r*.75
 				draw_line(p,p2,Color("223d50"),1)
 				glow(p, 3 + i%3, Color("7696ba"))
-			orbit(c,Vector2(358,226), Color("456278"),1.4)
-			orbit(c,Vector2(360,95), Color("2c4556"))
+			orbit(c,Vector2.ONE*300, Color("456278"),1.4)
 			galaxy(c,.10,Color("c1a4c6"),-.4)
 			ink("可观测宇宙 · 防御枢纽", c+Vector2(-65,56),Color("bdd7e5"),14)
 
@@ -336,7 +352,7 @@ func enemy(e: Dictionary) -> void:
 		ship(p,radius,boss,heading)
 	elif kind == "star":
 		glow(p,radius,Color("ee9671"))
-		draw_texture_rect(SunTexture,Rect2(p-Vector2.ONE*radius*1.14,Vector2.ONE*radius*2.28),false,tint)
+		draw_circle(p,radius,Color("f0a27a")*tint)
 		draw_arc(p,radius+12,clock,clock+5.2,80,Color("b875a0"),3,true)
 	elif kind == "planet":
 		planet(p,radius,false)
@@ -432,6 +448,14 @@ func _draw() -> void:
 		ink("尺度跃迁  /  "+sim.catalog.stages[idx+1].title,Vector2(405,100),Color("d5e2ed"),22)
 	else:
 		stage_scene(idx)
+		# Interception ring: threats are engaged once they cross it.
+		if sim.mode in ["wave","intermission"]:
+			var ring_from: float=PI if idx==0 else 0.0
+			var ring_to: float=TAU
+			var segments: int=96
+			var step: float=(ring_to-ring_from)/segments
+			for j in range(0,segments,2):
+				draw_arc(sim.defense_position(),sim.weapon_range(),ring_from+j*step,ring_from+(j+1)*step,4,Color(cyan,.42),1.6,true)
 		for i in range(6):
 			if sim.owned[i]:
 				weapon(i,sim.weapon_origin(i),idx>0 and i<idx)
@@ -471,8 +495,15 @@ func _draw() -> void:
 						draw_line(Vector2(fx.pos)+v*r,Vector2(fx.pos)+v*(r+5),col,1,true)
 		if sim.mode == "intermission":
 			ink("拦截完成 · 下一波即将来袭",Vector2(395,190),Color("b9d4d7"),18)
-	# Sparse range marks make the battlefield feel like a tactical instrument.
 	draw_feedback()
+	for n in numbers:
+		var t: float=float(n.age)/.75
+		var lift: float=22*(1-pow(1-t,2))
+		var pop: float=1.0+.35*maxf(0,1-t*6)
+		var at: Vector2=Vector2(n.pos)+Vector2(-8,-lift)
+		var font_size: int=int(float(n.size)*pop)
+		draw_string_outline(font,at,n.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size,5,Color(.02,.04,.07,.85*(1-t*t)))
+		draw_string(font,at,n.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size,Color(n.color,1-t*t))
 	inspector()
 	for corner in [Vector2(-140,0),Vector2(1140,0),Vector2(-140,620),Vector2(1140,620)]:
 		var dir := Vector2(1 if corner.x<0 else -1,1 if corner.y<100 else -1)

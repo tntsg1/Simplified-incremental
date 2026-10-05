@@ -16,3 +16,6 @@ extends Resource
 @export var weapon_price: float = 0.0
 @export var boss_reward: float = 400.0
 @export var briefing: String = ""
+# Member HP = 100 * hp_base_scale * hp_growth^(wave-1); rewards follow HP^REWARD_HP_EXPONENT.
+@export var hp_base_scale: float = 1.0
+@export var hp_growth: float = 1.0

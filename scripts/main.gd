@@ -95,9 +95,6 @@ func _ready() -> void:
 	bg.color = Color("07111e")
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var material := ShaderMaterial.new()
-	material.shader = preload("res://assets/atmosphere.gdshader")
-	bg.material = material
 	add_child(bg)
 	field = Battlefield.new()
 	field.sim = sim
@@ -175,11 +172,11 @@ func build_hud() -> void:
 	boss_box.add_child(boss_title)
 	boss_timer = label("",16,Color("e8c4a3"))
 	boss_box.add_child(boss_timer)
-	boss_timer.position = Vector2(535,0)
+	boss_timer.position = Vector2(470,0)
 	boss_bar = ProgressBar.new()
 	boss_bar.show_percentage = false
 	boss_bar.position = Vector2(0,30)
-	boss_bar.size = Vector2(760,5)
+	boss_bar.size = Vector2(640,5)
 	boss_bar.add_theme_stylebox_override("background",panel_style(Color("352837"),Color("352837"),2))
 	boss_bar.add_theme_stylebox_override("fill",panel_style(Color("d29398"),Color("d29398"),2))
 	for key in ["background","fill"]:
@@ -191,6 +188,7 @@ func build_hud() -> void:
 	bottom.name = "Bottom"
 	bottom.add_theme_stylebox_override("panel",panel_style(Color("0d1b2a"),Color("273c50"),12))
 	ui.add_child(bottom)
+	ui.move_child(boss_box,-1)
 	hint = label("",15,Color("8ca4b9"))
 	bottom.add_child(hint)
 	hint.position = Vector2(24,23)
@@ -227,7 +225,7 @@ func layout() -> void:
 	wave_bar.size = Vector2(340,4)
 	var line: Control = ui.get_child(0)
 	line.size.x = w-72
-	boss_box.position = Vector2(w*.5-380,128)
+	boss_box.position = Vector2(36+(360 if hud_auto_button.visible else 24),h-101+14)
 	var bottom: Control = ui.get_node("Bottom")
 	bottom.position = Vector2(36,h-101)
 	bottom.size = Vector2(w-72,72)
@@ -503,7 +501,7 @@ func update_hud() -> void:
 		boss_title.text = sim.stage_data().boss_title
 		boss_timer.text = "撞击倒计时  %.1f s" %sim.boss_remaining
 		if not sim.enemies.is_empty():
-			boss_bar.value = float(sim.enemies[0].hp)/float(sim.stage_data().boss_hp)*100
+			boss_bar.value = float(sim.enemies[0].hp)/sim.boss_max_hp()*100
 			boss_title.text += "   /   HP "+Catalog.number(sim.enemies[0].hp)
 	var parts: Array[String] = []
 	for i in range(6):
@@ -517,6 +515,8 @@ func update_hud() -> void:
 	hud_auto_button.text = "开启自动防御 · $200" if sim.money>=200 else "自动防御 · $200（还差 $%d）"%ceili(200-sim.money)
 	hud_auto_button.tooltip_text = "购买后所有武器自动索敌；点击目标可指定集火。"
 	hint.position.x = 360 if auto_available else 24
+	hint.visible = sim.mode!="boss"
+	boss_box.position.x = 36+(360 if auto_available else 24)
 	if auto_available:
 		hint.text = "已开放购买 · 开启后自动攻击"
 	elif not sim.automation:
@@ -594,7 +594,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode==KEY_F11:
 			var window_mode: int = DisplayServer.window_get_mode()
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if window_mode==DisplayServer.WINDOW_MODE_FULLSCREEN else DisplayServer.WINDOW_MODE_FULLSCREEN)
-		elif event.keycode in [KEY_U,KEY_ESCAPE] and sim.mode!="title":
+		elif event.keycode in [KEY_U,KEY_ESCAPE] and sim.mode!="title" and menu!="title":
 			if menu!="":
 				close_modal()
 			elif event.keycode==KEY_U:
@@ -614,6 +614,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
 	if what==NOTIFICATION_WM_CLOSE_REQUEST:
 		save_game()
+	elif what==NOTIFICATION_APPLICATION_FOCUS_OUT and not proof and menu=="" and sim.mode in ["wave","boss","intermission","transition"]:
+		open_pause()
 
 func parse_proof() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()

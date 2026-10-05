@@ -34,7 +34,7 @@ func _initialize() -> void:
 					c.retry()
 				if c.mode=="victory":break
 				c.advance(1.0/60,false)
-			var passed: bool=c.mode=="victory" and c.elapsed>=10800 and c.elapsed<=18000
+			var passed: bool=c.mode=="victory" and c.elapsed>=2880 and c.elapsed<=9000
 			if not passed:failures+=1
 			print("MATRIX policy=",policy," seed=",seed_value," victory=",c.mode=="victory"," hours=",snappedf(c.elapsed/3600,.001)," retries=",c.attempts," min_health=",min_health," stage_min_health=",stage_health," boss_ttk=",boss_times," pass=",passed)
 	print("MATRIX failures=",failures)

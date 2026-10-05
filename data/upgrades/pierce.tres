@@ -4,6 +4,6 @@
 script=ExtResource("1")
 key="pierce"
 title="贯穿能力"
-base_cost=180
+base_cost=1e7
 unlock_stage=3
 description="每级覆盖 +25%；溢出火力继续命中邻近敌人。"
