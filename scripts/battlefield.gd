@@ -56,6 +56,7 @@ var b_style := PackedInt32Array()
 var b_crit := PackedByteArray()
 var turret_spots := PackedVector2Array()
 var turret_flash := PackedFloat32Array()
+var last_target := Vector2(500, 200)
 # Fill-only shapes are fan-triangulated into one array and submitted in a single
 # canvas call per layer; hundreds of draw_colored_polygon calls were the bottleneck.
 var batching: bool = false
@@ -228,13 +229,22 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 	if room <= 0:
 		return
 	count = mini(count, room)
+	# Lead the target: threats fly in straight lines at constant speed, so aiming
+	# at where it will be on arrival keeps rounds on it instead of trailing behind.
+	var velocity := Vector2.ZERO
+	if not sim.shots.is_empty():
+		var target: Dictionary = sim.find_enemy(int(sim.shots.back().target))
+		if not target.is_empty():
+			velocity = (Vector2(target.end) - Vector2(target.start)) / maxf(.01, float(target.lifetime))
 	for j in range(count):
 		var from: Vector2 = point + Vector2(randf_range(-6, 6), randf_range(-6, 6))
 		if turret_spots.size() > 0 and (index == 0 or j % 2 == 1):
 			var spot: int = randi() % turret_spots.size()
 			from = turret_spots[spot]
 			turret_flash[spot] = .09
-		var to: Vector2 = destination + Vector2(randf_range(-7, 7), randf_range(-7, 7))
+		var travel: float = flight_time(index, from, destination) * randf_range(.92, 1.08)
+		var delay: float = j * .014
+		var to: Vector2 = destination + velocity * (travel + delay) + Vector2(randf_range(-2, 2), randf_range(-2, 2))
 		var span: Vector2 = to - from
 		var side: Vector2 = span.orthogonal().normalized()
 		var bend: float = 0.0
@@ -248,12 +258,13 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 		b_from.append(from)
 		b_ctrl.append(ctrl)
 		b_to.append(to)
-		b_age.append(-j * .014)
-		b_dur.append(flight_time(index, from, to) * randf_range(.92, 1.08))
+		b_age.append(-delay)
+		b_dur.append(travel)
 		b_style.append(index)
 		b_crit.append(1 if critical else 0)
 
 func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
+	last_target = destination
 	spawn_barrage(index, point, destination, critical)
 	recoil[index] = 1.0
 	aims[index] = (destination - point).angle()
@@ -415,14 +426,16 @@ func draw_bullets() -> void:
 		var back: Vector2 = f.lerp(c, u).lerp(c.lerp(to, u), u)
 		if style == 2:
 			var side: Vector2 = (to - f).orthogonal().normalized()
-			pos += side * sin(t * 22 + age) * 4
-			back += side * sin(u * 22 + age) * 4
+			# Wobble only mid-flight so the round still lands on target.
+			pos += side * sin(t * 22 + age) * 5 * sin(t * PI)
+			back += side * sin(u * 22 + age) * 5 * sin(u * PI)
 		var dir: Vector2 = (pos - back).normalized()
 		var crit: bool = b_crit[i] == 1
 		if style == 4 and t > .5:
-			# Quasar rounds split into three halfway.
+			# Quasar rounds split into three halfway and reconverge on the target.
+			var spread: float = (t - .5) * (1 - t) * 4 * 26
 			for k in [-1, 0, 1]:
-				var fork: Vector2 = dir.rotated(k * .35) * (t - .5) * 26
+				var fork: Vector2 = dir.orthogonal() * k * spread
 				if crit:
 					hot.append(back + fork * .6)
 					hot.append(pos + fork)
@@ -561,11 +574,11 @@ func core(center: Vector2, layers: int, live: bool = false) -> void:
 		var loop := turret_spots.slice(0, mini(ARRAY_RINGS[0], turret_spots.size()))
 		loop.append(loop[0])
 		draw_polyline(loop, Color(GREY, .3), 1.0, true)
-	var aim: float = aims[0]
-	var barrel := Vector2.from_angle(aim)
 	begin_batch()
 	for j in range(turret_spots.size()):
 		var lit: bool = turret_flash[j] > 0
+		var aim: float = (last_target - turret_spots[j]).angle()
+		var barrel := Vector2.from_angle(aim)
 		var spot: Vector2 = turret_spots[j] - barrel * (2.0 if lit else 0.0)
 		shape(spot, (5.6 if lit else 4.6) * swell * (1.4 if city else 1.0), 3, aim, INK if lit else GREY)
 		stroke(spot, spot + barrel * 9, Color(INK if lit else GREY, .9))
