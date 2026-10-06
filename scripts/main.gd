@@ -49,6 +49,11 @@ var hud_auto_button: Button
 const SPEEDS: Array[int]=[1,2,4,8]
 var game_speed: int=1
 var speed_button: Button
+# Developer mode (F9): test shortcuts and extra fast-forward steps.
+var dev_mode: bool=false
+var dev_god: bool=false
+var dev_bar: HBoxContainer
+var dev_god_button: Button
 var weapon_button: Button
 var saved: Dictionary = {}
 var proof: bool = false
@@ -229,6 +234,17 @@ func build_hud() -> void:
 	speed_button.name = "SpeedButton"
 	speed_button.tooltip_text = "加速游戏：×1 / ×2 / ×4 / ×8"
 	bottom.add_child(speed_button)
+	dev_bar = HBoxContainer.new()
+	dev_bar.add_theme_constant_override("separation",8)
+	dev_bar.visible = false
+	ui.add_child(dev_bar)
+	for pair in [["开发：资金 ×10",dev_money],["跳过本波",dev_skip_wave],["击毁 Boss",dev_kill_boss],["直达下一章",dev_next_stage]]:
+		var dev_button := button(pair[0],pair[1])
+		dev_button.custom_minimum_size = Vector2(0,38)
+		dev_bar.add_child(dev_button)
+	dev_god_button = button("无敌：关",dev_toggle_god)
+	dev_god_button.custom_minimum_size = Vector2(0,38)
+	dev_bar.add_child(dev_god_button)
 	refresh_speed_button()
 	toast = label("",17,Color("dbdbdb"))
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -268,6 +284,7 @@ func layout() -> void:
 	pause.size = Vector2(167,46)
 	speed_button.position = Vector2(w-686,13)
 	speed_button.size = Vector2(166,46)
+	dev_bar.position = Vector2(36,h-150)
 	toast.position = Vector2(w*.2,h-142)
 	toast.size = Vector2(w*.6,30)
 	if is_instance_valid(modal):
@@ -594,8 +611,50 @@ func update_rates(delta: float) -> void:
 	rate_label.text = "每秒伤害 %s   ·   每秒击毁 %s" %[Catalog.number(rate_damage),Catalog.number(rate_kills)]
 
 func cycle_speed() -> void:
-	game_speed = SPEEDS[(SPEEDS.find(game_speed)+1)%SPEEDS.size()]
+	var steps: Array[int]=SPEEDS.duplicate()
+	if dev_mode:
+		steps.append_array([16,32])
+	game_speed = steps[(steps.find(game_speed)+1)%steps.size()]
 	refresh_speed_button()
+
+func toggle_dev_mode() -> void:
+	dev_mode = not dev_mode
+	dev_bar.visible = dev_mode
+	if not dev_mode:
+		dev_god = false
+		dev_god_button.text = "无敌：关"
+		if game_speed not in SPEEDS:
+			game_speed = 8
+			refresh_speed_button()
+	show_notice("开发者模式：" + ("开启 · 加速可到 ×32" if dev_mode else "关闭"))
+
+func dev_money() -> void:
+	sim.money = sim.money * 10.0 + 1000.0
+	update_hud()
+
+func dev_skip_wave() -> void:
+	if sim.mode == "wave":
+		sim.clear_battle()
+		sim.spawn_left = 0
+
+func dev_kill_boss() -> void:
+	if sim.mode != "boss":
+		show_notice("当前不是 Boss 战")
+		return
+	for e in sim.enemies:
+		if bool(e.boss) and not bool(e.dead):
+			sim.apply_damage(e, float(e.hp) + 1.0, 1, 0)
+
+func dev_next_stage() -> void:
+	if sim.stage >= 5:
+		show_notice("已经是最后一章")
+		return
+	if sim.mode in ["wave","intermission","boss"]:
+		sim.finish_boss()
+
+func dev_toggle_god() -> void:
+	dev_god = not dev_god
+	dev_god_button.text = "无敌：开" if dev_god else "无敌：关"
 
 func refresh_speed_button() -> void:
 	if is_instance_valid(speed_button):
@@ -627,6 +686,8 @@ func _process(delta: float) -> void:
 	field.hover = field.to_local(get_global_mouse_position())
 	if proof and "--inspect" in OS.get_cmdline_user_args() and not sim.enemies.is_empty():field.hover=sim.enemies[mini(3,sim.enemies.size()-1)].pos
 	if not sim.paused:
+		if dev_god:
+			sim.health = 100.0
 		accumulator += minf(delta,.1)*game_speed
 		while accumulator>=1.0/60:
 			sim.advance(1.0/60)
@@ -676,6 +737,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode==KEY_F11:
 			var window_mode: int = DisplayServer.window_get_mode()
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if window_mode==DisplayServer.WINDOW_MODE_FULLSCREEN else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		elif event.keycode==KEY_F9 and sim.mode!="title":
+			toggle_dev_mode()
 		elif event.keycode==KEY_F and menu=="" and sim.mode!="title":
 			cycle_speed()
 		elif event.keycode in [KEY_U,KEY_ESCAPE] and sim.mode!="title" and menu!="title":
