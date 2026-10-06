@@ -281,3 +281,61 @@ class UltOverlay extends Control:
 			spaced += subtitle.substr(i, 1) + (" " if i < subtitle.length() - 1 else "")
 		var sw: float = font.get_string_size(spaced, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 		draw_string(font, Vector2(w * .5 - sw * .5, cy + 52), spaced, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(ACCENT, sub_a))
+
+
+# Click feedback: a white flash through the button, corner brackets bursting
+# outward, and sparks fired from the exact click point.
+class ClickBurst extends Control:
+	var t: float = 0.0
+	var box: Rect2
+	var hit: Vector2
+	var col: Color = Color.WHITE
+	var big: bool = false
+	var sparks: Array[Vector2] = []
+
+	static func eo(x: float, power: float = 3.0) -> float:
+		return 1.0 - pow(1.0 - clampf(x, 0.0, 1.0), power)
+
+	func setup(rect: Rect2, at: Vector2, amber: bool, large: bool) -> void:
+		box = rect
+		hit = at
+		big = large
+		col = Color("ffc94d") if amber else Color.WHITE
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		z_index = 50
+		var n: int = 16 if large else 10
+		for i in range(n):
+			var a: float = TAU * i / n + randf_range(-.2, .2)
+			sparks.append(Vector2.from_angle(a) * randf_range(60.0, 150.0) * (1.6 if large else 1.0))
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+		if t > .6:
+			queue_free()
+
+	func _draw() -> void:
+		var k: float = t / .6
+		# Flash through the button body.
+		var flash: float = pow(maxf(0.0, 1.0 - t / .2), 2.0)
+		if flash > 0.0:
+			draw_rect(box, Color(col, .55 * flash))
+		# Corner brackets fly outward and fade.
+		var push: float = eo(t / .45) * (22.0 if big else 14.0)
+		var arm: float = 12.0
+		var a: float = clampf(1.0 - t / .45, 0.0, 1.0)
+		var r: Rect2 = box.grow(push + 2.0)
+		var corners: Array = [[r.position, Vector2(1, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 1)], [Vector2(r.position.x, r.end.y), Vector2(1, -1)], [r.end, Vector2(-1, -1)]]
+		for c in corners:
+			var p: Vector2 = c[0]
+			var d: Vector2 = c[1]
+			draw_line(p, p + Vector2(d.x * arm, 0), Color(col, a), 1.6)
+			draw_line(p, p + Vector2(0, d.y * arm), Color(col, a), 1.6)
+		# Thin outline that races outward.
+		draw_rect(box.grow(eo(t / .5) * (34.0 if big else 20.0)), Color(col, (1.0 - k) * .35), false, 1.0)
+		# Sparks from the click point.
+		for s in sparks:
+			var travel: float = eo(t / .5, 2.5)
+			var p: Vector2 = hit + s * travel
+			var tail: Vector2 = hit + s * maxf(0.0, travel - .12)
+			draw_line(tail, p, Color(col, (1.0 - k) * .9), 1.4)

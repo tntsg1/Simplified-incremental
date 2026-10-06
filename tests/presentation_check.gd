@@ -83,7 +83,8 @@ func run() -> void:
 			check(game.menu=="shop" and game.sim.paused,"keyboard opens paused upgrade panel")
 			var elapsed: float=game.sim.elapsed
 			var money: float=game.sim.money
-			for n in range(6):
+			# Let the panel finish unfolding before clicking inside it.
+			for n in range(40):
 				await process_frame
 			check(game.sim.elapsed==elapsed and game.sim.money==money,"UI pause freezes time and income")
 			var card_button: Button=game.cards[0].button
@@ -111,6 +112,8 @@ func run() -> void:
 					break
 			await key(KEY_U)
 			check(game.weapon_button!=null and not game.weapon_button.disabled,"Earth weapon purchase available from earned money")
+			for n in range(40):
+				await process_frame
 			await click(game.weapon_button.get_global_rect().get_center())
 			check(game.sim.owned[1],"mouse deploys orbital railgun")
 			await key(KEY_U)

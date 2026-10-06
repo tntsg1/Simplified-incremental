@@ -158,12 +158,20 @@ func juice(b: Button) -> void:
 	b.resized.connect(func(): b.pivot_offset = b.size * .5)
 	b.mouse_entered.connect(func(): spring(b, 1.035, .2))
 	b.mouse_exited.connect(func(): spring(b, 1.0, .2))
-	b.button_down.connect(func(): spring(b, .95, .08))
+	b.button_down.connect(func(): spring(b, .93, .07))
 	b.button_up.connect(func():
-		spring(b, 1.035 if b.is_hovered() else 1.0, .26)
-		var ring := Ripple.new()
-		ring.size = b.size
-		b.add_child(ring))
+		spring(b, 1.035 if b.is_hovered() else 1.0, .34)
+		if b.is_hovered() and not b.disabled:
+			burst(b, false, false))
+
+func burst(anchor: Control, amber: bool, large: bool) -> void:
+	if not is_instance_valid(anchor):
+		return
+	var fx := UiFx.ClickBurst.new()
+	var rect: Rect2 = anchor.get_global_rect()
+	var mouse: Vector2 = get_global_mouse_position()
+	fx.setup(rect, mouse if rect.has_point(mouse) else rect.get_center(), amber, large)
+	add_child(fx)
 
 func spring(node: Control, target: float, duration: float) -> void:
 	if not is_instance_valid(node):
@@ -180,15 +188,19 @@ func celebrate(anchor: Control, text: String) -> void:
 	if not is_instance_valid(anchor):
 		return
 	var card: Control = anchor.get_parent().get_parent() if anchor.get_parent() and anchor.get_parent().get_parent() is Control else anchor
+	burst(anchor, true, true)
 	card.modulate = Color(1.9, 1.9, 1.9)
 	card.create_tween().tween_property(card, "modulate", Color.WHITE, .35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	var tag := label(text, 22, Color("ffc94d"))
+	var tag := label(text, 26, Color("ffc94d"))
 	tag.position = anchor.global_position + Vector2(anchor.size.x * .5 - 16, -6)
-	tag.z_index = 10
+	tag.z_index = 60
 	add_child(tag)
+	tag.pivot_offset = Vector2(16, 14)
+	tag.scale = Vector2.ONE * .4
 	var rise := tag.create_tween().set_parallel(true)
-	rise.tween_property(tag, "position:y", tag.position.y - 42, .6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	rise.tween_property(tag, "modulate:a", 0.0, .6).set_delay(.2)
+	rise.tween_property(tag, "scale", Vector2.ONE, .32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	rise.tween_property(tag, "position:y", tag.position.y - 54, .75).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	rise.tween_property(tag, "modulate:a", 0.0, .45).set_delay(.35)
 	rise.chain().tween_callback(tag.queue_free)
 
 # Children fade and rise in one after another instead of popping together.
@@ -460,9 +472,13 @@ func layout() -> void:
 func new_modal(width: float, title: String, subtitle: String) -> VBoxContainer:
 	if is_instance_valid(modal):
 		modal.queue_free()
+	if not shade.visible or shade.modulate.a < 1.0:
+		var fade := shade.create_tween()
+		fade.tween_property(shade,"modulate:a",1.0,.3)
 	shade.show()
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal = PanelContainer.new()
-	modal.add_theme_stylebox_override("panel",panel_style(Color("161616"),Color("454545"),16))
+	modal.add_theme_stylebox_override("panel",panel_style(Color("161616"),Color("454545"),3))
 	modal.size.x = width
 	add_child(modal)
 	var v := VBoxContainer.new()
@@ -481,15 +497,17 @@ func center_modal() -> void:
 		modal.size = modal.get_combined_minimum_size()
 		modal.position = (size-modal.size)*.5
 		# Panels spring open instead of popping in.
+		# Panels unfold from a bright hairline into the full sheet.
 		modal.pivot_offset = modal.size*.5
-		modal.scale = Vector2.ONE*.94
-		modal.modulate.a = 0
+		modal.scale = Vector2(.6,.012)
+		modal.modulate = Color(2.2,2.2,2.2,0)
 		var tween := modal.create_tween().set_parallel(true)
-		tween.tween_property(modal,"scale",Vector2.ONE,.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tween.tween_property(modal,"modulate:a",1.0,.14)
+		tween.tween_property(modal,"scale:x",1.0,.26).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		tween.tween_property(modal,"scale:y",1.0,.38).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT).set_delay(.12)
+		tween.tween_property(modal,"modulate",Color.WHITE,.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		var body: Node = modal.get_child(0) if modal.get_child_count() > 0 else null
-		if body is VBoxContainer and current_menu_staggers():
-			stagger(body,.03)
+		if body is VBoxContainer:
+			stagger(body,.03 if current_menu_staggers() else .012)
 
 func show_title() -> void:
 	menu = "title"
@@ -536,9 +554,22 @@ func continue_game() -> void:
 
 func close_modal() -> void:
 	if is_instance_valid(modal):
-		modal.queue_free()
+		# Fold back into a hairline, then go.
+		var old: PanelContainer = modal
 		modal = null
-	shade.hide()
+		# The folding sheet no longer takes clicks.
+		old.propagate_call("set",["mouse_filter",Control.MOUSE_FILTER_IGNORE])
+		old.pivot_offset = old.size*.5
+		var fold := old.create_tween().set_parallel(true)
+		fold.tween_property(old,"scale:y",.012,.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+		fold.tween_property(old,"scale:x",.5,.16).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN).set_delay(.14)
+		fold.tween_property(old,"modulate",Color(2,2,2,0),.3).set_delay(.06)
+		fold.chain().tween_callback(old.queue_free)
+	if shade.visible:
+		shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var fade := shade.create_tween()
+		fade.tween_property(shade,"modulate:a",0.0,.25)
+		fade.tween_callback(func(): if modal == null: shade.hide())
 	menu = ""
 	ui.show()
 	sim.paused = false
