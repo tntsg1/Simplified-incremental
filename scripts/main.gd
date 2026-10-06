@@ -1,5 +1,20 @@
 extends Control
 
+# Expanding outline that leaves a button when it is clicked.
+class Ripple extends Control:
+	var t: float = 0.0
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+		if t >= .38:
+			queue_free()
+	func _draw() -> void:
+		var k: float = t / .38
+		var grow: float = 2.0 + (1.0 - pow(1.0 - k, 3.0)) * 16.0
+		draw_rect(Rect2(-Vector2.ONE * grow, size + Vector2.ONE * grow * 2.0), Color(1, 1, 1, (1.0 - k) * .55), false, 1.5)
+
 const Combat = preload("res://scripts/combat.gd")
 const Battlefield = preload("res://scripts/battlefield.gd")
 const SaveStore = preload("res://scripts/save_store.gd")
@@ -8,6 +23,7 @@ const AudioDirector=preload("res://scripts/audio_director.gd")
 var audio: Node
 var reduced_effects: bool=false
 var field_origin:=Vector2.ZERO
+var field_zoom: float=1.0
 var sim = Combat.new()
 var store = SaveStore.new()
 var field: Node2D
@@ -33,6 +49,16 @@ var boss_box: Control
 var boss_title: Label
 var boss_timer: Label
 var boss_bar: ProgressBar
+# Smoothed HUD values: bars glide, the boss bar keeps a lagging "damage ghost",
+# lost defense shakes the health readout, a new wave number pops.
+var boss_ghost: ProgressBar
+var boss_shown: float = 100
+var ghost_shown: float = 100
+var ghost_hold: float = 0
+var wave_shown: float = 0
+var health_seen: float = 100
+var health_shake: float = 0
+var wave_seen: String = ""
 var wave_bar: ProgressBar
 var toast: Label
 var toast_time: float = 0
@@ -104,7 +130,58 @@ func button(text: String, callback: Callable, primary: bool = false) -> Button:
 	b.add_theme_color_override("font_color",Color("efefef"))
 	b.add_theme_color_override("font_disabled_color",Color("6c6c6c"))
 	b.pressed.connect(callback)
+	juice(b)
 	return b
+
+# Springy hover / press / release on every button, plus a ripple on click.
+func juice(b: Button) -> void:
+	b.resized.connect(func(): b.pivot_offset = b.size * .5)
+	b.mouse_entered.connect(func(): spring(b, 1.035, .2))
+	b.mouse_exited.connect(func(): spring(b, 1.0, .2))
+	b.button_down.connect(func(): spring(b, .95, .08))
+	b.button_up.connect(func():
+		spring(b, 1.035 if b.is_hovered() else 1.0, .26)
+		var ring := Ripple.new()
+		ring.size = b.size
+		b.add_child(ring))
+
+func spring(node: Control, target: float, duration: float) -> void:
+	if not is_instance_valid(node):
+		return
+	var previous = node.get_meta("spring_tween") if node.has_meta("spring_tween") else null
+	if previous is Tween and previous.is_valid():
+		previous.kill()
+	var tween := node.create_tween()
+	tween.tween_property(node, "scale", Vector2.ONE * target, duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	node.set_meta("spring_tween", tween)
+
+# A purchase lights its card and floats "+N" off the button.
+func celebrate(anchor: Control, text: String) -> void:
+	if not is_instance_valid(anchor):
+		return
+	var card: Control = anchor.get_parent().get_parent() if anchor.get_parent() and anchor.get_parent().get_parent() is Control else anchor
+	card.modulate = Color(1.9, 1.9, 1.9)
+	card.create_tween().tween_property(card, "modulate", Color.WHITE, .35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var tag := label(text, 22, Color("ffc94d"))
+	tag.position = anchor.global_position + Vector2(anchor.size.x * .5 - 16, -6)
+	tag.z_index = 10
+	add_child(tag)
+	var rise := tag.create_tween().set_parallel(true)
+	rise.tween_property(tag, "position:y", tag.position.y - 42, .6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	rise.tween_property(tag, "modulate:a", 0.0, .6).set_delay(.2)
+	rise.chain().tween_callback(tag.queue_free)
+
+# Children fade and rise in one after another instead of popping together.
+func stagger(container: Node, gap: float = .035) -> void:
+	var i: int = 0
+	for child in container.get_children():
+		if child is Control:
+			var item: Control = child
+			item.modulate.a = 0.0
+			var tween := item.create_tween()
+			tween.tween_interval(i * gap)
+			tween.tween_property(item, "modulate:a", 1.0, .22)
+			i += 1
 
 func _ready() -> void:
 	mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -213,7 +290,19 @@ func build_hud() -> void:
 		var bar_style: StyleBoxFlat = boss_bar.get_theme_stylebox(key)
 		bar_style.content_margin_top=0
 		bar_style.content_margin_bottom=0
+	boss_ghost = ProgressBar.new()
+	boss_ghost.show_percentage = false
+	boss_ghost.position = boss_bar.position
+	boss_ghost.size = boss_bar.size
+	boss_ghost.add_theme_stylebox_override("background",panel_style(Color(0,0,0,0),Color(0,0,0,0),2))
+	boss_ghost.add_theme_stylebox_override("fill",panel_style(Color("ededed"),Color("ededed"),2))
+	for key in ["background","fill"]:
+		var ghost_style: StyleBoxFlat = boss_ghost.get_theme_stylebox(key)
+		ghost_style.content_margin_top=0
+		ghost_style.content_margin_bottom=0
+	boss_box.add_child(boss_ghost)
 	boss_box.add_child(boss_bar)
+	boss_bar.add_theme_stylebox_override("background",panel_style(Color(0,0,0,0),Color(0,0,0,0),2))
 	var bottom := Panel.new()
 	bottom.name = "Bottom"
 	bottom.add_theme_stylebox_override("panel",panel_style(Color("161616"),Color("323232"),12))
@@ -259,6 +348,7 @@ func layout() -> void:
 	var w: float = size.x
 	var h: float = size.y
 	var zoom: float = minf((w-90)/1100,(h-265)/620)
+	field_zoom = zoom
 	field.scale = Vector2.ONE*zoom
 	field.position = Vector2(w*.5-500*zoom,145)
 	field_origin=field.position
@@ -308,6 +398,9 @@ func new_modal(width: float, title: String, subtitle: String) -> VBoxContainer:
 	call_deferred("center_modal")
 	return v
 
+func current_menu_staggers() -> bool:
+	return menu in ["title","pause","result"]
+
 func center_modal() -> void:
 	if is_instance_valid(modal):
 		modal.size = modal.get_combined_minimum_size()
@@ -319,6 +412,9 @@ func center_modal() -> void:
 		var tween := modal.create_tween().set_parallel(true)
 		tween.tween_property(modal,"scale",Vector2.ONE,.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tween.tween_property(modal,"modulate:a",1.0,.14)
+		var body: Node = modal.get_child(0) if modal.get_child_count() > 0 else null
+		if body is VBoxContainer and current_menu_staggers():
+			stagger(body,.03)
 
 func show_title() -> void:
 	menu = "title"
@@ -435,7 +531,11 @@ func open_shop() -> void:
 		card.add_child(detail)
 		var index: int = i
 		var buy := button("",func():
-			if sim.buy_upgrade(index,purchase_count)>0:
+			var bought: int = sim.buy_upgrade(index,purchase_count)
+			if bought>0:
+				for entry in cards:
+					if int(entry.index)==index:
+						celebrate(entry.button,"+%d" %bought)
 				play_tone("buy")
 				update_shop(),true)
 		card.add_child(buy)
@@ -448,6 +548,7 @@ func open_shop() -> void:
 	v.add_child(power)
 	v.add_child(button("继续防御  [U / Esc]",close_modal,true))
 	update_shop()
+	stagger(grid,.04)
 
 func update_shop() -> void:
 	if not is_instance_valid(modal):
@@ -554,13 +655,16 @@ func update_hud() -> void:
 	wave_label.text = "巨型威胁" if sim.mode=="boss" else "第 %02d / 10 波" %sim.wave
 	health_label.text = "防线 %.0f%%" %sim.health
 	health_label.modulate = Color("ffc94d") if sim.health<40 else Color.WHITE
-	wave_bar.value = sim.progress()*100
+
 	boss_box.visible = sim.mode=="boss" and menu==""
 	if sim.mode=="boss":
 		boss_title.text = sim.stage_data().boss_title
 		boss_timer.text = "撞击倒计时  %.1f s" %sim.boss_remaining
 		if not sim.enemies.is_empty():
-			boss_bar.value = float(sim.enemies[0].hp)/sim.boss_max_hp()*100
+			var target: float = float(sim.enemies[0].hp)/sim.boss_max_hp()*100
+			if target < boss_shown - .01:
+				ghost_hold = .35
+			boss_shown = target if target > boss_shown else boss_shown
 			boss_title.text += "   /   HP "+Catalog.number(sim.enemies[0].hp)
 	var parts: Array[String] = []
 	for i in range(6):
@@ -594,6 +698,36 @@ func show_notice(message: String) -> void:
 	toast_time = 5.0
 	if is_instance_valid(audio) and (message.contains("突破") or message.contains("进化")):
 		audio.play("milestone",-11,1,false,true)
+
+func animate_hud(delta: float) -> void:
+	wave_shown = lerpf(wave_shown, sim.progress()*100, minf(1, delta*10))
+	wave_bar.value = wave_shown
+	if sim.mode == "boss" and not sim.enemies.is_empty():
+		var target: float = float(sim.enemies[0].hp)/sim.boss_max_hp()*100
+		boss_shown = lerpf(boss_shown, target, minf(1, delta*14))
+		ghost_hold = maxf(0, ghost_hold-delta)
+		if ghost_hold <= 0:
+			ghost_shown = move_toward(ghost_shown, boss_shown, delta*45)
+		ghost_shown = maxf(ghost_shown, boss_shown)
+	else:
+		boss_shown = 100
+		ghost_shown = 100
+	boss_bar.value = boss_shown
+	boss_ghost.value = ghost_shown
+	if sim.health < health_seen - .01:
+		health_shake = 1.0
+	health_seen = sim.health
+	health_shake = maxf(0, health_shake-delta*3)
+	health_label.position.x = size.x-180+sin(Time.get_ticks_msec()*.07)*6*health_shake
+	if health_shake > 0:
+		health_label.modulate = Color.WHITE.lerp(Color("ffc94d"), health_shake)
+	if wave_label.text != wave_seen:
+		wave_seen = wave_label.text
+		wave_label.pivot_offset = wave_label.size*.5
+		wave_label.scale = Vector2.ONE*1.25
+		wave_label.create_tween().tween_property(wave_label,"scale",Vector2.ONE,.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var enter: float = clampf((5.0-toast_time)/.3,0,1)
+	toast.position.y = size.y-142+(1-enter)*(1-enter)*18
 
 func settings_payload() -> Dictionary:
 	return {"sound":sound_on,"reduced_effects":reduced_effects,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed}
@@ -695,9 +829,18 @@ func _process(delta: float) -> void:
 	field.clock += delta*speed
 	field.reduced_effects=reduced_effects
 	field.animate(delta*speed)
-	field.position=field_origin+field.shake_offset()
+	# Camera punch: a quick zoom kick around the field centre on big moments.
+	var kick: float=1.0+field.punch*field.punch*.035
+	field.scale=Vector2.ONE*field_zoom*kick
+	field.position=field_origin+field.shake_offset()-Vector2(500,320)*field_zoom*(kick-1.0)
 	audio.update(sim,delta)
 	field.hover = field.to_local(get_global_mouse_position())
+	# The reticle replaces the OS cursor only over the open battlefield.
+	var mouse: Vector2 = get_global_mouse_position()
+	var over_field: bool = menu=="" and sim.mode in ["wave","boss","intermission"] and mouse.y > 118 and mouse.y < size.y-104
+	if over_field != field.show_reticle:
+		field.show_reticle = over_field
+		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if over_field else Input.MOUSE_MODE_VISIBLE
 	if proof and "--inspect" in OS.get_cmdline_user_args() and not sim.enemies.is_empty():field.hover=sim.enemies[mini(3,sim.enemies.size()-1)].pos
 	if not sim.paused:
 		if dev_god:
@@ -729,6 +872,7 @@ func _process(delta: float) -> void:
 		update_hud()
 		display_mode=sim.mode
 		display_stage=sim.stage
+	animate_hud(delta)
 	toast_time = maxf(0,toast_time-delta)
 	toast.modulate.a = minf(1,toast_time)
 	save_timer += delta
@@ -768,6 +912,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			sim.manual_held = false
 		elif menu=="" and sim.mode in ["wave","boss"]:
 			var point: Vector2 = field.to_local(event.position)
+			field.on_click(point)
 			var selected: int = sim.select_target(point)
 			if selected>=0 and not sim.automation:
 				sim.manual_held = true

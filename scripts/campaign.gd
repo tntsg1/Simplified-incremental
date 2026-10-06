@@ -49,7 +49,7 @@ static func start_wave(ctx: RefCounted) -> void:
 	ctx.mode_time = 0.0
 	ctx.wave_elapsed = 0.0
 	ctx.health = 100.0
-	ctx.wave_total = int(ctx.stage_data().wave_members[ctx.wave - 1]) * int(ctx.stage_data().count_multiplier)*ctx.wave_density()
+	ctx.wave_total = int(ctx.stage_data().wave_members[ctx.wave - 1]) * int(ctx.stage_data().count_multiplier)*ctx.wave_density()*(ctx.WAVE_SCALE if ctx.stage > 0 else 1)
 	ctx.spawn_left = ctx.wave_total
 	ctx.wave_killed = 0
 	ctx.spawn_clock = 0.25

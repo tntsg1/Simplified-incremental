@@ -68,6 +68,21 @@ var banner: Dictionary = {}
 var banner_cache: Dictionary = {}
 var letterbox: float = 0
 var slowmo_request: bool = false
+# Camera punch (main scales the field by it) and a rolling kill-combo counter.
+var punch: float = 0
+var combo_events: Array[Vector2] = []
+var combo: int = 0
+var combo_pop: float = 0
+var combo_line: TextLine
+var combo_shown: int = -1
+var kills_seen: int = -1
+# Mouse reticle: follows with a little inertia and snaps open around threats.
+var show_reticle: bool = false
+var reticle_pos := Vector2(500, 300)
+var reticle_lock: float = 0
+var lock_pos := Vector2.ZERO
+var lock_radius: float = 12
+var lock_priority: bool = false
 # Ambient dust spiralling into the core keeps the field alive between waves.
 const DUST: int = 70
 var dust_angle := PackedFloat32Array()
@@ -401,6 +416,11 @@ func add_number(pos: Vector2, value: float, critical: bool, boss: bool, size: in
 		line_cache[key] = line
 	numbers.append({"pos": pos, "line": line, "age": 0.0, "color": ACCENT if critical else INK if boss else Color("cfcfcf")})
 
+func count_kills(members: int) -> void:
+	combo_events.append(Vector2(clock, members))
+	combo += members
+	combo_pop = 1.0
+
 func on_members_removed(point: Vector2, index: int, members: int, _kind: String) -> void:
 	add_feedback("shards", point, index, 10 + minf(14, log(maxf(1, members)) * 1.2), .5)
 
@@ -428,6 +448,7 @@ func on_destroyed(point: Vector2, index: int, members: int, boss: bool, _kind: S
 	if boss:
 		trauma = .75
 		slowmo_request = true
+		punch = 1.0
 
 func animate(delta: float) -> void:
 	trauma = maxf(0, trauma - delta * 2.3)
@@ -453,6 +474,34 @@ func animate(delta: float) -> void:
 		banner.age = float(banner.age) + delta
 		if float(banner.age) >= float(banner.dur):
 			banner = {}
+	# The combo reads the sim's own kill counter, so it is always exact.
+	if sim != null:
+		if kills_seen < 0 or sim.kills < kills_seen:
+			kills_seen = sim.kills
+		elif sim.kills > kills_seen:
+			count_kills(sim.kills - kills_seen)
+			kills_seen = sim.kills
+	punch = maxf(0, punch - delta * 3.0)
+	reticle_pos = reticle_pos.lerp(hover, minf(1.0, delta * 24.0))
+	var locked: Dictionary = {}
+	if sim != null and show_reticle:
+		var best: float = INF
+		for e in sim.enemies:
+			if bool(e.dead):
+				continue
+			var d: float = hover.distance_to(e.pos)
+			if d < float(e.radius) + 16 and d < best:
+				best = d
+				locked = e
+	if not locked.is_empty():
+		lock_pos = lock_pos.lerp(locked.pos, minf(1.0, delta * 30.0)) if reticle_lock > .05 else Vector2(locked.pos)
+		lock_radius = lerpf(lock_radius, float(locked.radius), minf(1.0, delta * 20.0))
+		lock_priority = int(locked.id) == sim.priority_id
+	reticle_lock = move_toward(reticle_lock, 1.0 if not locked.is_empty() else 0.0, delta * 9.0)
+	combo_pop = maxf(0, combo_pop - delta * 5.0)
+	while not combo_events.is_empty() and clock - combo_events[0].x > 1.5:
+		combo -= int(combo_events[0].y)
+		combo_events.pop_front()
 	var bars_wanted: float = 1.0 if not banner.is_empty() and bool(banner.cinematic) and float(banner.age) < float(banner.dur) - .4 else 0.0
 	letterbox = move_toward(letterbox, bars_wanted, delta * 3.5)
 	for i in range(DUST):
@@ -564,6 +613,7 @@ func track_growth(delta: float) -> void:
 				add_feedback("shards", sim.weapon_origin(i), i, 26, .6)
 				add_wave(sim.weapon_origin(i), 24.0, 1.2)
 				trauma = minf(.5, trauma + .2)
+				punch = maxf(punch, .5)
 
 func shake_offset() -> Vector2:
 	if reduced_effects:
@@ -656,7 +706,41 @@ func ease_out_back(t: float) -> float:
 	var c: float = 1.70158
 	return 1 + (c + 1) * pow(t - 1, 3) + c * pow(t - 1, 2)
 
+func on_click(point: Vector2) -> void:
+	add_feedback("click", point, 0, 26, .42)
+	add_wave(point, 9.0, .8)
+
+func draw_reticle() -> void:
+	if not show_reticle:
+		return
+	var k: float = smoothstep(0.0, 1.0, reticle_lock)
+	var center: Vector2 = reticle_pos.lerp(lock_pos, k)
+	var radius: float = lerpf(13.0, lock_radius + 12.0, k)
+	var col: Color = (ACCENT if lock_priority else INK).lerp(INK, 1.0 - k) if k > 0 else INK
+	var spin: float = clock * 1.4 * (1.0 - k)
+	for j in range(4):
+		var a: float = spin + PI * .25 + j * PI * .5
+		draw_arc(center, radius, a - .32, a + .32, 8, col, 2.0, true)
+	draw_circle(reticle_pos, 2.0, INK)
+	if k > .5:
+		for j in range(4):
+			var dir := Vector2.from_angle(j * PI * .5)
+			draw_line(center + dir * (radius + 3), center + dir * (radius + 9), Color(col, k), 1.5, true)
+
 func draw_staging() -> void:
+	if combo >= 10:
+		if combo != combo_shown:
+			combo_line = TextLine.new()
+			combo_line.add_string("连击 ×" + sim.Catalog.number(combo), font, 26)
+			combo_shown = combo
+		var hot: bool = combo >= 100
+		var scale: float = 1.0 + combo_pop * (.25 if hot else .12)
+		var anchor := Vector2(1120, 30)
+		var size: Vector2 = combo_line.get_size()
+		draw_set_transform(anchor, 0, Vector2.ONE * scale)
+		combo_line.draw_outline(get_canvas_item(), Vector2(-size.x, -size.y * .5), 6, Color(BG, .9))
+		combo_line.draw(get_canvas_item(), Vector2(-size.x, -size.y * .5), ACCENT if hot else INK)
+		draw_set_transform(Vector2.ZERO)
 	# Cinematic bars for the boss entrance.
 	if letterbox > 0:
 		var h: float = 52 * smoothstep(0.0, 1.0, letterbox)
@@ -692,6 +776,10 @@ func draw_glow() -> void:
 		return
 	if glow_trails.size() > 1:
 		glow.draw_multiline(glow_trails, Color(.55, .55, .55, .07), 6.0)
+	# Every round's head carries a soft light; dense fire becomes a rain of light.
+	for j in range(0, glow_heads.size(), 4):
+		var head: Vector2 = glow_heads[j]
+		glow.draw_texture_rect(GlowTexture, Rect2(head - Vector2.ONE * 7, Vector2.ONE * 14), false, Color(1, 1, 1, .32))
 	if glow_heads.size() > 1:
 		glow.draw_multiline(glow_heads, Color(.8, .8, .8, .18), 7.0)
 	var core_at: Vector2 = sim.defense_position()
@@ -755,6 +843,12 @@ func draw_feedback() -> void:
 				draw_line(p, destination, Color(INK, fade * .9), r, true)
 			"muzzle":
 				draw_circle(p, r * (1 - t * .5), Color(INK, fade))
+			"click":
+				var ease: float = 1 - pow(1 - t, 3)
+				ring(p, r * (.3 + ease), Color(INK, fade * .8), 1.4)
+				for j in range(6):
+					var dir := Vector2.from_angle(j * TAU / 6 + .3)
+					stroke(p + dir * r * (.4 + ease * .7), p + dir * r * (.6 + ease * .9), Color(INK, fade))
 			"spark", "critical":
 				var col: Color = ACCENT if fx.kind == "critical" else INK
 				ring(p, r * (.4 + t), Color(col, fade), 1.5)
@@ -1004,6 +1098,10 @@ func enemy(e: Dictionary) -> void:
 				ink("×" + sim.Catalog.number(e.members), p + Vector2(-14, radius + 18), DIM, 11)
 				labels_left -= 1
 	var born: float = float(e.age)
+	if not boss and born < .3:
+		# Warp-in: a streak of light behind a threat that just dropped in.
+		var fade: float = 1.0 - born / .3
+		stroke(p, p + trail * radius * (4.0 + 14.0 * fade), Color(INK, .55 * fade))
 	if not boss and born < .35:
 		ring(p, radius * (1.0 + born * 5.0), Color(INK, (1 - born / .35) * .6))
 	if danger > .7 and not boss:
@@ -1140,4 +1238,5 @@ func _draw() -> void:
 	if sim.mode != "transition":
 		draw_staging()
 	inspector()
+	draw_reticle()
 	draw_ms = (Time.get_ticks_usec() - started) / 1000.0

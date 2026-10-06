@@ -40,7 +40,7 @@ static func coverage(ctx: RefCounted, index: int) -> int:
 		value *= 1.25 if int(ctx.levels.area)>=25 else 1.0
 	value *= 1.0 + int(ctx.levels.pierce) * 0.25 + int(ctx.levels.targets) * 0.3
 	# Coverage is the secondary stat; damage vs. rising HP is the main wall.
-	value *= 4.0
+	value *= 12.0
 	return maxi(1, int(value))
 
 

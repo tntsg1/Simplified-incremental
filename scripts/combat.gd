@@ -21,7 +21,10 @@ const REWARD_HP_EXPONENT: float = 0.4
 const TURRET_PERIOD: float = 0.25
 const TURRET_SLOTS: int = 48
 const TURRET_RINGS: Array[int] = [12, 16, 20]
-const WAVE_GROUPS: Array[int] = [16, 24, 32, 40, 52, 64, 80, 96, 112, 128]
+const WAVE_GROUPS: Array[int] = [32, 48, 64, 80, 104, 128, 160, 192, 224, 256]
+# Waves hold three times the threats at a third of the bounty each: a flood on
+# screen with the same economy.
+const WAVE_SCALE: int = 3
 # Waves arrive as surges: a crowd floods in over ~1.4 s, gets shredded, then the
 # next one comes. A steady trickle could never fill the screen.
 const SURGE_SPREAD: float = 1.4
@@ -198,7 +201,8 @@ func spawn_enemy(members: int) -> void:
 	var lifetime: float = rng.randf_range(16.0, 22.0) if stage == 0 else rng.randf_range(17.0, 23.0)
 	if elite:
 		lifetime *= 0.74
-	var unit_hp: float = (300.0 if elite else 100.0) * hp_scale()
+	# Flood waves split the same total HP across WAVE_SCALE times the threats.
+	var unit_hp: float = (300.0 if elite else 100.0) * hp_scale() / (WAVE_SCALE if stage > 0 else 1)
 	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": lifetime, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": kind, "elite": elite, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 12.0 + (8.0 if elite else 0.0) + (minf(22.0, log(float(members)) * 3.0) if members > 1 else 0.0), "boss": false, "dead": false})
 	enemies.append(e)
 
@@ -298,7 +302,7 @@ func turret_coverage() -> int:
 func turret_lanes() -> Array[Dictionary]:
 	var lanes: Array[Dictionary] = []
 	for e in enemies:
-		if not bool(e.dead) and pending_hp(e) > 0.0001:
+		if not bool(e.dead):
 			lanes.append(e)
 	lanes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.lifetime) - float(a.age) < float(b.lifetime) - float(b.age))
 	return lanes
@@ -363,7 +367,7 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 	else:
 		e.hp = 0.0
 		e.dead = true
-	var reward: float = removed * 10.0 * float(stage_data().reward_multiplier) / wave_density() * (2.0 if bool(e.elite) else 1.0) * reward_scale()
+	var reward: float = removed * 10.0 * float(stage_data().reward_multiplier) / wave_density() / (WAVE_SCALE if stage > 0 else 1) * (2.0 if bool(e.elite) else 1.0) * reward_scale()
 	money += reward
 	last_reward = reward
 	kills += removed
@@ -394,6 +398,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 	wave_elapsed += delta
 	if mode == "wave" and spawn_left > 0:
 		spawn_clock -= delta
+		# Cleared the field? The next surge rolls in almost at once, so a strong
+		# defense pushes through waves faster instead of staring at empty space.
+		if surge_spawned == 0 and spawn_clock > 0.6 and enemies.is_empty():
+			spawn_clock = 0.6
 		while spawn_clock <= 0.0 and spawn_left > 0:
 			var members: int = mini(spawn_left, group_size())
 			if stage >= 1 and (serial + 1) % 9 == 0:
@@ -428,28 +436,26 @@ func advance(delta: float, visuals: bool = true) -> void:
 				manual_queued = false
 	# Stateless staggered beat: turret k fires when its phase crosses a period
 	# boundary, so saves need no turret cooldowns and replay deterministically.
-	# Turrets fan out: turret k takes the k-th soonest threat in range, so the
-	# array sweeps every group at once instead of all piling onto one.
+	# Turrets are automatic and always busy: turret k takes the k-th soonest
+	# living threat (ignoring damage the main guns have already reserved), so
+	# the whole array sweeps every group at once instead of idling.
 	var turret_total: int = turret_count()
-	if turret_total > 0 and (automation or manual_held or manual_queued):
+	if turret_total > 0:
 		var lanes: Array[Dictionary] = []
 		var lanes_built: bool = false
 		for k in range(turret_total):
 			var phase: float = TURRET_PERIOD * k / turret_total
 			if floor((elapsed + phase) / TURRET_PERIOD) > floor((elapsed - delta + phase) / TURRET_PERIOD):
 				var target: Dictionary = {}
-				if automation:
-					if not lanes_built:
-						lanes = turret_lanes()
-						lanes_built = true
-					var explicit: Dictionary = find_enemy(priority_id)
-					if not explicit.is_empty() and k % 2 == 0:
-						target = explicit
-					elif not lanes.is_empty():
-						target = lanes[k % lanes.size()]
-				else:
-					target = find_enemy(priority_id)
-				if not target.is_empty() and pending_hp(target) > 0:
+				if not lanes_built:
+					lanes = turret_lanes()
+					lanes_built = true
+				var explicit: Dictionary = find_enemy(priority_id)
+				if not explicit.is_empty() and k % 2 == 0:
+					target = explicit
+				elif not lanes.is_empty():
+					target = lanes[k % lanes.size()]
+				if not target.is_empty():
 					fire_turret(k, target)
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
