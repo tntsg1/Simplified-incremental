@@ -17,6 +17,14 @@ var shade: ColorRect
 var modal: PanelContainer
 var stage_label: Label
 var money_label: Label
+# Live firepower readout under the money: damage and kills per game second.
+var rate_label: Label
+var rate_timer: float=0
+var rate_damage: float=0
+var rate_kills: float=0
+var last_damage_total: float=0
+var last_kills: int=0
+var last_rate_time: float=0
 var wave_label: Label
 var health_label: Label
 var hint: Label
@@ -38,6 +46,7 @@ var auto_button: Button
 var hud_auto_button: Button
 # Fast-forward: the fixed 60 Hz sim simply takes more steps per frame, so a run
 # plays out identically at any speed; field animation scales with it.
+const SPEEDS: Array[int]=[1,2,4,8]
 var game_speed: int=1
 var speed_button: Button
 var weapon_button: Button
@@ -140,7 +149,9 @@ func _ready() -> void:
 		reduced_effects=bool(saved.get("settings",{}).get("reduced_effects",false))
 		audio.music_level=clampf(float(saved.get("settings",{}).get("music_level",.55)),0,1)
 		audio.effects_level=clampf(float(saved.get("settings",{}).get("effects_level",.65)),0,1)
-		game_speed=clampi(int(saved.get("settings",{}).get("game_speed",1)),1,3)
+		game_speed=int(saved.get("settings",{}).get("game_speed",1))
+		if game_speed not in SPEEDS:
+			game_speed=1
 		refresh_speed_button()
 		audio.set_enabled(sound_on)
 		show_title()
@@ -162,6 +173,8 @@ func build_hud() -> void:
 	ui.add_child(scale_label)
 	money_label = label("$ 0",28,Color("ededed"))
 	ui.add_child(money_label)
+	rate_label = label("",13,Color("8a8a8a"))
+	ui.add_child(rate_label)
 	wave_label = label("第 01 / 10 波",19)
 	ui.add_child(wave_label)
 	health_label = label("防线 100%",18,Color("b4b4b4"))
@@ -214,7 +227,7 @@ func build_hud() -> void:
 	bottom.add_child(pause)
 	speed_button = button("",cycle_speed)
 	speed_button.name = "SpeedButton"
-	speed_button.tooltip_text = "加速游戏：×1 / ×2 / ×3"
+	speed_button.tooltip_text = "加速游戏：×1 / ×2 / ×4 / ×8"
 	bottom.add_child(speed_button)
 	refresh_speed_button()
 	toast = label("",17,Color("dbdbdb"))
@@ -234,6 +247,7 @@ func layout() -> void:
 	stage_label.position = Vector2(40,26)
 	scale_label.position = Vector2(42,72)
 	money_label.position = Vector2(w*.45,29)
+	rate_label.position = Vector2(w*.45+2,74)
 	wave_label.position = Vector2(w-395,32)
 	health_label.position = Vector2(w-180,35)
 	wave_bar.position = Vector2(w-395,75)
@@ -558,8 +572,29 @@ func show_notice(message: String) -> void:
 func settings_payload() -> Dictionary:
 	return {"sound":sound_on,"reduced_effects":reduced_effects,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed}
 
+func update_rates(delta: float) -> void:
+	rate_timer += delta
+	if rate_timer < .25:
+		return
+	rate_timer = 0
+	var total: float=0
+	for amount in sim.weapon_damage:
+		total += amount
+	var span: float=sim.elapsed-last_rate_time
+	if span > .001 and total >= last_damage_total and sim.kills >= last_kills:
+		rate_damage = lerpf(rate_damage,(total-last_damage_total)/span,.35)
+		rate_kills = lerpf(rate_kills,float(sim.kills-last_kills)/span,.35)
+	elif span < 0 or total < last_damage_total:
+		rate_damage = 0
+		rate_kills = 0
+	last_damage_total = total
+	last_kills = sim.kills
+	last_rate_time = sim.elapsed
+	rate_label.visible = sim.mode in ["wave","boss","intermission"]
+	rate_label.text = "每秒伤害 %s   ·   每秒击毁 %s" %[Catalog.number(rate_damage),Catalog.number(rate_kills)]
+
 func cycle_speed() -> void:
-	game_speed = 1 if game_speed>=3 else game_speed+1
+	game_speed = SPEEDS[(SPEEDS.find(game_speed)+1)%SPEEDS.size()]
 	refresh_speed_button()
 
 func refresh_speed_button() -> void:
@@ -605,6 +640,11 @@ func _process(delta: float) -> void:
 		shown_money=sim.money
 	money_pulse=maxf(0,money_pulse-delta*4)
 	money_label.text="$ "+Catalog.number(shown_money)
+	field.money_anchor=field.to_local(money_label.global_position+Vector2(36,22))
+	if field.coin_arrivals>0:
+		money_pulse=maxf(money_pulse,.7)
+		field.coin_arrivals=0
+	update_rates(delta)
 	money_label.pivot_offset=Vector2(0,money_label.size.y*.5)
 	money_label.scale=Vector2.ONE*(1+money_pulse*.07)
 	ui_timer += delta
@@ -691,6 +731,7 @@ func parse_proof() -> void:
 	sim.levels.area = idx*4
 	sim.levels.pierce = maxi(0,idx-2)*4
 	sim.levels.targets = maxi(0,idx-3)*3
+	sim.levels.turrets = 6+idx*8
 	sim.automation = true
 	for i in range(idx+1):
 		sim.owned[i] = true

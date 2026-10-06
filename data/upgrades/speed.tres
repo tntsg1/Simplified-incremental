@@ -3,7 +3,7 @@
 [resource]
 script=ExtResource("1")
 key="speed"
-title="拦截射程"
+title="拦截速度"
 base_cost=15
 unlock_stage=0
-description="每级弹速 +8%、拦截半径 +3%（上限 +35%）。敌人更早进入火力圈。"
+description="每级弹速 +8%，最高 20 倍。弹头更快命中，减少在途浪费。"

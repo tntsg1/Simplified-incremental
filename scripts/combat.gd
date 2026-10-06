@@ -18,10 +18,13 @@ const Catalog = preload("res://scripts/catalog.gd")
 const REWARD_HP_EXPONENT: float = 0.4
 # Turrets are real shooters: each fires on its own staggered beat. Together they
 # deal 5% of the whole arsenal's firepower per turret bought.
-const TURRET_PERIOD: float = 0.8
+const TURRET_PERIOD: float = 0.25
 const TURRET_SLOTS: int = 48
 const TURRET_RINGS: Array[int] = [12, 16, 20]
-const WAVE_GROUPS: Array[int] = [8, 12, 16, 20, 26, 32, 40, 48, 56, 64]
+const WAVE_GROUPS: Array[int] = [16, 24, 32, 40, 52, 64, 80, 96, 112, 128]
+# Waves arrive as surges: a crowd floods in over ~1.4 s, gets shredded, then the
+# next one comes. A steady trickle could never fill the screen.
+const SURGE_SPREAD: float = 1.4
 var catalog = Catalog.new()
 var rng := RandomNumberGenerator.new()
 var mode: String = "title"
@@ -40,6 +43,7 @@ var elapsed: float = 0.0
 var wave_elapsed: float = 0.0
 var mode_time: float = 0.0
 var spawn_clock: float = 0.0
+var surge_spawned: int = 0
 var spawn_left: int = 0
 var wave_total: int = 0
 var wave_killed: int = 0
@@ -151,6 +155,13 @@ func reward_scale() -> float:
 func wave_seconds() -> float:
 	return 25.0 + 7.0 * (wave - 1)
 
+func surge_count() -> int:
+	return 1 if wave_total <= 3 else clampi(2 + (wave - 1) / 3, 2, 5)
+
+func surge_groups() -> int:
+	var groups: int = ceili(float(wave_total) / group_size())
+	return maxi(1, ceili(float(groups) / surge_count()))
+
 func group_size() -> int:
 	if stage == 0:
 		return 1
@@ -214,26 +225,17 @@ func select_target(point: Vector2) -> int:
 		priority_id = result
 	return result
 
-# Threats are only engaged inside the interception ring, so they visibly fly in;
-# growth shows as kills happening closer to the ring's edge. Bosses are always engaged.
-func weapon_range() -> float:
-	var base: float = 360.0 if stage == 0 else 215.0
-	return base * minf(1.0 + int(levels.speed) * 0.03, 1.45 if stage == 0 else 1.35)
-
-func in_range(e: Dictionary) -> bool:
-	return bool(e.boss) or Vector2(e.pos).distance_to(defense_position()) <= weapon_range()
-
 func pending_hp(e: Dictionary) -> float:
 	return float(e.hp) + (int(e.members) - 1) * float(e.unit_hp) - float(e.reserved)
 
 func target_for_weapon() -> Dictionary:
 	var explicit: Dictionary = find_enemy(priority_id)
-	if not explicit.is_empty() and pending_hp(explicit) > 0.0001 and in_range(explicit):
+	if not explicit.is_empty() and pending_hp(explicit) > 0.0001:
 		return explicit
 	var best: Dictionary = {}
 	var remaining: float = INF
 	for e in enemies:
-		if bool(e.dead) or pending_hp(e) <= 0.0001 or not in_range(e):
+		if bool(e.dead) or pending_hp(e) <= 0.0001:
 			continue
 		var t: float = float(e.lifetime) - float(e.age)
 		if t < remaining:
@@ -292,6 +294,14 @@ func turret_shot_damage() -> float:
 
 func turret_coverage() -> int:
 	return maxi(1, int(0.05 * int(levels.get("turrets", 0)) * arsenal_rate(coverage) * TURRET_PERIOD / maxi(1, turret_count())))
+
+func turret_lanes() -> Array[Dictionary]:
+	var lanes: Array[Dictionary] = []
+	for e in enemies:
+		if not bool(e.dead) and pending_hp(e) > 0.0001:
+			lanes.append(e)
+	lanes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.lifetime) - float(a.age) < float(b.lifetime) - float(b.age))
+	return lanes
 
 func fire_turret(slot: int, target: Dictionary) -> void:
 	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
@@ -390,7 +400,12 @@ func advance(delta: float, visuals: bool = true) -> void:
 				members = 1
 			spawn_enemy(members)
 			spawn_left -= members
-			spawn_clock += maxf(0.05, spawn_interval(members))
+			surge_spawned += 1
+			if surge_spawned >= surge_groups():
+				surge_spawned = 0
+				spawn_clock += wave_seconds() / surge_count()
+			else:
+				spawn_clock += SURGE_SPREAD / surge_groups()
 	for e in enemies:
 		if bool(e.dead):
 			continue
@@ -405,7 +420,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 			continue
 		if automation or manual_held or manual_queued:
 			var target: Dictionary = target_for_weapon() if automation else find_enemy(priority_id)
-			if not target.is_empty() and (pending_hp(target)<=0 or not in_range(target)):
+			if not target.is_empty() and pending_hp(target)<=0:
 				target={}
 			if not target.is_empty():
 				fire_weapon(i, target)
@@ -413,13 +428,28 @@ func advance(delta: float, visuals: bool = true) -> void:
 				manual_queued = false
 	# Stateless staggered beat: turret k fires when its phase crosses a period
 	# boundary, so saves need no turret cooldowns and replay deterministically.
+	# Turrets fan out: turret k takes the k-th soonest threat in range, so the
+	# array sweeps every group at once instead of all piling onto one.
 	var turret_total: int = turret_count()
 	if turret_total > 0 and (automation or manual_held or manual_queued):
+		var lanes: Array[Dictionary] = []
+		var lanes_built: bool = false
 		for k in range(turret_total):
 			var phase: float = TURRET_PERIOD * k / turret_total
 			if floor((elapsed + phase) / TURRET_PERIOD) > floor((elapsed - delta + phase) / TURRET_PERIOD):
-				var target: Dictionary = target_for_weapon() if automation else find_enemy(priority_id)
-				if not target.is_empty() and pending_hp(target) > 0 and in_range(target):
+				var target: Dictionary = {}
+				if automation:
+					if not lanes_built:
+						lanes = turret_lanes()
+						lanes_built = true
+					var explicit: Dictionary = find_enemy(priority_id)
+					if not explicit.is_empty() and k % 2 == 0:
+						target = explicit
+					elif not lanes.is_empty():
+						target = lanes[k % lanes.size()]
+				else:
+					target = find_enemy(priority_id)
+				if not target.is_empty() and pending_hp(target) > 0:
 					fire_turret(k, target)
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
@@ -519,7 +549,7 @@ func snapshot() -> Dictionary:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
+	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "surge_spawned": surge_spawned, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
 
 func restore(data: Dictionary) -> bool:
 	if str(data.get("game", "")) != "skyguard" or int(data.get("version", 0)) != 1:
@@ -581,6 +611,7 @@ func restore(data: Dictionary) -> bool:
 	mode_time = float(data.mode_time)
 	spawn_clock = float(data.spawn_clock)
 	spawn_left = int(data.spawn_left)
+	surge_spawned = int(data.get("surge_spawned", 0))
 	wave_total = int(data.wave_total)
 	wave_killed = int(data.wave_killed)
 	kills = int(data.kills)

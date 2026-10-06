@@ -34,8 +34,6 @@ func run() -> void:
 	check(c.target_for_weapon().id==c.enemies[1].id,"shared priority")
 	c.enemies[1].reserved=1000
 	check(c.target_for_weapon().id==c.enemies[0].id,"reserved lethal damage avoids overkill")
-	c.enemies[0].pos=Vector2(200,100)
-	check(not c.in_range(c.enemies[0]) and c.target_for_weapon().is_empty(),"threats outside the interception ring are not engaged")
 	c.clear_battle()
 	c.wave=1
 	c.spawn_enemy(10)

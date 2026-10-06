@@ -35,17 +35,27 @@ var pierce_limits: Array[float] = [0, 0, 0, 0, 0, 0]
 var core_pulse: float = 0
 # Visible growth: purchases made in the (paused) upgrade panel replay on the
 # battlefield once combat resumes, so the defense is seen to grow.
-const GROWTH_NAMES := {"damage": "弹头", "speed": "射程", "reload": "装填", "crit": "暴击", "area": "范围", "pierce": "贯穿", "targets": "锁定", "turrets": "炮台"}
+const GROWTH_NAMES := {"damage": "弹头", "speed": "弹速", "reload": "装填", "crit": "暴击", "area": "范围", "pierce": "贯穿", "targets": "锁定", "turrets": "炮台"}
 var prev_levels: Dictionary = {}
 var prev_owned: Array = []
 var growth: Array[Dictionary] = []
 var growth_bounce: float = 0
 var dock_age: Array[float] = [-1, -1, -1, -1, -1, -1]
-var shown_range: float = -1
 var core_outer: float = 20
 # Barrage layer: purely cosmetic rounds that show the real launcher count and
 # fire rate. Combat timing and damage stay in the simulation untouched.
-const BULLET_CAP: int = 1500
+const BULLET_CAP: int = 2400
+const NUMBER_CAP: int = 80
+# Additive glow layer: light trails, flashes and halos drawn over the flat field.
+const GlowTexture = preload("res://assets/glow.svg")
+const COIN_CAP: int = 70
+var glow: Node2D
+var glow_trails := PackedVector2Array()
+var glow_heads := PackedVector2Array()
+var coins: Array[Dictionary] = []
+var coin_arrivals: int = 0
+var money_anchor := Vector2(500, -80)
+var last_mode: String = ""
 var b_from := PackedVector2Array()
 var b_ctrl := PackedVector2Array()
 var b_to := PackedVector2Array()
@@ -53,6 +63,10 @@ var b_age := PackedFloat32Array()
 var b_dur := PackedFloat32Array()
 var b_style := PackedInt32Array()
 var b_crit := PackedByteArray()
+var b_value := PackedFloat32Array()
+# Shaped damage-number lines are reused by text; volleys repeat the same values.
+var line_cache: Dictionary = {}
+var numbers_this_frame: int = 0
 var turret_flash := PackedFloat32Array()
 var turret_aim := PackedFloat32Array()
 var last_target := Vector2(500, 200)
@@ -102,6 +116,12 @@ func _ready() -> void:
 		galaxy_mesh.set_instance_color(i, Color(GREY, .18 + (i % 7) * .05))
 	for i in range(160):
 		feedback_pool.append({})
+	glow = Node2D.new()
+	var additive := CanvasItemMaterial.new()
+	additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = additive
+	add_child(glow)
+	glow.draw.connect(draw_glow)
 
 # ---------- shape helpers ----------
 
@@ -201,7 +221,7 @@ func pop(age: float) -> float:
 # ---------- feedback events ----------
 
 func add_feedback(kind: String, point: Vector2, index: int, size: float, duration: float, destination: Vector2 = Vector2.ZERO) -> void:
-	if feedback.size() >= 64:
+	if feedback.size() >= 140:
 		return
 	var fx: Dictionary = feedback_pool.pop_back() if not feedback_pool.is_empty() else {}
 	fx.clear()
@@ -211,8 +231,10 @@ func add_feedback(kind: String, point: Vector2, index: int, size: float, duratio
 func barrage_size(index: int) -> int:
 	var launchers: float = float(sim.launcher_count())
 	var packets: float = sim.salvo_packets(index)
-	var size: float = 1.0 + log(launchers) / log(2.0) * 1.6 + (ceilf(log(packets) / log(2.0)) if packets > 1.0 else 0.0)
-	return clampi(int(size), 1, 20)
+	# Even the first silo volley is a small swarm; it thickens with every launcher
+	# doubling, fire-rate packing and turret bought.
+	var size: float = 3.0 + log(launchers) / log(2.0) * 2.4 + (ceilf(log(packets) / log(2.0)) * 1.5 if packets > 1.0 else 0.0) + int(sim.levels.get("turrets", 0)) * .15
+	return clampi(int(size), 3, 44)
 
 func flight_time(index: int, from: Vector2, to: Vector2) -> float:
 	var speed_scale: float = pow(1.08, int(sim.levels.speed))
@@ -231,7 +253,9 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 	# Lead the target: threats fly in straight lines at constant speed, so aiming
 	# at where it will be on arrival keeps rounds on it instead of trailing behind.
 	var velocity := Vector2.ZERO
+	var share: float = 0.0
 	if not sim.shots.is_empty():
+		share = float(sim.shots.back().effective) / count
 		var target: Dictionary = sim.find_enemy(int(sim.shots.back().target))
 		if not target.is_empty():
 			velocity = (Vector2(target.end) - Vector2(target.start)) / maxf(.01, float(target.lifetime))
@@ -257,12 +281,13 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 		b_dur.append(travel)
 		b_style.append(index)
 		b_crit.append(1 if critical else 0)
+		b_value.append(share)
 
 func on_turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool) -> void:
 	if slot < turret_flash.size():
 		turret_flash[slot] = .12
 		turret_aim[slot] = (destination - origin).angle()
-	spawn_barrage(0, origin, destination, critical, maxi(1, barrage_size(0) / 4))
+	spawn_barrage(0, origin, destination, critical, maxi(2, barrage_size(0) / 5))
 
 func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
 	last_target = destination
@@ -280,20 +305,32 @@ func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -
 		add_feedback("critical", destination, index, 16, .3)
 
 func on_hit(point: Vector2, index: int, amount: float, critical: bool, boss: bool, _kind: String) -> void:
-	if amount > 0 and (number_limits[index] <= 0 or critical) and numbers.size() < 28:
+	# Rounds pop their own small numbers on arrival; whole-hit numbers are kept
+	# for the big moments: criticals and boss hits.
+	if amount > 0 and (boss or critical) and (number_limits[index] <= 0 or critical) and numbers.size() < NUMBER_CAP:
 		if boss:
 			# One weapon at a time over the boss, spread across its hull.
 			for i in range(6):
-				number_limits[i] = maxf(number_limits[i], .22)
-		number_limits[index] = .12 if not boss else .22
-		var spread: Vector2 = Vector2(randf_range(-90, 90), randf_range(-60, 50)) if boss else Vector2(randf_range(-10, 10), -6)
-		var line := TextLine.new()
-		line.add_string(sim.Catalog.number(amount), font, 21 if boss else 17 if critical else 13)
-		numbers.append({"pos": point + spread, "line": line, "age": 0.0, "color": ACCENT if critical else INK if boss else Color("d6d6d6")})
+				number_limits[i] = maxf(number_limits[i], .18)
+		number_limits[index] = .1 if not boss else .18
+		var spread: Vector2 = Vector2(randf_range(-90, 90), randf_range(-60, 50)) if boss else Vector2(randf_range(-10, 10), -10)
+		add_number(point + spread, amount, critical, boss, 22 if boss else 18)
 	if spark_limits[index] > 0:
 		return
 	spark_limits[index] = .085
 	add_feedback("spark", point, index, 16 if critical else 10, .22)
+
+func add_number(pos: Vector2, value: float, critical: bool, boss: bool, size: int) -> void:
+	var text: String = sim.Catalog.number(value)
+	var key: String = text + "|" + str(size)
+	var line: TextLine = line_cache.get(key)
+	if line == null:
+		if line_cache.size() > 400:
+			line_cache.clear()
+		line = TextLine.new()
+		line.add_string(text, font, size)
+		line_cache[key] = line
+	numbers.append({"pos": pos, "line": line, "age": 0.0, "color": ACCENT if critical else INK if boss else Color("cfcfcf")})
 
 func on_members_removed(point: Vector2, index: int, members: int, _kind: String) -> void:
 	add_feedback("shards", point, index, 10 + minf(14, log(maxf(1, members)) * 1.2), .5)
@@ -305,10 +342,17 @@ func on_pierced(origin: Vector2, destination: Vector2, index: int) -> void:
 	add_feedback("pierce", origin, index, 1, .22, destination)
 
 func on_destroyed(point: Vector2, index: int, members: int, boss: bool, _kind: String) -> void:
-	if boss and feedback.size() >= 64:
+	if boss and feedback.size() >= 140:
 		feedback_pool.append(feedback.pop_front())
 	var size: float = 110 if boss else 18 + minf(20, log(maxf(1, members)) * 2)
 	add_feedback("boss_death" if boss else "shards", point, index, size, 2.2 if boss else .7)
+	add_feedback("flash", point, index, size * (5.0 if boss else 2.6), .9 if boss else .28)
+	# Loot flies to the money counter: the visible half of every reward.
+	for k in range(3 if boss else (1 if members < 50 else 2)):
+		if coins.size() >= COIN_CAP:
+			break
+		var burst := Vector2.from_angle(randf() * TAU) * randf_range(30, 80)
+		coins.append({"from": point, "ctrl": point + burst, "age": -k * .05, "dur": randf_range(.55, .8)})
 	# Shake is reserved for big moments; constant hit shake read as stutter.
 	if boss:
 		trauma = .75
@@ -334,11 +378,26 @@ func animate(delta: float) -> void:
 	track_growth(delta)
 	for j in range(turret_flash.size()):
 		turret_flash[j] = maxf(0, turret_flash[j] - delta)
+	numbers_this_frame = 0
+	for i in range(coins.size() - 1, -1, -1):
+		coins[i].age = float(coins[i].age) + delta
+		if float(coins[i].age) >= float(coins[i].dur):
+			coins.remove_at(i)
+			coin_arrivals += 1
+	if sim != null and sim.mode != last_mode:
+		if sim.mode == "intermission":
+			add_feedback("sweep", sim.defense_position(), 0, 900, 1.0)
+		last_mode = sim.mode
+	if glow != null:
+		glow.queue_redraw()
 	var alive: int = b_age.size()
 	var i: int = 0
 	while i < alive:
 		b_age[i] += delta
 		if b_age[i] >= b_dur[i]:
+			if b_value[i] > 0 and numbers.size() < NUMBER_CAP and numbers_this_frame < 10:
+				numbers_this_frame += 1
+				add_number(b_to[i] + Vector2(randf_range(-22, 22), randf_range(-14, 6)), b_value[i], b_crit[i] == 1, false, 11)
 			# Swap-remove: draw order of rounds does not matter.
 			alive -= 1
 			b_from[i] = b_from[alive]
@@ -348,6 +407,7 @@ func animate(delta: float) -> void:
 			b_dur[i] = b_dur[alive]
 			b_style[i] = b_style[alive]
 			b_crit[i] = b_crit[alive]
+			b_value[i] = b_value[alive]
 		else:
 			i += 1
 	if alive != b_age.size():
@@ -358,11 +418,11 @@ func animate(delta: float) -> void:
 		b_dur.resize(alive)
 		b_style.resize(alive)
 		b_crit.resize(alive)
+		b_value.resize(alive)
 
 func reset_growth() -> void:
 	prev_levels = {}
 	growth.clear()
-	shown_range = -1
 	for i in range(6):
 		dock_age[i] = -1
 
@@ -385,8 +445,6 @@ func track_growth(delta: float) -> void:
 				dock_age[i] = 0.0
 		prev_levels = sim.levels.duplicate()
 		prev_owned = sim.owned.duplicate()
-	var target_range: float = sim.weapon_range()
-	shown_range = target_range if shown_range < 0 else lerpf(shown_range, target_range, minf(1, delta * 3))
 	for i in range(growth.size() - 1, -1, -1):
 		var before: float = float(growth[i].age)
 		growth[i].age = before + delta
@@ -459,12 +517,56 @@ func draw_bullets() -> void:
 			var spin: Vector2 = Vector2.from_angle(age * 30) * 5
 			heads.append(pos + spin)
 			heads.append(pos + spin * 1.3)
+	glow_trails = trails
+	glow_heads = heads
 	if trails.size() > 1:
 		draw_multiline(trails, Color(INK, .45), 1.4)
 	if hot.size() > 1:
 		draw_multiline(hot, Color(ACCENT, .75), 1.6)
 	if heads.size() > 1:
 		draw_multiline(heads, INK, 3.0)
+
+func coin_position(c: Dictionary) -> Vector2:
+	var t: float = clampf(float(c.age) / float(c.dur), 0, 1)
+	var e: float = t * t
+	var from: Vector2 = c.from
+	var ctrl: Vector2 = c.ctrl
+	return from.lerp(ctrl, e).lerp(ctrl.lerp(money_anchor, e), e)
+
+func draw_glow() -> void:
+	# Everything here is additive: overlaps brighten instead of covering.
+	if sim == null or sim.mode == "transition" or reduced_effects:
+		return
+	if glow_trails.size() > 1:
+		glow.draw_multiline(glow_trails, Color(.55, .55, .55, .07), 6.0)
+	if glow_heads.size() > 1:
+		glow.draw_multiline(glow_heads, Color(.8, .8, .8, .18), 7.0)
+	var core_at: Vector2 = sim.defense_position()
+	var halo: float = core_outer * (2.2 + core_pulse * .6)
+	glow.draw_texture_rect(GlowTexture, Rect2(core_at - Vector2.ONE * halo, Vector2.ONE * halo * 2), false, Color(1, 1, 1, .16 + core_pulse * .12))
+	for fx in feedback:
+		var t: float = float(fx.age) / float(fx.duration)
+		var p: Vector2 = fx.pos
+		var r: float = float(fx.size)
+		match str(fx.kind):
+			"flash":
+				var size: float = r * (.6 + t * .8)
+				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * size, Vector2.ONE * size * 2), false, Color(1, 1, 1, (1 - t) * (1 - t) * .9))
+			"muzzle":
+				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * r * 2.4, Vector2.ONE * r * 4.8), false, Color(1, 1, 1, (1 - t) * .5))
+			"spark", "critical":
+				var col: Color = Color(ACCENT, (1 - t) * .8) if fx.kind == "critical" else Color(1, 1, 1, (1 - t) * .45)
+				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * r * 1.6, Vector2.ONE * r * 3.2), false, col)
+			"beam":
+				glow.draw_line(p, fx.end, Color(1, 1, 1, (1 - t) * .25), r * 9, true)
+			"sweep":
+				var radius: float = r * (1 - pow(1 - t, 3))
+				glow.draw_arc(p, radius, 0, TAU, 128, Color(1, 1, 1, (1 - t) * .35), 10.0 * (1 - t) + 2, true)
+	for c in coins:
+		if float(c.age) < 0:
+			continue
+		var q: Vector2 = coin_position(c)
+		glow.draw_texture_rect(GlowTexture, Rect2(q - Vector2.ONE * 9, Vector2.ONE * 18), false, Color(1, 1, 1, .5))
 
 func draw_feedback() -> void:
 	for fx in feedback:
@@ -724,6 +826,9 @@ func enemy(e: Dictionary) -> void:
 			if labels_left > 0 or focused:
 				ink("×" + sim.Catalog.number(e.members), p + Vector2(-14, radius + 18), DIM, 11)
 				labels_left -= 1
+	var born: float = float(e.age)
+	if not boss and born < .35:
+		ring(p, radius * (1.0 + born * 5.0), Color(INK, (1 - born / .35) * .6))
 	if danger > .7 and not boss:
 		if batching:
 			arc_segments(p, radius + 8, -PI * .5, -PI * .5 + TAU * danger, Color(ACCENT, .85))
@@ -799,18 +904,6 @@ func _draw() -> void:
 		ink("尺度跃迁  /  " + sim.catalog.stages[idx + 1].title, Vector2(405, 100), INK, 22)
 	else:
 		stage_scene(idx)
-		# Interception ring: threats are engaged once they cross it.
-		if sim.mode in ["wave", "intermission"]:
-			var ring_from: float = PI if idx == 0 else 0.0
-			var segments: int = 96
-			var step: float = (TAU - ring_from) / segments
-			var dashes := PackedVector2Array()
-			var radius: float = shown_range if shown_range > 0 else sim.weapon_range()
-			var middle: Vector2 = sim.defense_position()
-			for j in range(0, segments, 2):
-				dashes.append(middle + Vector2.from_angle(ring_from + j * step) * radius)
-				dashes.append(middle + Vector2.from_angle(ring_from + (j + 1) * step) * radius)
-			draw_multiline(dashes, Color(GREY, .32), 1.4)
 		for i in range(6):
 			if sim.owned[i]:
 				weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
@@ -864,5 +957,10 @@ func _draw() -> void:
 		line.draw_outline(get_canvas_item(), top, 5, Color(BG, .9 * alpha))
 		line.draw(get_canvas_item(), top, Color(n.color, alpha))
 	draw_set_transform(Vector2.ZERO)
+	begin_batch()
+	for c in coins:
+		if float(c.age) >= 0:
+			shape(coin_position(c), 3.2, 4, clock * 6, INK)
+	flush_batch()
 	inspector()
 	draw_ms = (Time.get_ticks_usec() - started) / 1000.0

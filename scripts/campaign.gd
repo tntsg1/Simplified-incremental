@@ -53,6 +53,7 @@ static func start_wave(ctx: RefCounted) -> void:
 	ctx.spawn_left = ctx.wave_total
 	ctx.wave_killed = 0
 	ctx.spawn_clock = 0.25
+	ctx.surge_spawned = 0
 	for i in range(6):
 		ctx.cooldowns[i] = 0.0
 	ctx.checkpoint.emit()
