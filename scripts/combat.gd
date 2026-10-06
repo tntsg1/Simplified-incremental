@@ -11,6 +11,12 @@ signal turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: 
 signal body_fired(body_stage: int, slot: int, origin: Vector2, destination: Vector2, critical: bool)
 signal body_converted(body_stage: int, slot: int)
 signal shell_burst(point: Vector2, radius: float, body_stage: int, critical: bool)
+# Instant body attacks (beam / rail / chain / ring): the visual gets every point it touched.
+signal body_strike(kind: String, body_stage: int, slot: int, origin: Vector2, destination: Vector2, points: PackedVector2Array, critical: bool)
+signal ultimate_fired(kind: String, point: Vector2)
+signal ultimate_impact(kind: String, point: Vector2)
+signal prime_strike(prime: int, points: PackedVector2Array)
+signal flattened(point: Vector2)
 signal retargeted(old_target: int, new_target: int)
 signal focused(target_id: int)
 signal hit(point: Vector2, weapon: int, amount: float, critical: bool, boss: bool, kind: String)
@@ -40,13 +46,28 @@ const BODY_SPEED: float = 520.0
 const BODY_SPLASH: float = 95.0
 const BODY_SPLASH_SHARE: float = 0.6
 const BODY_SPLASH_LIMIT: int = 24
+# Every celestial cannon has its own way of attacking. Slow, heavy attacks fire
+# on fewer beats with the damage of the skipped beats folded in.
+const ATTACK_EVERY: Dictionary = {"shell": 1, "swarm": 2, "beam": 1, "rail": 2, "chain": 1, "cluster": 2, "gravity": 5, "ring": 3, "wave": 2, "quake": 3, "meteor": 3, "prism": 2}
+const SWARM_SPEED: float = 620.0
+const SWARM_COUNT: int = 5
+# Doomsday weapons, one per scale. Charged by time and by kills, fired by hand.
+const ULT_KINDS: Array[String] = ["nuke", "photoid", "foil", "prime", "lightspeed", "pi"]
+const ULT_NAMES: Array[String] = ["核弹", "光粒打击", "二向箔", "质数打击", "降低光速", "改写 π"]
+const ULT_TIME: float = 55.0
+const ULT_PER_KILL: float = 0.0016
+const ULT_KILL_RATE_CAP: float = 0.03
+const ULT_BOSS_SHARE: float = 0.2
+const ULT_DURATION: Dictionary = {"nuke": 3.0, "photoid": 2.4, "foil": 5.0, "prime": 4.4, "lightspeed": 5.2, "pi": 3.6}
+const PRIMES: Array[int] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+const NUKE_RADIUS: float = 300.0
 const BODIES: Array = [
-	[{"name": "西区摩天楼", "form": "twin", "style": 0, "weapon": "楼顶炮台", "at": Vector2(150, 470), "size": 12.0}, {"name": "中央塔", "form": "pods", "style": 0, "weapon": "塔顶导弹阵", "at": Vector2(330, 455), "size": 12.0}, {"name": "东区摩天楼", "form": "twin", "style": 1, "weapon": "楼顶炮台", "at": Vector2(860, 470), "size": 12.0}],
-	[{"name": "月球", "form": "crescent", "style": 1, "weapon": "月轨主炮", "orbit": 247.0, "angle": -0.13, "speed": 0.05, "size": 13.0}, {"name": "近地空间站", "form": "panels", "style": 1, "weapon": "轨道炮站", "orbit": 190.0, "angle": 2.1, "speed": 0.11, "size": 8.0}, {"name": "同步卫星", "form": "dish", "style": 3, "weapon": "激光卫星", "orbit": 190.0, "angle": 4.3, "speed": 0.11, "size": 8.0}],
-	[{"name": "水星", "form": "tri", "style": 0, "weapon": "水星炮", "orbit": 70.0, "angle": 0.2, "speed": 0.03, "size": 6.0}, {"name": "金星", "form": "penta", "style": 2, "weapon": "金星炮", "orbit": 125.0, "angle": 1.92, "speed": 0.015, "size": 8.0}, {"name": "火星", "form": "star4", "style": 4, "weapon": "火星炮", "orbit": 180.0, "angle": 3.64, "speed": 0.01, "size": 9.0}, {"name": "木星", "form": "octa", "style": 1, "weapon": "木星巨炮", "orbit": 235.0, "angle": 5.36, "speed": 0.0075, "size": 12.0}, {"name": "土星", "form": "ringed", "style": 2, "weapon": "土星环炮", "orbit": 290.0, "angle": 0.8, "speed": 0.006, "size": 11.0}, {"name": "太阳", "form": "dyson", "style": 3, "weapon": "戴森球", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 42.0}],
-	[{"name": "天狼星", "form": "star5", "style": 3, "weapon": "天狼星炮", "orbit": 160.0, "angle": 0.1, "speed": 0.02, "size": 7.0}, {"name": "参宿四", "form": "star6", "style": 4, "weapon": "红巨星炮", "orbit": 230.0, "angle": 1.7, "speed": 0.015, "size": 9.0}, {"name": "织女星", "form": "star7", "style": 2, "weapon": "织女星炮", "orbit": 200.0, "angle": 3.3, "speed": 0.018, "size": 7.0}, {"name": "大角星", "form": "star8", "style": 5, "weapon": "大角星炮", "orbit": 260.0, "angle": 4.8, "speed": 0.012, "size": 8.0}, {"name": "银心黑洞", "form": "hole", "style": 5, "weapon": "黑洞引擎", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 14.0}],
-	[{"name": "仙女座星系", "form": "spiral", "style": 4, "weapon": "仙女座阵列", "orbit": 215.0, "angle": 0.0, "speed": 0.0, "size": 18.0}, {"name": "三角座星系", "form": "spiral", "style": 2, "weapon": "三角座阵列", "orbit": 215.0, "angle": 2.4, "speed": 0.0, "size": 18.0}, {"name": "大麦哲伦云", "form": "spiral", "style": 3, "weapon": "麦哲伦阵列", "orbit": 215.0, "angle": 4.8, "speed": 0.0, "size": 18.0}, {"name": "小麦哲伦云", "form": "spiral", "style": 0, "weapon": "麦哲伦副阵", "orbit": 215.0, "angle": 7.2, "speed": 0.0, "size": 18.0}, {"name": "人马矮星系", "form": "spiral", "style": 5, "weapon": "人马阵列", "orbit": 215.0, "angle": 9.6, "speed": 0.0, "size": 18.0}, {"name": "大熊矮星系", "form": "spiral", "style": 1, "weapon": "大熊阵列", "orbit": 215.0, "angle": 12.0, "speed": 0.0, "size": 18.0}, {"name": "天龙矮星系", "form": "spiral", "style": 4, "weapon": "天龙阵列", "orbit": 215.0, "angle": 14.4, "speed": 0.0, "size": 18.0}],
-	[{"name": "长城节点", "form": "node", "style": 5, "weapon": "长城引擎", "node": 5, "size": 8.0}, {"name": "室女座节点", "form": "node", "style": 3, "weapon": "室女座引擎", "node": 9, "size": 8.0}, {"name": "后发座节点", "form": "node", "style": 2, "weapon": "后发座引擎", "node": 14, "size": 8.0}, {"name": "巨引源", "form": "node", "style": 4, "weapon": "巨引源引擎", "node": 20, "size": 9.0}, {"name": "拉尼亚凯亚", "form": "node", "style": 5, "weapon": "超星系团引擎", "node": 26, "size": 9.0}, {"name": "牧夫座空洞", "form": "node", "style": 1, "weapon": "空洞引擎", "node": 31, "size": 9.0}],
+	[{"name": "西区摩天楼", "attack": "swarm", "form": "twin", "style": 0, "weapon": "楼顶炮台", "at": Vector2(150, 470), "size": 12.0}, {"name": "中央塔", "attack": "beam", "form": "pods", "style": 0, "weapon": "塔顶导弹阵", "at": Vector2(330, 455), "size": 12.0}, {"name": "东区摩天楼", "attack": "quake", "form": "twin", "style": 1, "weapon": "楼顶炮台", "at": Vector2(860, 470), "size": 12.0}],
+	[{"name": "月球", "attack": "rail", "form": "crescent", "style": 1, "weapon": "月轨主炮", "orbit": 247.0, "angle": -0.13, "speed": 0.05, "size": 13.0}, {"name": "近地空间站", "attack": "prism", "form": "panels", "style": 1, "weapon": "轨道炮站", "orbit": 190.0, "angle": 2.1, "speed": 0.11, "size": 8.0}, {"name": "同步卫星", "attack": "chain", "form": "dish", "style": 3, "weapon": "激光卫星", "orbit": 190.0, "angle": 4.3, "speed": 0.11, "size": 8.0}],
+	[{"name": "水星", "attack": "cluster", "form": "tri", "style": 0, "weapon": "水星炮", "orbit": 70.0, "angle": 0.2, "speed": 0.03, "size": 6.0}, {"name": "金星", "attack": "wave", "form": "penta", "style": 2, "weapon": "金星炮", "orbit": 125.0, "angle": 1.92, "speed": 0.015, "size": 8.0}, {"name": "火星", "attack": "meteor", "form": "star4", "style": 4, "weapon": "火星炮", "orbit": 180.0, "angle": 3.64, "speed": 0.01, "size": 9.0}, {"name": "木星", "attack": "gravity", "form": "octa", "style": 1, "weapon": "木星巨炮", "orbit": 235.0, "angle": 5.36, "speed": 0.0075, "size": 12.0}, {"name": "土星", "attack": "ring", "form": "ringed", "style": 2, "weapon": "土星环炮", "orbit": 290.0, "angle": 0.8, "speed": 0.006, "size": 11.0}, {"name": "太阳", "attack": "beam", "form": "dyson", "style": 3, "weapon": "戴森球", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 42.0}],
+	[{"name": "天狼星", "attack": "rail", "form": "star5", "style": 3, "weapon": "天狼星炮", "orbit": 160.0, "angle": 0.1, "speed": 0.02, "size": 7.0}, {"name": "参宿四", "attack": "quake", "form": "star6", "style": 4, "weapon": "红巨星炮", "orbit": 230.0, "angle": 1.7, "speed": 0.015, "size": 9.0}, {"name": "织女星", "attack": "prism", "form": "star7", "style": 2, "weapon": "织女星炮", "orbit": 200.0, "angle": 3.3, "speed": 0.018, "size": 7.0}, {"name": "大角星", "attack": "chain", "form": "star8", "style": 5, "weapon": "大角星炮", "orbit": 260.0, "angle": 4.8, "speed": 0.012, "size": 8.0}, {"name": "银心黑洞", "attack": "gravity", "form": "hole", "style": 5, "weapon": "黑洞引擎", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 14.0}],
+	[{"name": "仙女座星系", "attack": "swarm", "form": "spiral", "style": 4, "weapon": "仙女座阵列", "orbit": 215.0, "angle": 0.0, "speed": 0.0, "size": 18.0}, {"name": "三角座星系", "attack": "wave", "form": "spiral", "style": 2, "weapon": "三角座阵列", "orbit": 215.0, "angle": 2.4, "speed": 0.0, "size": 18.0}, {"name": "大麦哲伦云", "attack": "meteor", "form": "spiral", "style": 3, "weapon": "麦哲伦阵列", "orbit": 215.0, "angle": 4.8, "speed": 0.0, "size": 18.0}, {"name": "小麦哲伦云", "attack": "cluster", "form": "spiral", "style": 0, "weapon": "麦哲伦副阵", "orbit": 215.0, "angle": 7.2, "speed": 0.0, "size": 18.0}, {"name": "人马矮星系", "attack": "ring", "form": "spiral", "style": 5, "weapon": "人马阵列", "orbit": 215.0, "angle": 9.6, "speed": 0.0, "size": 18.0}, {"name": "大熊矮星系", "attack": "beam", "form": "spiral", "style": 1, "weapon": "大熊阵列", "orbit": 215.0, "angle": 12.0, "speed": 0.0, "size": 18.0}, {"name": "天龙矮星系", "attack": "chain", "form": "spiral", "style": 4, "weapon": "天龙阵列", "orbit": 215.0, "angle": 14.4, "speed": 0.0, "size": 18.0}],
+	[{"name": "长城节点", "attack": "rail", "form": "node", "style": 5, "weapon": "长城引擎", "node": 5, "size": 8.0}, {"name": "室女座节点", "attack": "wave", "form": "node", "style": 3, "weapon": "室女座引擎", "node": 9, "size": 8.0}, {"name": "后发座节点", "attack": "prism", "form": "node", "style": 2, "weapon": "后发座引擎", "node": 14, "size": 8.0}, {"name": "巨引源", "attack": "gravity", "form": "node", "style": 4, "weapon": "巨引源引擎", "node": 20, "size": 9.0}, {"name": "拉尼亚凯亚", "attack": "quake", "form": "node", "style": 5, "weapon": "超星系团引擎", "node": 26, "size": 9.0}, {"name": "牧夫座空洞", "attack": "meteor", "form": "node", "style": 1, "weapon": "空洞引擎", "node": 31, "size": 9.0}],
 ]
 const WAVE_GROUPS: Array[int] = [32, 48, 64, 80, 104, 128, 160, 192, 224, 256]
 # Waves hold three times the threats at a third of the bounty each: a flood on
@@ -76,6 +97,11 @@ var mode_time: float = 0.0
 var spawn_clock: float = 0.0
 # Converted celestial bodies: one bitmask per scale.
 var bodies: Array[int] = [0, 0, 0, 0, 0, 0]
+var wells: Array[Dictionary] = []
+var ult_charge: float = 0.0
+var ult_deaths: int = 0
+var ult: Dictionary = {}
+var spawn_hold: float = 0.0
 var spawn_left: int = 0
 var wave_total: int = 0
 var wave_killed: int = 0
@@ -171,6 +197,9 @@ func clear_battle() -> void:
 	for p in shots:
 		shot_pool.append(p)
 	shots.clear()
+	wells.clear()
+	ult = {}
+	spawn_hold = 0.0
 	priority_id = -1
 	manual_held = false
 
@@ -433,10 +462,17 @@ func body_shot_damage() -> float:
 func body_coverage() -> int:
 	return maxi(1, int(BODY_SHARE * arsenal_rate(coverage) * BODY_PERIOD))
 
-func fire_body(body_stage: int, slot: int, target: Dictionary) -> void:
+func body_attack(body_stage: int, slot: int) -> String:
+	return str(BODIES[body_stage][slot].get("attack", "shell"))
+
+func fire_body(body_stage: int, slot: int, target: Dictionary, lanes: Array[Dictionary] = [], beat: int = 0) -> void:
+	var attack: String = body_attack(body_stage, slot)
+	if attack not in ["shell", "cluster"]:
+		fire_body_special(attack, body_stage, slot, target, lanes, beat)
+		return
 	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
 	p.clear()
-	var amount: float = body_shot_damage()
+	var amount: float = body_shot_damage() * int(ATTACK_EVERY.get(attack, 1))
 	var critical: bool = rng.randf() < crit_chance()
 	if critical:
 		amount *= crit_multiplier()
@@ -444,7 +480,7 @@ func fire_body(body_stage: int, slot: int, target: Dictionary) -> void:
 	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
 	var origin: Vector2 = body_position(body_stage, slot)
 	var destination: Vector2 = target.pos
-	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / BODY_SPEED), "damage": amount, "effective": effective, "coverage": cap, "weapon": mini(body_stage, 5), "crit": critical, "beam": false, "body": slot, "body_stage": body_stage})
+	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / BODY_SPEED), "damage": amount, "effective": effective, "coverage": cap, "weapon": mini(body_stage, 5), "crit": critical, "beam": false, "body": slot, "body_stage": body_stage, "attack": attack})
 	target.reserved = float(target.reserved) + effective
 	shots.append(p)
 	body_fired.emit(body_stage, slot, origin, destination, critical)
@@ -466,11 +502,323 @@ func retarget_shot(p: Dictionary) -> Dictionary:
 	p.target = int(best.id)
 	p.from = here
 	p.age = 0.0
-	p.duration = 0.05 if bool(p.beam) else maxf(0.035, nearest / (BODY_SPEED if p.has("body") else PROJECTILE_SPEED))
+	p.duration = 0.05 if bool(p.beam) else maxf(0.035, nearest / (SWARM_SPEED if p.has("swarm") else (BODY_SPEED if p.has("body") else PROJECTILE_SPEED)))
 	p.effective = float(p.damage) if bool(best.boss) else minf(float(p.damage), int(p.coverage) * float(best.unit_hp))
 	best.reserved = float(best.reserved) + float(p.effective)
 	retargeted.emit(old, int(best.id))
 	return best
+
+func burst_at(here: Vector2, radius: float, share: float, p: Dictionary, skip: Dictionary, visuals: bool) -> float:
+	var dealt: float = 0.0
+	var count: int = 0
+	for other in enemies:
+		if count >= 12:
+			break
+		if other == skip or bool(other.dead) or Vector2(other.pos).distance_to(here) > radius:
+			continue
+		dealt += apply_damage(other, share, int(p.coverage), int(p.weapon))
+		count += 1
+	if visuals:
+		shell_burst.emit(here, radius, int(p.get("body_stage", p.weapon)), bool(p.crit))
+	return dealt
+
+func fire_body_special(attack: String, body_stage: int, slot: int, target: Dictionary, lanes: Array[Dictionary], beat: int) -> void:
+	var amount: float = body_shot_damage() * int(ATTACK_EVERY.get(attack, 1))
+	var critical: bool = rng.randf() < crit_chance()
+	if critical:
+		amount *= crit_multiplier()
+	var cap: int = body_coverage()
+	var weapon_index: int = mini(body_stage, 5)
+	var origin: Vector2 = body_position(body_stage, slot)
+	var destination: Vector2 = target.pos
+	body_fired.emit(body_stage, slot, origin, destination, critical)
+	var points := PackedVector2Array()
+	var dealt: float = 0.0
+	match attack:
+		"swarm":
+			# A rack of micro-missiles, each on its own threat.
+			for j in range(SWARM_COUNT):
+				var aim: Dictionary = target if j == 0 or lanes.is_empty() else lanes[(beat * 5 + j * 3) % lanes.size()]
+				var m: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
+				m.clear()
+				var each: float = amount * 0.3
+				var eff: float = each if bool(aim.boss) else minf(each, cap * float(aim.unit_hp))
+				m.merge({"target": int(aim.id), "from": origin, "pos": origin, "end": aim.pos, "age": 0.0, "duration": maxf(0.05, origin.distance_to(aim.pos) / SWARM_SPEED), "damage": each, "effective": eff, "coverage": cap, "weapon": weapon_index, "crit": critical, "beam": false, "body": slot, "body_stage": body_stage, "attack": "swarm", "swarm": j})
+				aim.reserved = float(aim.reserved) + eff
+				shots.append(m)
+			return
+		"beam", "rail":
+			# Beam: a lance to the target that scorches anything along it.
+			# Rail: an instant slug through the target to the edge of space.
+			var reach: Vector2 = destination if attack == "beam" else origin + (destination - origin).normalized() * 1400.0
+			var width: float = 18.0 if attack == "beam" else 12.0
+			var share: float = 0.6 if attack == "beam" else 0.8
+			dealt += apply_damage(target, amount, cap, weapon_index, critical)
+			var count: int = 0
+			for e in enemies:
+				if count >= (24 if attack == "beam" else 40):
+					break
+				if e == target or bool(e.dead):
+					continue
+				if Geometry2D.get_closest_point_to_segment(e.pos, origin, reach).distance_to(e.pos) <= width + float(e.radius) * .5:
+					dealt += apply_damage(e, amount * share, cap, weapon_index)
+					points.append(e.pos)
+					count += 1
+			body_strike.emit(attack, body_stage, slot, origin, reach, points, critical)
+		"chain":
+			# Lightning hops from threat to threat, weakening a little each jump.
+			var current: Dictionary = target
+			var visited: Array = []
+			points.append(origin)
+			for hop in range(7):
+				points.append(current.pos)
+				visited.append(current)
+				dealt += apply_damage(current, amount * pow(0.82, hop), cap, weapon_index, critical and hop == 0)
+				var next: Dictionary = {}
+				var best: float = 170.0
+				for e in enemies:
+					if bool(e.dead) or visited.has(e):
+						continue
+					var d: float = Vector2(e.pos).distance_to(current.pos)
+					if d < best:
+						best = d
+						next = e
+				if next.is_empty():
+					break
+				current = next
+			body_strike.emit(attack, body_stage, slot, origin, destination, points, critical)
+		"gravity":
+			# A gravity well opens on the target and grinds everything nearby.
+			wells.append({"kind": "gravity", "pos": destination, "age": 0.0, "dur": 1.6, "radius": 115.0, "tick": 0.0, "step": 0.2, "damage": amount / 8.0, "coverage": cap, "weapon": weapon_index, "stage": body_stage, "slot": slot})
+			body_strike.emit(attack, body_stage, slot, origin, destination, points, critical)
+		"quake":
+			# Three seismic shocks on the same spot, each ring wider than the last.
+			wells.append({"kind": "quake", "pos": destination, "age": 0.0, "dur": 0.9, "radius": 90.0, "tick": 0.0, "step": 0.3, "damage": amount * 0.45, "coverage": cap, "weapon": weapon_index, "stage": body_stage, "slot": slot})
+			body_strike.emit(attack, body_stage, slot, origin, destination, points, critical)
+		"meteor":
+			# A meteor shower called down around the target: six delayed impacts.
+			var spin: float = float(beat % 7)
+			for j in range(6):
+				var spot: Vector2 = destination + (Vector2.ZERO if j == 0 else Vector2.from_angle(spin + j * 1.3) * (40.0 + j * 14.0))
+				wells.append({"kind": "meteor", "pos": spot, "age": -(0.06 + j * 0.08), "dur": 0.42, "radius": 48.0, "tick": 0.42, "step": 1.0, "damage": amount * 0.4, "coverage": cap, "weapon": weapon_index, "stage": body_stage, "slot": slot})
+				points.append(spot)
+			body_strike.emit(attack, body_stage, slot, origin, destination, points, critical)
+		"wave":
+			# A wavefront rolls out in a cone toward the target.
+			var axis: float = (destination - origin).angle()
+			var count: int = 0
+			dealt += apply_damage(target, amount, cap, weapon_index, critical)
+			for e in enemies:
+				if count >= 40:
+					break
+				if e == target or bool(e.dead):
+					continue
+				var rel: Vector2 = Vector2(e.pos) - origin
+				if rel.length() <= 560.0 and absf(angle_difference(axis, rel.angle())) <= 0.38:
+					dealt += apply_damage(e, amount * 0.55, cap, weapon_index)
+					points.append(e.pos)
+					count += 1
+			body_strike.emit(attack, body_stage, slot, origin, destination, points, critical)
+		"prism":
+			# A beam that refracts at the target into a fan of four more.
+			dealt += apply_damage(target, amount, cap, weapon_index, critical)
+			points.append(destination)
+			var picked: Array = [target]
+			for j in range(4):
+				var next: Dictionary = {}
+				var best: float = 260.0
+				for e in enemies:
+					if bool(e.dead) or picked.has(e):
+						continue
+					var d: float = Vector2(e.pos).distance_to(destination)
+					if d < best:
+						best = d
+						next = e
+				if next.is_empty():
+					break
+				picked.append(next)
+				points.append(next.pos)
+				dealt += apply_damage(next, amount * 0.5, cap, weapon_index)
+			body_strike.emit(attack, body_stage, slot, origin, destination, points, critical)
+		"ring":
+			# A shock ring bursts out of the body itself.
+			var radius: float = 240.0
+			var count: int = 0
+			dealt += apply_damage(target, amount, cap, weapon_index, critical)
+			for e in enemies:
+				if count >= 40:
+					break
+				if e == target or bool(e.dead) or Vector2(e.pos).distance_to(origin) > radius:
+					continue
+				dealt += apply_damage(e, amount * 0.5, cap, weapon_index)
+				points.append(e.pos)
+				count += 1
+			body_strike.emit(attack, body_stage, slot, origin, destination, points, critical)
+	source_damage.body += dealt
+
+func update_wells(delta: float) -> void:
+	for i in range(wells.size() - 1, -1, -1):
+		var w: Dictionary = wells[i]
+		w.age = float(w.age) + delta
+		while float(w.tick) <= float(w.age) and float(w.tick) <= float(w.dur):
+			var shock: int = int(round(float(w.tick) / float(w.step)))
+			w.tick = float(w.tick) + float(w.step)
+			# Quakes widen with every shock; gravity and meteors keep their radius.
+			var radius: float = float(w.radius) + (40.0 * shock if str(w.kind) == "quake" else 0.0)
+			var count: int = 0
+			for e in enemies:
+				if count >= 30:
+					break
+				if bool(e.dead) or Vector2(e.pos).distance_to(w.pos) > radius:
+					continue
+				source_damage.body += apply_damage(e, float(w.damage), int(w.coverage), int(w.weapon))
+				count += 1
+		if float(w.age) >= float(w.dur):
+			wells.remove_at(i)
+
+# ---------------- Doomsday weapons ----------------
+func ultimate_kind() -> String:
+	return ULT_KINDS[mini(stage, ULT_KINDS.size() - 1)]
+
+func ultimate_name() -> String:
+	return ULT_NAMES[mini(stage, ULT_NAMES.size() - 1)]
+
+func ultimate_ready() -> bool:
+	return ult_charge >= 1.0 and ult.is_empty() and mode in ["wave", "boss"] and not paused
+
+func frozen() -> bool:
+	return not ult.is_empty() and str(ult.kind) == "lightspeed" and float(ult.age) < 4.0
+
+func densest_point() -> Vector2:
+	var best: Vector2 = defense_position() + Vector2(0, -170)
+	var most: int = -1
+	for e in enemies:
+		if bool(e.dead):
+			continue
+		var n: int = 0
+		for o in enemies:
+			if not bool(o.dead) and Vector2(o.pos).distance_to(e.pos) < 150.0:
+				n += int(o.members)
+		if n > most:
+			most = n
+			best = e.pos
+	return best
+
+func fire_ultimate(point: Vector2 = Vector2.INF) -> bool:
+	if not ultimate_ready():
+		return false
+	var kind: String = ultimate_kind()
+	if kind in ["photoid", "prime", "lightspeed", "pi"]:
+		point = defense_position()
+	elif point == Vector2.INF:
+		point = densest_point()
+	ult_charge = 0.0
+	ult = {"kind": kind, "age": 0.0, "point": point, "step": 0, "boss_hit": false}
+	match kind:
+		"photoid":
+			spawn_hold = 5.0 + 0.9
+		"foil":
+			spawn_hold = 4.6
+		"prime":
+			spawn_hold = 3.6
+		"lightspeed":
+			spawn_hold = 5.6
+		"pi":
+			spawn_hold = 4.0
+		_:
+			spawn_hold = 1.6
+	ultimate_fired.emit(kind, point)
+	checkpoint.emit()
+	return true
+
+func ult_strike(e: Dictionary, weapon_index: int) -> float:
+	if bool(e.dead):
+		return 0.0
+	if bool(e.boss):
+		return apply_damage(e, boss_max_hp() * ULT_BOSS_SHARE, 1, weapon_index)
+	return apply_damage(e, float(e.hp) + (int(e.members) - 1) * float(e.unit_hp) + 1.0, int(e.members), weapon_index)
+
+func ult_sweep(center: Vector2, radius: float, include_boss: bool) -> void:
+	var w: int = mini(stage, 5)
+	for e in enemies.duplicate():
+		if bool(e.dead) or Vector2(e.pos).distance_to(center) > radius + float(e.radius):
+			continue
+		if bool(e.boss) and not include_boss:
+			continue
+		ult_strike(e, w)
+
+func crossed(at: float, delta: float) -> bool:
+	var age: float = float(ult.age)
+	return age >= at and age - delta < at
+
+func update_ultimate(delta: float) -> void:
+	if mode in ["wave", "boss"] and ult.is_empty():
+		var from_kills: float = minf(ult_deaths * ULT_PER_KILL, ULT_KILL_RATE_CAP * delta)
+		ult_charge = minf(1.0, ult_charge + delta / ULT_TIME + from_kills)
+	ult_deaths = 0
+	update_wells(delta)
+	if ult.is_empty():
+		return
+	ult.age = float(ult.age) + delta
+	var kind: String = ult.kind
+	var at: Vector2 = ult.point
+	var w: int = mini(stage, 5)
+	match kind:
+		"nuke":
+			if crossed(0.75, delta):
+				ult_sweep(at, NUKE_RADIUS, true)
+				ultimate_impact.emit(kind, at)
+		"photoid":
+			if crossed(0.9, delta):
+				ult_sweep(at, 5000.0, true)
+				ultimate_impact.emit(kind, at)
+		"foil":
+			# The foil unfolds into a plane that flattens everything it reaches.
+			if crossed(1.3, delta):
+				ultimate_impact.emit(kind, at)
+			if float(ult.age) >= 1.3:
+				var radius: float = (float(ult.age) - 1.3) * 400.0
+				for e in enemies.duplicate():
+					if bool(e.dead) or Vector2(e.pos).distance_to(at) > radius:
+						continue
+					if bool(e.boss):
+						if not bool(ult.boss_hit):
+							ult.boss_hit = true
+							ult_strike(e, w)
+						continue
+					var spot: Vector2 = e.pos
+					ult_strike(e, w)
+					flattened.emit(spot)
+		"prime":
+			# Ten pulses: the n-th prime p erases p threats at once.
+			var step: int = int(ult.step)
+			if step < PRIMES.size() and float(ult.age) >= 0.5 + step * 0.28:
+				ult.step = step + 1
+				var prime: int = PRIMES[step]
+				var targets: Array[Dictionary] = turret_lanes()
+				var points := PackedVector2Array()
+				var taken: int = 0
+				for e in targets:
+					if taken >= prime:
+						break
+					if bool(e.boss):
+						apply_damage(e, boss_max_hp() * ULT_BOSS_SHARE / PRIMES.size(), 1, w)
+						points.append(e.pos)
+						continue
+					points.append(e.pos)
+					ult_strike(e, w)
+					taken += 1
+				prime_strike.emit(prime, points)
+		"lightspeed":
+			if crossed(4.0, delta):
+				ult_sweep(at, 5000.0, true)
+				ultimate_impact.emit(kind, at)
+		"pi":
+			if crossed(1.4, delta):
+				ult_sweep(at, 5000.0, true)
+				ultimate_impact.emit(kind, at)
+	if float(ult.age) >= float(ULT_DURATION.get(kind, 3.0)):
+		ult = {}
 
 func shell_burst_at(center: Dictionary, p: Dictionary, visuals: bool) -> float:
 	# The heavy shell detonates: every other threat inside the blast takes a share.
@@ -549,6 +897,7 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 	else:
 		e.hp = 0.0
 		e.dead = true
+		ult_deaths += 1
 	var reward: float = removed * 10.0 * float(stage_data().reward_multiplier) / wave_density() / (WAVE_SCALE if stage > 0 else 1) * (2.0 if bool(e.elite) else 1.0) * reward_scale()
 	money += reward
 	last_reward = reward
@@ -578,7 +927,11 @@ func advance(delta: float, visuals: bool = true) -> void:
 	if mode not in ["wave", "boss"]:
 		return
 	wave_elapsed += delta
-	if mode == "wave" and spawn_left > 0:
+	spawn_hold = maxf(0.0, spawn_hold - delta)
+	update_ultimate(delta)
+	if mode not in ["wave", "boss"]:
+		return
+	if mode == "wave" and spawn_left > 0 and spawn_hold <= 0.0:
 		spawn_clock -= delta
 		var burst: int = 0
 		while spawn_left > 0 and burst < 6 and (spawn_clock <= 0.0 or living_count() < min_alive()):
@@ -593,6 +946,8 @@ func advance(delta: float, visuals: bool = true) -> void:
 		if bool(e.dead):
 			continue
 		e["flash"]=maxf(0,float(e.get("flash",0))-delta)
+		if frozen():
+			continue
 		e.age = float(e.age) + delta
 		var ratio: float = clampf(float(e.age) / float(e.lifetime), 0.0, 1.0)
 		e.pos = Vector2(e.start).lerp(e.end, ratio)
@@ -644,15 +999,17 @@ func advance(delta: float, visuals: bool = true) -> void:
 					continue
 				var phase: float = BODY_PERIOD * beat / body_total
 				beat += 1
-				if floor((elapsed + phase) / BODY_PERIOD) > floor((elapsed - delta + phase) / BODY_PERIOD):
+				var tick_now: float = floor((elapsed + phase) / BODY_PERIOD)
+				var every: int = int(ATTACK_EVERY.get(body_attack(s, k), 1))
+				if tick_now > floor((elapsed - delta + phase) / BODY_PERIOD) and int(tick_now) % every == 0:
 					if not body_lanes_built:
 						body_lanes = turret_lanes()
 						body_lanes_built = true
 					var focus: Dictionary = find_enemy(priority_id)
 					if not focus.is_empty():
-						fire_body(s, k, focus)
+						fire_body(s, k, focus, body_lanes, beat)
 					elif not body_lanes.is_empty():
-						fire_body(s, k, body_lanes[(beat * 3) % body_lanes.size()])
+						fire_body(s, k, body_lanes[(beat * 3) % body_lanes.size()], body_lanes, beat)
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
 		p.age = float(p.age) + delta
@@ -671,7 +1028,15 @@ func advance(delta: float, visuals: bool = true) -> void:
 				var spent: float = apply_damage(target, float(p.damage), int(p.coverage), int(p.weapon),bool(p.crit))
 				source_damage["turret" if p.has("turret") else ("body" if p.has("body") else "main")] += spent
 				if p.has("body"):
-					source_damage.body += shell_burst_at(target, p, visuals)
+					var attack_kind: String = str(p.get("attack", "shell"))
+					if attack_kind == "shell":
+						source_damage.body += shell_burst_at(target, p, visuals)
+					elif attack_kind == "cluster":
+						# The shell splits into four bomblets that land in a cross.
+						var spin: float = float(int(p.target) % 7)
+						for j in range(4):
+							var at: Vector2 = Vector2(target.pos) + Vector2.from_angle(spin + j * TAU / 4) * 48.0
+							source_damage.body += burst_at(at, 62.0, float(p.damage) * 0.45, p, target, visuals)
 				if stage >= 3 and int(levels.pierce) > 0 and float(p.damage) > spent:
 					var spare: float = float(p.damage) - spent
 					var radius: float = 55.0 + int(levels.area) * 2.0
@@ -761,7 +1126,7 @@ func snapshot() -> Dictionary:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
+	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
 
 func restore(data: Dictionary) -> bool:
 	if str(data.get("game", "")) != "skyguard" or int(data.get("version", 0)) != 1:
@@ -826,6 +1191,7 @@ func restore(data: Dictionary) -> bool:
 	var saved_bodies: Variant = data.get("bodies", [])
 	for s in range(6):
 		bodies[s] = int(saved_bodies[s]) if saved_bodies is Array and saved_bodies.size() == 6 else 0
+	ult_charge = clampf(float(data.get("ult_charge", 0.0)), 0.0, 1.0)
 	wave_total = int(data.wave_total)
 	wave_killed = int(data.wave_killed)
 	kills = int(data.kills)

@@ -70,6 +70,9 @@ var menu: String = ""
 var cards: Array[Dictionary] = []
 var auto_button: Button
 var hud_auto_button: Button
+var ult_button: Button
+var ult_fill: ColorRect
+var ult_ready_seen: bool = false
 # Fast-forward: the fixed 60 Hz sim simply takes more steps per frame, so a run
 # plays out identically at any speed; field animation scales with it.
 const SPEEDS: Array[int]=[1,2,4,8]
@@ -232,6 +235,11 @@ func _ready() -> void:
 	sim.turret_fired.connect(field.on_turret_fired)
 	sim.body_fired.connect(field.on_body_fired)
 	sim.shell_burst.connect(field.on_shell_burst)
+	sim.body_strike.connect(field.on_body_strike)
+	sim.ultimate_fired.connect(field.on_ultimate_fired)
+	sim.ultimate_impact.connect(field.on_ultimate_impact)
+	sim.prime_strike.connect(field.on_prime_strike)
+	sim.flattened.connect(field.on_flattened)
 	sim.body_converted.connect(field.on_body_converted)
 	sim.retargeted.connect(field.on_retargeted)
 	sim.focused.connect(field.on_focused)
@@ -332,6 +340,16 @@ func build_hud() -> void:
 	var pause := button("暂停  [Esc]",func():open_pause())
 	pause.name = "PauseButton"
 	bottom.add_child(pause)
+	ult_button = button("",fire_ultimate_from_hud,true)
+	ult_button.name = "UltButton"
+	ult_button.tooltip_text = "毁灭性打击：战斗时间与击毁共同充能  [Q]"
+	ult_button.clip_contents = true
+	ult_fill = ColorRect.new()
+	ult_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ult_fill.show_behind_parent = false
+	ult_button.add_child(ult_fill)
+	ult_button.move_child(ult_fill,0)
+	bottom.add_child(ult_button)
 	speed_button = button("",cycle_speed)
 	speed_button.name = "SpeedButton"
 	speed_button.tooltip_text = "加速游戏：×1 / ×2 / ×4 / ×8"
@@ -387,6 +405,8 @@ func layout() -> void:
 	pause.size = Vector2(167,46)
 	speed_button.position = Vector2(w-686,13)
 	speed_button.size = Vector2(166,46)
+	ult_button.position = Vector2(w-912,13)
+	ult_button.size = Vector2(210,46)
 	dev_bar.position = Vector2(36,h-150)
 	toast.position = Vector2(w*.2,h-142)
 	toast.size = Vector2(w*.6,30)
@@ -689,7 +709,8 @@ func update_hud() -> void:
 	hud_auto_button.text = "开启自动防御 · $200" if sim.money>=200 else "自动防御 · $200（还差 $%d）"%ceili(200-sim.money)
 	hud_auto_button.tooltip_text = "购买后所有武器自动索敌；点击目标可指定集火。"
 	hint.position.x = 360 if auto_available else 24
-	hint.visible = sim.mode!="boss"
+	hint.visible = sim.mode!="boss" and size.x>1500
+	update_ult_button()
 	boss_box.position.x = 36+(360 if auto_available else 24)
 	if auto_available:
 		hint.text = "已开放购买 · 开启后自动攻击"
@@ -710,7 +731,42 @@ func show_notice(message: String) -> void:
 	if is_instance_valid(audio) and (message.contains("突破") or message.contains("进化")):
 		audio.play("milestone",-11,1,false,true)
 
+func update_ult_button() -> void:
+	var combat: bool = sim.mode in ["wave","boss","intermission"]
+	ult_button.visible = combat
+	if not combat:
+		return
+	var ready: bool = sim.ultimate_ready()
+	var name: String = sim.ultimate_name()
+	if not sim.ult.is_empty():
+		ult_button.text = name+" · 打击中"
+	elif ready:
+		ult_button.text = name+" · 就绪  [Q]"
+	else:
+		ult_button.text = "%s  %d%%" %[name,int(sim.ult_charge*100)]
+	ult_button.disabled = not ready
+	if ready and not ult_ready_seen:
+		show_notice(name+"已就绪 · 按 Q 或点击按钮发动")
+		spring(ult_button,1.12,.25)
+	ult_ready_seen = ready
+
+func fire_ultimate_from_hud() -> void:
+	fire_ultimate_at(Vector2.INF)
+
+func fire_ultimate_at(point: Vector2) -> void:
+	if menu!="" or not sim.fire_ultimate(point):
+		return
+	audio.play("milestone",-6)
+	toast_time = 0
+	spring(ult_button,.92,.08)
+	update_ult_button()
+
 func animate_hud(delta: float) -> void:
+	if is_instance_valid(ult_fill):
+		var k: float = 1.0 if sim.ultimate_ready() else sim.ult_charge
+		ult_fill.size = Vector2(ult_button.size.x*k,ult_button.size.y)
+		var glow_k: float = .5+.5*sin(Time.get_ticks_msec()*.006) if sim.ultimate_ready() else 0.0
+		ult_fill.color = Color(1,.79,.3,.18+.14*glow_k) if sim.ultimate_ready() else Color(1,1,1,.1)
 	wave_shown = lerpf(wave_shown, sim.progress()*100, minf(1, delta*10))
 	wave_bar.value = wave_shown
 	if sim.mode == "boss" and not sim.enemies.is_empty():
@@ -995,6 +1051,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_dev_mode()
 		elif event.keycode==KEY_F and menu=="" and sim.mode!="title":
 			cycle_speed()
+		elif event.keycode==KEY_Q and menu=="" and sim.mode in ["wave","boss"]:
+			fire_ultimate_at(field.hover if field.show_reticle else Vector2.INF)
 		elif event.keycode==KEY_ESCAPE and is_instance_valid(body_card):
 			close_body_card()
 		elif event.keycode in [KEY_U,KEY_ESCAPE] and sim.mode!="title" and menu!="title":

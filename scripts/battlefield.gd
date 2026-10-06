@@ -497,6 +497,7 @@ func on_destroyed(point: Vector2, index: int, members: int, boss: bool, _kind: S
 		punch = 1.0
 
 func animate(delta: float) -> void:
+	animate_ultimates(delta)
 	trauma = maxf(0, trauma - delta * 2.3)
 	core_pulse = maxf(0, core_pulse - delta * 6)
 	for i in range(6):
@@ -1225,7 +1226,7 @@ func draw_shells() -> void:
 	# Celestial cannons fire heavy shells shaped like their own silhouette, slow
 	# and bright, trailing ghosts — never confused with the turret or arsenal rounds.
 	for p in sim.shots:
-		if not p.has("body"):
+		if not p.has("body") or p.has("swarm"):
 			continue
 		var bs: int = int(p.get("body_stage", 0))
 		var slot: int = int(p.body)
@@ -1683,6 +1684,9 @@ func _draw() -> void:
 				draw_line(p.from, p.end, Color(INK, .85), 1.2 + int(p.weapon) * .2, true)
 		draw_bullets()
 		draw_shells()
+		draw_swarm()
+		draw_strikes()
+		draw_ultimate()
 		var rewards_left: int = 16
 		begin_batch()
 		for fx in sim.effects:
@@ -1728,6 +1732,432 @@ func _draw() -> void:
 	flush_batch()
 	if sim.mode != "transition":
 		draw_staging()
+	if ult_flash > 0.001:
+		draw_rect(Rect2(-400, -400, 1800, 1450), Color(1, 1, 1, minf(1.0, ult_flash)))
 	inspector()
 	draw_reticle()
 	draw_ms = (Time.get_ticks_usec() - started) / 1000.0
+
+# ================= Celestial attack styles =================
+
+var strikes: Array[Dictionary] = []
+var imprints: Array[Dictionary] = []
+var prime_marks: Array[Dictionary] = []
+var ulam: PackedVector2Array = PackedVector2Array()
+const STRIKE_TIME: Dictionary = {"beam": .34, "rail": .42, "chain": .32, "ring": .6, "gravity": .3, "wave": .7, "quake": .3, "meteor": .2, "prism": .4}
+
+func on_body_strike(kind: String, body_stage: int, slot: int, origin: Vector2, destination: Vector2, points: PackedVector2Array, critical: bool) -> void:
+	if strikes.size() > 90:
+		strikes.pop_front()
+	strikes.append({"kind": kind, "age": 0.0, "dur": float(STRIKE_TIME.get(kind, .4)), "from": origin, "to": destination, "points": points, "crit": critical, "seed": randi() % 1000, "big": body_stage == sim.stage})
+	match kind:
+		"beam", "rail", "prism":
+			add_feedback("flash", destination, 0, 26.0 if kind != "rail" else 18.0, .28)
+		"ring":
+			add_wave(origin, 22.0, 1.0)
+		"wave":
+			add_wave(origin.lerp(destination, .5), 16.0, 1.0)
+
+func centered(text: String, pos: Vector2, size: int, color: Color, outline: bool = false) -> void:
+	var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var at: Vector2 = pos - Vector2(w * .5, -size * .35)
+	if outline:
+		draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 6, Color(BG, .85 * color.a))
+	draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
+
+func jagged(a: Vector2, b: Vector2, seed_value: int, amp: float) -> PackedVector2Array:
+	var out := PackedVector2Array([a])
+	var n: Vector2 = (b - a).orthogonal().normalized()
+	for j in range(1, 7):
+		var t: float = j / 7.0
+		var wob: float = sin(seed_value * 1.7 + j * 2.3 + clock * 40.0) * amp * sin(t * PI)
+		out.append(a.lerp(b, t) + n * wob)
+	out.append(b)
+	return out
+
+func draw_strikes() -> void:
+	for st in strikes:
+		var t: float = float(st.age) / float(st.dur)
+		if t < 0 or t > 1:
+			continue
+		var a: Vector2 = st.from
+		var b: Vector2 = st.to
+		var col: Color = ACCENT if bool(st.crit) else INK
+		var fade: float = 1.0 - t
+		match str(st.kind):
+			"beam":
+				# Charge for a beat, then a thick lance that thins out.
+				var w: float = (7.0 if bool(st.big) else 4.0) * sqrt(fade)
+				draw_line(a, b, Color(col, .14 * fade), w * 4.0, true)
+				draw_line(a, b, Color(col, .9 * fade), w, true)
+				draw_line(a, b, Color(1, 1, 1, fade), maxf(1.0, w * .3), true)
+				draw_circle(b, w * 1.6, Color(1, 1, 1, fade))
+				for q in st.points:
+					ring(q, 6 + t * 14, Color(col, fade * .8), 1.2)
+			"rail":
+				# Instant slug: a hairline to the edge of space with shock ripples along it.
+				draw_line(a, b, Color(1, 1, 1, fade), 2.2 * fade + .6, true)
+				var dir: Vector2 = (b - a).normalized()
+				var n: Vector2 = dir.orthogonal()
+				var length: float = a.distance_to(b)
+				var d: float = 30.0
+				while d < length:
+					var c: Vector2 = a + dir * d
+					var spread: float = 4.0 + t * 16.0
+					draw_line(c - n * spread, c + n * spread, Color(col, fade * .35), 1.0, true)
+					d += 46.0
+				ring(a, 10 + t * 40, Color(col, fade), 1.6)
+			"chain":
+				var pts: PackedVector2Array = st.points
+				for j in range(pts.size() - 1):
+					var bolt: PackedVector2Array = jagged(pts[j], pts[j + 1], int(st.seed) + j * 13, 9.0)
+					draw_polyline(bolt, Color(col, .25 * fade), 5.0, true)
+					draw_polyline(bolt, Color(1, 1, 1, fade), 1.4, true)
+					draw_circle(pts[j + 1], 3.0 * fade + 1, Color(1, 1, 1, fade))
+			"ring":
+				var r: float = 240.0 * (1.0 - pow(1.0 - t, 3))
+				draw_arc(a, r, 0, TAU, 96, Color(col, .9 * fade), 3.0 * fade + .5, true)
+				draw_arc(a, r * .82, 0, TAU, 96, Color(col, .35 * fade), 1.0, true)
+				for q in st.points:
+					if q.distance_to(a) < r:
+						draw_circle(q, 3.0 * fade, Color(1, 1, 1, fade))
+			"wave":
+				# Three ripple fronts roll out in a cone, each a sine-wobbled arc.
+				var axis: float = (b - a).angle()
+				for k in range(3):
+					var p: float = clampf(t * 1.25 - k * .12, 0, 1)
+					if p <= 0:
+						continue
+					var r: float = 560.0 * (1.0 - pow(1.0 - p, 2))
+					var arc := PackedVector2Array()
+					for j in range(25):
+						var ang: float = axis - .38 + .76 * j / 24.0
+						var wob: float = sin(j * 1.1 + clock * 18.0 + k) * 5.0 * (1.0 - p)
+						arc.append(a + Vector2.from_angle(ang) * (r + wob))
+					draw_polyline(arc, Color(col, (1.0 - p) * (.9 - k * .25)), 2.4 - k * .6, true)
+			"prism":
+				var pts: PackedVector2Array = st.points
+				if pts.size() > 0:
+					draw_line(a, pts[0], Color(1, 1, 1, fade), 3.0 * fade + .6, true)
+					# The refracted fan picks up faint spectral-grey bands.
+					for j in range(1, pts.size()):
+						for k in range(3):
+							var off: Vector2 = (pts[j] - pts[0]).orthogonal().normalized() * (k - 1) * 2.0
+							draw_line(pts[0], pts[j] + off, Color(col, fade * (.85 - k * .25)), 1.3, true)
+					shape(pts[0], 8 * (1.0 - t * .5), 3, clock * 6.0, Color(0, 0, 0, 0), Color(1, 1, 1, fade), 1.4)
+			"quake":
+				var bolt: PackedVector2Array = jagged(a, b, int(st.seed), 3.0)
+				draw_polyline(bolt, Color(col, .5 * fade), 1.2, true)
+	# Gravity wells, quakes and meteors are owned by the sim; draw them from it.
+	for w in sim.wells:
+		var age: float = float(w.age)
+		var at: Vector2 = w.pos
+		match str(w.get("kind", "gravity")):
+			"gravity":
+				var k: float = clampf(age / float(w.dur), 0, 1)
+				var open: float = minf(1.0, age / .25) * (1.0 - pow(k, 6))
+				var r: float = float(w.radius) * open
+				draw_circle(at, r, Color(0, 0, 0, .45 * open))
+				draw_arc(at, r, clock * 2.0, clock * 2.0 + TAU * .8, 48, Color(INK, .7 * open), 1.4, true)
+				for arm in range(4):
+					var spiral := PackedVector2Array()
+					for j in range(14):
+						var q: float = j / 13.0
+						spiral.append(at + Vector2.from_angle(clock * 5.0 + arm * TAU / 4 + q * 3.2) * r * (1.0 - q * .92))
+					draw_polyline(spiral, Color(INK, .55 * open), 1.2, true)
+				for j in range(10):
+					var phase: float = fmod(clock * 1.6 + j * .37, 1.0)
+					var ang: float = j * 2.399 + clock
+					draw_circle(at + Vector2.from_angle(ang + phase * 2.0) * r * (1.0 - phase), 1.6, Color(1, 1, 1, open * phase))
+			"quake":
+				for shock in range(4):
+					var since: float = age - shock * .3
+					if since < 0 or since > .45:
+						continue
+					var q: float = since / .45
+					var r: float = (90.0 + 40.0 * shock) * (.35 + .65 * (1.0 - pow(1.0 - q, 3)))
+					var pts := PackedVector2Array()
+					for j in range(33):
+						var ang: float = j * TAU / 32
+						pts.append(at + Vector2.from_angle(ang) * (r + sin(j * 7.0 + shock * 3.0) * 6.0 * (1.0 - q)))
+					draw_polyline(pts, Color(INK, (1.0 - q) * .9), 2.2 * (1.0 - q) + .6, true)
+					if since < .05:
+						trauma = minf(1.0, trauma + .06)
+			"meteor":
+				if age < 0:
+					continue
+				var q: float = clampf(age / float(w.dur), 0, 1)
+				var sky: Vector2 = at + Vector2(-140, -420)
+				var head: Vector2 = sky.lerp(at, q * q)
+				draw_line(sky.lerp(at, maxf(0, q * q - .18)), head, Color(INK, .5), 2.0, true)
+				shape(head, 5.0, 4, clock * 9.0, INK)
+				draw_arc(at, 10 + (1.0 - q) * 26, 0, TAU, 24, Color(INK, .25 + q * .4), 1.0, true)
+
+func draw_swarm() -> void:
+	# Micro-missiles weave on curved paths with a short smoke trail.
+	for p in sim.shots:
+		if not p.has("swarm"):
+			continue
+		var t: float = clampf(float(p.age) / float(p.duration), 0, 1)
+		var j: int = int(p.swarm)
+		var side: float = 1.0 if j % 2 == 0 else -1.0
+		var dir: Vector2 = (Vector2(p.end) - Vector2(p.from)).normalized()
+		var n: Vector2 = dir.orthogonal()
+		var curve := func(u: float) -> Vector2: return Vector2(p.from).lerp(p.end, u) + n * side * sin(u * PI) * (24.0 + j * 9.0)
+		var head: Vector2 = curve.call(t)
+		var back: Vector2 = curve.call(maxf(0, t - .04))
+		for k in range(1, 6):
+			var puff: Vector2 = curve.call(maxf(0, t - k * .035))
+			draw_circle(puff, 1.6 + k * .35, Color(GREY, .28 - k * .045))
+		var heading: Vector2 = (head - back).normalized() if head != back else dir
+		var col: Color = ACCENT if bool(p.crit) else INK
+		draw_colored_polygon(PackedVector2Array([head + heading * 5.0, head - heading * 3.0 + heading.orthogonal() * 2.6, head - heading * 3.0 - heading.orthogonal() * 2.6]), col)
+
+# ================= Doomsday weapons =================
+
+func on_ultimate_fired(kind: String, point: Vector2) -> void:
+	var subtitles: Dictionary = {"nuke": "半径 300 · 一切蒸发", "photoid": "一颗以光速飞行的粒子", "foil": "空间维度 3 → 2", "prime": "2 · 3 · 5 · 7 · 11 · 13 · 17 · 19 · 23 · 29", "lightspeed": "c = 299,792 km/s → 16.7 km/s", "pi": "π = 3.14159265… → 3"}
+	show_banner(sim.ultimate_name(), str(subtitles.get(kind, "")), 1.9, true)
+	punch = maxf(punch, .5)
+	if kind == "prime" and ulam.is_empty():
+		# An Ulam spiral of primes: the maths the strike is drawn from.
+		var x: int = 0
+		var y: int = 0
+		var dx: int = 1
+		var dy: int = 0
+		var leg: int = 1
+		var walked: int = 0
+		var turns: int = 0
+		for n in range(1, 1600):
+			if is_prime(n):
+				ulam.append(Vector2(x, y))
+			x += dx
+			y += dy
+			walked += 1
+			if walked == leg:
+				walked = 0
+				var tmp: int = dx
+				dx = -dy
+				dy = tmp
+				turns += 1
+				if turns % 2 == 0:
+					leg += 1
+
+func is_prime(n: int) -> bool:
+	if n < 2:
+		return false
+	var d: int = 2
+	while d * d <= n:
+		if n % d == 0:
+			return false
+		d += 1
+	return true
+
+func on_ultimate_impact(kind: String, point: Vector2) -> void:
+	trauma = 1.0
+	punch = 1.2
+	slowmo_request = true
+	add_wave(point, 60.0, 1.6)
+	add_wave(point, 40.0, 2.2)
+	if kind == "nuke":
+		add_feedback("flash", point, 0, 420.0, .9)
+
+func on_prime_strike(prime: int, points: PackedVector2Array) -> void:
+	prime_marks.append({"p": prime, "points": points, "age": 0.0})
+	trauma = minf(1.0, trauma + .25)
+	for q in points:
+		add_wave(q, 10.0, .7)
+
+func on_flattened(point: Vector2) -> void:
+	if imprints.size() < 160:
+		imprints.append({"pos": point, "age": 0.0, "w": 14.0 + randf() * 16.0})
+
+func animate_ultimates(delta: float) -> void:
+	for i in range(strikes.size() - 1, -1, -1):
+		strikes[i].age = float(strikes[i].age) + delta
+		if float(strikes[i].age) > float(strikes[i].dur):
+			strikes.remove_at(i)
+	for i in range(imprints.size() - 1, -1, -1):
+		imprints[i].age = float(imprints[i].age) + delta
+		if float(imprints[i].age) > 4.0:
+			imprints.remove_at(i)
+	for i in range(prime_marks.size() - 1, -1, -1):
+		prime_marks[i].age = float(prime_marks[i].age) + delta
+		if float(prime_marks[i].age) > .9:
+			prime_marks.remove_at(i)
+
+func ease_out(t: float, power: float = 3.0) -> float:
+	return 1.0 - pow(1.0 - clampf(t, 0, 1), power)
+
+var ult_flash: float = 0.0
+
+func draw_ultimate() -> void:
+	ult_flash = 0.0
+	var core_at: Vector2 = sim.defense_position()
+	# Flattened imprints outlive the foil: threats pressed into lines.
+	for im in imprints:
+		var q: float = float(im.age) / 4.0
+		var squash: float = ease_out(float(im.age) / .25)
+		var w: float = float(im.w) * (.4 + squash * 1.6)
+		var p: Vector2 = im.pos
+		draw_line(p - Vector2(w, 0), p + Vector2(w, 0), Color(INK, (1.0 - q) * .8), 1.0, true)
+		draw_line(p - Vector2(w * .6, 2), p + Vector2(w * .6, 2), Color(INK, (1.0 - q) * .3), 1.0, true)
+	for pm in prime_marks:
+		var q: float = float(pm.age) / .9
+		var fade: float = 1.0 - q
+		var pts: PackedVector2Array = pm.points
+		for j in range(pts.size()):
+			var top: Vector2 = Vector2(pts[j].x, -40)
+			draw_line(top, pts[j], Color(1, 1, 1, fade * .9), 2.0 * fade + .4, true)
+			shape(pts[j], 9.0 + q * 10.0, 4, PI * .25, Color(0, 0, 0, 0), Color(1, 1, 1, fade), 1.2)
+			if j > 0:
+				draw_line(pts[j - 1], pts[j], Color(INK, fade * .25), 1.0, true)
+			if j < 6:
+				ink(str(pm.p), pts[j] + Vector2(10, -10), Color(ACCENT, fade), 13)
+		var grow: float = 1.0 + .5 * maxf(0, 1.0 - q * 5.0)
+		draw_set_transform(Vector2(500, 128), 0, Vector2.ONE * grow)
+		centered(str(pm.p), Vector2.ZERO, 56, Color(1, 1, 1, fade * .9), true)
+		draw_set_transform(Vector2.ZERO)
+	if sim.ult.is_empty():
+		if sim.spawn_hold > 0 and sim.mode in ["wave", "boss"]:
+			var k: float = clampf(sim.spawn_hold / 5.0, 0, 1)
+			draw_arc(core_at, 96, -PI / 2, -PI / 2 + TAU * k, 64, Color(INK, .7), 2.0, true)
+			centered("敌踪消失  %.1f s" % sim.spawn_hold, core_at + Vector2(0, 122), 13, Color(GREY, .9))
+		return
+	var kind: String = sim.ult.kind
+	var u: float = float(sim.ult.age)
+	var at: Vector2 = sim.ult.point
+	match kind:
+		"nuke":
+			if u < .75:
+				# Warhead arcs from the core; the target locks with converging rings.
+				var k: float = u / .75
+				var e: float = k * k
+				var ctrl: Vector2 = core_at.lerp(at, .5) + Vector2(0, -260)
+				var head: Vector2 = core_at.lerp(ctrl, e).lerp(ctrl.lerp(at, e), e)
+				var tail := PackedVector2Array()
+				for j in range(12):
+					var f: float = maxf(0, e - j * .025)
+					tail.append(core_at.lerp(ctrl, f).lerp(ctrl.lerp(at, f), f))
+				draw_polyline(tail, Color(INK, .7), 2.0, true)
+				draw_circle(head, 4.0, Color.WHITE)
+				for j in range(3):
+					var r: float = lerpf(140.0 - j * 30, 18.0, ease_out(k, 2))
+					draw_arc(at, r, clock * (2 + j), clock * (2 + j) + TAU * .75, 48, Color(ACCENT, .4 + k * .5), 1.4, true)
+				centered("NUCLEAR  ·  %.2f" % (.75 - u), at + Vector2(0, -160), 13, Color(ACCENT, .9))
+			else:
+				var n: float = u - .75
+				var flash: float = pow(maxf(0, 1.0 - n / .45), 2)
+				var fb: float = 300.0 * ease_out(n / .5)
+				var fade: float = clampf(1.0 - (n - .3) / 1.9, 0, 1)
+				draw_circle(at, fb, Color(INK, .22 * fade))
+				draw_circle(at, fb * .55, Color(1, 1, 1, .35 * fade))
+				draw_arc(at, fb, 0, TAU, 128, Color(1, 1, 1, fade), 3.0, true)
+				for j in range(3):
+					var r: float = 300.0 + n * 700.0 * (1.0 + j * .35)
+					draw_arc(at, r, 0, TAU, 128, Color(INK, fade * (.6 - j * .15)), 2.0 - j * .5, true)
+				# Stylised mushroom: a rising stem and a spreading cap.
+				var rise: float = ease_out(n / 1.4)
+				var top: Vector2 = at + Vector2(0, -230 * rise)
+				for j in range(9):
+					var off: float = (j - 4) * 7.0 * (1.0 - rise * .4)
+					var wob: float = sin(clock * 8.0 + j) * 3.0
+					draw_line(at + Vector2(off, 0), top + Vector2(off * .6 + wob, 0), Color(INK, fade * .45), 1.2, true)
+				draw_set_transform(top, 0, Vector2(1.0, .32))
+				draw_arc(Vector2.ZERO, 40 + 120 * rise, 0, TAU, 64, Color(1, 1, 1, fade * .8), 3.0, true)
+				draw_arc(Vector2.ZERO, 20 + 70 * rise, 0, TAU, 48, Color(1, 1, 1, fade * .4), 2.0, true)
+				draw_set_transform(Vector2.ZERO)
+				for j in range(36):
+					var ang: float = j * TAU / 36 + .1
+					var r0: float = fb * .9
+					var r1: float = r0 + 40 + n * 260
+					draw_line(at + Vector2.from_angle(ang) * r0, at + Vector2.from_angle(ang) * r1, Color(INK, fade * .35), 1.0, true)
+				ult_flash = flash * .92
+		"photoid":
+			var start: Vector2 = Vector2(-160, -140)
+			if u < .9:
+				# A single photoid at near light speed: its trail is the whole sky.
+				var k: float = pow(u / .9, 3.0)
+				var head: Vector2 = start.lerp(at, k)
+				draw_line(start, head, Color(INK, .18 + k * .4), 1.0, true)
+				draw_line(start.lerp(head, .85), head, Color(1, 1, 1, .9), 1.6, true)
+				draw_circle(head, 2.6, Color.WHITE)
+				for j in range(3):
+					var r: float = lerpf(220 - j * 50, 8, k)
+					draw_arc(at, r, 0, TAU, 64, Color(INK, k * .5), 1.0, true)
+			else:
+				var n: float = u - .9
+				var flash: float = pow(maxf(0, 1.0 - n / .5), 2)
+				var fade: float = clampf(1.0 - n / 1.5, 0, 1)
+				for j in range(64):
+					var ang: float = j * TAU / 64 + sin(j * 3.1) * .05
+					var reach_len: float = 80 + ease_out(n / .6) * (900 + (j % 5) * 60)
+					draw_line(at + Vector2.from_angle(ang) * reach_len * .2, at + Vector2.from_angle(ang) * reach_len, Color(1, 1, 1, fade * (.25 + (j % 3) * .2)), 1.0, true)
+				draw_arc(at, ease_out(n / 1.2) * 900, 0, TAU, 160, Color(1, 1, 1, fade), 2.5, true)
+				ult_flash = flash
+		"foil":
+			if u < 1.3:
+				# A card-sized piece of two-dimensional space drifts in, almost gently.
+				var k: float = ease_out(u / 1.3, 2)
+				var p: Vector2 = (at + Vector2(-260, -240)).lerp(at, k)
+				draw_set_transform(p, clock * .9, Vector2(1.0, .3 + .7 * abs(sin(clock * 1.7))))
+				draw_rect(Rect2(-11, -7, 22, 14), Color(1, 1, 1, .9))
+				draw_rect(Rect2(-11, -7, 22, 14), Color(1, 1, 1, 1), false, 1.0)
+				draw_set_transform(Vector2.ZERO)
+				draw_arc(p, 18 + sin(clock * 6) * 3, 0, TAU, 32, Color(INK, .3), 1.0, true)
+			else:
+				var r: float = (u - 1.3) * 400.0
+				var fade: float = clampf(1.0 - (u - 4.2) / .8, 0, 1)
+				draw_circle(at, r, Color(INK, .05 * fade))
+				var y: float = -r
+				while y <= r:
+					var half: float = sqrt(maxf(0, r * r - y * y))
+					draw_line(at + Vector2(-half, y), at + Vector2(half, y), Color(INK, .16 * fade), 1.0)
+					y += 7.0
+				draw_arc(at, r, 0, TAU, 160, Color(1, 1, 1, .95 * fade), 2.4, true)
+				draw_arc(at, r + 6, 0, TAU, 160, Color(1, 1, 1, .25 * fade), 1.0, true)
+				centered("3D → 2D", at + Vector2(0, -r - 18).clamp(Vector2(0, 30), Vector2(1000, 640)), 14, Color(1, 1, 1, .8 * fade))
+		"prime":
+			var k: float = minf(1.0, u / .5) * clampf((4.4 - u) / .8, 0, 1)
+			for q in ulam:
+				draw_rect(Rect2(core_at + q * 6.0 - Vector2.ONE, Vector2(2, 2)), Color(INK, .32 * k))
+			centered("p ∈ ℙ", Vector2(500, 70), 15, Color(GREY, k))
+		"lightspeed":
+			var k: float = ease_out(u / .9)
+			var collapse: float = clampf((u - 4.0) / .45, 0, 1)
+			var r: float = 950.0 * k * (1.0 - ease_out(collapse, 2))
+			draw_circle(core_at, r, Color(0, 0, 0, .5 * (1.0 - collapse * .5)))
+			draw_arc(core_at, r, 0, TAU, 160, Color(1, 1, 1, .85), 2.0, true)
+			# The speed of light rolls down toward a crawl.
+			var speed: float = lerpf(299792.0, 16.7, ease_out(u / 2.2, 4))
+			centered("c = %s km/s" % (("%.1f" % speed) if speed < 100 else str(int(speed))), Vector2(500, 82), 22, Color(1, 1, 1, .9 * (1.0 - collapse)), true)
+			for e in sim.enemies:
+				if not bool(e.dead):
+					draw_arc(e.pos, float(e.radius) + 5, 0, TAU, 24, Color(INK, .35), 1.0, true)
+			ult_flash = (1.0 - collapse) * collapse * 2.4
+		"pi":
+			# π loses its digits one by one; every circle becomes a hexagon.
+			var digits: String = "14159265358979323846"
+			var keep: int = int(round(lerpf(20.0, 0.0, ease_out(u / 1.2, 2))))
+			var text: String = "π = 3" + ("." + digits.substr(0, keep) if keep > 0 else "")
+			if keep > 0 and keep < 20:
+				text += str(int(clock * 60.0) % 10)
+			centered(text, Vector2(500, 86), 30 if u < 1.4 else 40, Color(1, 1, 1, .95 * clampf((3.6 - u) / .6, 0, 1)), true)
+			var sides: int = int(round(lerpf(64.0, 6.0, ease_out(u / 1.3, 3))))
+			var fade: float = clampf((3.6 - u) / .9, 0, 1)
+			for j in range(6):
+				var r: float = 70.0 + j * 75.0 + (maxf(0, u - 1.4) * 260.0)
+				var pts: PackedVector2Array = ngon(sides, r, PI / 6 + clock * (.05 if j % 2 == 0 else -.05), core_at)
+				pts.append(pts[0])
+				draw_polyline(pts, Color(INK, (.5 - j * .06) * fade), 1.4, true)
+			if u >= 1.4:
+				var n: float = u - 1.4
+				var flash: float = pow(maxf(0, 1.0 - n / .7), 2)
+				ult_flash = flash * .95
+				if flash > 0:
+					draw_set_transform(core_at, 0, Vector2.ONE * (1.0 + n * 2.0))
+					for j in range(3):
+						var pts: PackedVector2Array = ngon(6, 60.0 + j * 50.0, PI / 6)
+						pts.append(pts[0])
+						draw_polyline(pts, Color(0, 0, 0, flash), 2.0, true)
+					draw_set_transform(Vector2.ZERO)
