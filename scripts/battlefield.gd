@@ -79,6 +79,8 @@ var kills_seen: int = -1
 # Celestial bodies: hover/flash state and the body under the cursor.
 var body_flash: Dictionary = {}
 var body_hover: int = -1
+# Where the sim sent rounds whose target died (old id -> new id).
+var redirects: Dictionary = {}
 # Mouse reticle: follows with a little inertia and snaps open around threats.
 var show_reticle: bool = false
 var reticle_pos := Vector2(500, 300)
@@ -534,9 +536,8 @@ func animate(delta: float) -> void:
 		last_mode = sim.mode
 	if glow != null:
 		glow.queue_redraw()
-	# Rounds whose target died swerve onto the nearest living threat, or fly
-	# straight off-screen when none is left. Their real shot already expired, so
-	# they carry no damage number any more.
+	# Rounds whose target died swerve onto the threat the sim retargeted their
+	# shot to (it still deals damage there), or fly off-screen if none is left.
 	var living: Dictionary = {}
 	if sim != null:
 		for e in sim.enemies:
@@ -551,7 +552,7 @@ func animate(delta: float) -> void:
 		if b_age[i] >= b_dur[i]:
 			if b_value[i] >= 1.0 and numbers.size() < NUMBER_CAP and numbers_this_frame < 10:
 				numbers_this_frame += 1
-				add_number(b_to[i] + Vector2(randf_range(-22, 22), randf_range(-14, 6)), b_value[i], b_crit[i] == 1, false, 11)
+				add_number(b_to[i] + Vector2(randf_range(-22, 22), randf_range(-14, 6)), b_value[i], b_crit[i] & 1 == 1, false, 11)
 			# Swap-remove: draw order of rounds does not matter.
 			alive -= 1
 			b_from[i] = b_from[alive]
@@ -576,6 +577,11 @@ func animate(delta: float) -> void:
 		b_value.resize(alive)
 		b_target.resize(alive)
 
+func on_retargeted(old_target: int, new_target: int) -> void:
+	if redirects.size() > 400:
+		redirects.clear()
+	redirects[old_target] = new_target
+
 func redirect_round(i: int, living: Dictionary) -> void:
 	var t: float = clampf(b_age[i] / b_dur[i], 0, 1)
 	var u: float = maxf(0, t - .03)
@@ -585,13 +591,19 @@ func redirect_round(i: int, living: Dictionary) -> void:
 	var pos: Vector2 = f.lerp(c, t).lerp(c.lerp(to, t), t)
 	var near: Vector2 = f.lerp(c, u).lerp(c.lerp(to, u), u)
 	var dir: Vector2 = (pos - near).normalized() if pos.distance_to(near) > .001 else (to - f).normalized()
+	# Follow the sim's own choice so the round lands where the damage does.
 	var best: Dictionary = {}
 	var nearest: float = INF
-	for e in living.values():
-		var d: float = pos.distance_to(e.pos)
-		if d < nearest:
-			nearest = d
-			best = e
+	var followed: int = int(redirects.get(b_target[i], -1))
+	if living.has(followed):
+		best = living[followed]
+		nearest = pos.distance_to(best.pos)
+	else:
+		for e in living.values():
+			var d: float = pos.distance_to(e.pos)
+			if d < nearest:
+				nearest = d
+				best = e
 	var goal: Vector2
 	if best.is_empty():
 		goal = pos + dir * 1400.0
@@ -603,11 +615,15 @@ func redirect_round(i: int, living: Dictionary) -> void:
 		b_target[i] = int(best.id)
 	var span: float = pos.distance_to(goal)
 	b_from[i] = pos
-	b_ctrl[i] = pos + dir * minf(90.0, span * .4)
+	# Control point at half the span keeps the launch speed equal to the average
+	# speed, so a swerving round never visibly slows down.
+	b_ctrl[i] = pos + dir * span * .5
+	b_crit[i] = b_crit[i] | 2
 	b_to[i] = goal
 	b_age[i] = 0.0
 	b_dur[i] = maxf(.08, span / sim.PROJECTILE_SPEED)
-	b_value[i] = 0.0
+	if best.is_empty():
+		b_value[i] = 0.0
 
 func reset_growth() -> void:
 	prev_levels = {}
@@ -683,8 +699,10 @@ func draw_bullets() -> void:
 		var dir: Vector2 = (pos - near).normalized()
 		# Fixed-length tracer that grows out of the muzzle: a glowing pellet,
 		# not a hair-thin line spanning half the screen.
-		var back: Vector2 = pos - dir * (22.0 if style == 1 else 14.0) * minf(1.0, t * 8.0)
-		var crit: bool = b_crit[i] == 1
+		# Fresh rounds grow their tracer out of the muzzle; swerved ones (flag 2) keep it.
+		var grow: float = 1.0 if b_crit[i] & 2 else minf(1.0, t * 8.0)
+		var back: Vector2 = pos - dir * (22.0 if style == 1 else 14.0) * grow
+		var crit: bool = b_crit[i] & 1 == 1
 		if style == 4 and t > .5:
 			# Quasar rounds split into three halfway and reconverge on the target.
 			var spread: float = (t - .5) * (1 - t) * 4 * 26

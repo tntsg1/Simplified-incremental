@@ -10,6 +10,7 @@ signal fired(index: int, origin: Vector2, destination: Vector2, critical: bool)
 signal turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool)
 signal body_fired(body_stage: int, slot: int, origin: Vector2, destination: Vector2, critical: bool)
 signal body_converted(body_stage: int, slot: int)
+signal retargeted(old_target: int, new_target: int)
 signal hit(point: Vector2, weapon: int, amount: float, critical: bool, boss: bool, kind: String)
 signal destroyed(point: Vector2, weapon: int, members: int, boss: bool, kind: String)
 
@@ -408,6 +409,29 @@ func fire_body(body_stage: int, slot: int, target: Dictionary) -> void:
 	shots.append(p)
 	body_fired.emit(body_stage, slot, origin, destination, critical)
 
+func retarget_shot(p: Dictionary) -> Dictionary:
+	var here: Vector2 = p.pos
+	var best: Dictionary = {}
+	var nearest: float = INF
+	for e in enemies:
+		if bool(e.dead):
+			continue
+		var d: float = here.distance_to(e.pos)
+		if d < nearest:
+			nearest = d
+			best = e
+	if best.is_empty():
+		return best
+	var old: int = int(p.target)
+	p.target = int(best.id)
+	p.from = here
+	p.age = 0.0
+	p.duration = 0.05 if bool(p.beam) else maxf(0.035, nearest / PROJECTILE_SPEED)
+	p.effective = float(p.damage) if bool(best.boss) else minf(float(p.damage), int(p.coverage) * float(best.unit_hp))
+	best.reserved = float(best.reserved) + float(p.effective)
+	retargeted.emit(old, int(best.id))
+	return best
+
 func fire_turret(slot: int, target: Dictionary) -> void:
 	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
 	p.clear()
@@ -580,6 +604,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 		var p: Dictionary = shots[i]
 		p.age = float(p.age) + delta
 		var target: Dictionary = find_enemy(int(p.target))
+		if target.is_empty():
+			# Target died in flight: the round swerves onto the nearest living
+			# threat and still deals its damage there.
+			target = retarget_shot(p)
 		if not target.is_empty():
 			p.end = target.pos
 		var t: float = clampf(float(p.age) / float(p.duration), 0.0, 1.0)
