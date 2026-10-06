@@ -46,7 +46,6 @@ var core_outer: float = 20
 # Barrage layer: purely cosmetic rounds that show the real launcher count and
 # fire rate. Combat timing and damage stay in the simulation untouched.
 const BULLET_CAP: int = 1500
-const ARRAY_RINGS: Array[int] = [12, 16, 20]
 var b_from := PackedVector2Array()
 var b_ctrl := PackedVector2Array()
 var b_to := PackedVector2Array()
@@ -54,8 +53,8 @@ var b_age := PackedFloat32Array()
 var b_dur := PackedFloat32Array()
 var b_style := PackedInt32Array()
 var b_crit := PackedByteArray()
-var turret_spots := PackedVector2Array()
 var turret_flash := PackedFloat32Array()
+var turret_aim := PackedFloat32Array()
 var last_target := Vector2(500, 200)
 # Fill-only shapes are fan-triangulated into one array and submitted in a single
 # canvas call per layer; hundreds of draw_colored_polygon calls were the bottleneck.
@@ -221,8 +220,8 @@ func flight_time(index: int, from: Vector2, to: Vector2) -> float:
 		return maxf(.12, .30 / sqrt(speed_scale) + .1)
 	return maxf(.08, from.distance_to(to) / (220.0 * minf(20.0, speed_scale)))
 
-func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
-	var count: int = barrage_size(index)
+func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: bool, override: int = -1) -> void:
+	var count: int = barrage_size(index) if override < 0 else override
 	if reduced_effects:
 		count = maxi(1, count / 3)
 	var room: int = BULLET_CAP - b_age.size()
@@ -238,10 +237,6 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 			velocity = (Vector2(target.end) - Vector2(target.start)) / maxf(.01, float(target.lifetime))
 	for j in range(count):
 		var from: Vector2 = point + Vector2(randf_range(-6, 6), randf_range(-6, 6))
-		if turret_spots.size() > 0 and (index == 0 or j % 2 == 1):
-			var spot: int = randi() % turret_spots.size()
-			from = turret_spots[spot]
-			turret_flash[spot] = .09
 		var travel: float = flight_time(index, from, destination) * randf_range(.92, 1.08)
 		var delay: float = j * .014
 		var to: Vector2 = destination + velocity * (travel + delay) + Vector2(randf_range(-2, 2), randf_range(-2, 2))
@@ -262,6 +257,12 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 		b_dur.append(travel)
 		b_style.append(index)
 		b_crit.append(1 if critical else 0)
+
+func on_turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool) -> void:
+	if slot < turret_flash.size():
+		turret_flash[slot] = .12
+		turret_aim[slot] = (destination - origin).angle()
+	spawn_barrage(0, origin, destination, critical, maxi(1, barrage_size(0) / 4))
 
 func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
 	last_target = destination
@@ -293,7 +294,6 @@ func on_hit(point: Vector2, index: int, amount: float, critical: bool, boss: boo
 		return
 	spark_limits[index] = .085
 	add_feedback("spark", point, index, 16 if critical else 10, .22)
-	trauma = minf(.42, trauma + (.07 if boss else .02))
 
 func on_members_removed(point: Vector2, index: int, members: int, _kind: String) -> void:
 	add_feedback("shards", point, index, 10 + minf(14, log(maxf(1, members)) * 1.2), .5)
@@ -309,7 +309,9 @@ func on_destroyed(point: Vector2, index: int, members: int, boss: bool, _kind: S
 		feedback_pool.append(feedback.pop_front())
 	var size: float = 110 if boss else 18 + minf(20, log(maxf(1, members)) * 2)
 	add_feedback("boss_death" if boss else "shards", point, index, size, 2.2 if boss else .7)
-	trauma = .95 if boss else minf(.45, trauma + .08)
+	# Shake is reserved for big moments; constant hit shake read as stutter.
+	if boss:
+		trauma = .75
 
 func animate(delta: float) -> void:
 	trauma = maxf(0, trauma - delta * 2.3)
@@ -404,7 +406,7 @@ func track_growth(delta: float) -> void:
 func shake_offset() -> Vector2:
 	if reduced_effects:
 		return Vector2.ZERO
-	return Vector2(sin(clock * 47), sin(clock * 59 + 1.7)) * trauma * trauma * 7
+	return Vector2(sin(clock * 19), sin(clock * 23 + 1.7)) * trauma * trauma * 9
 
 func draw_bullets() -> void:
 	# All rounds go out in three batched calls: white trails, amber trails, heads.
@@ -544,49 +546,36 @@ func core(center: Vector2, layers: int, live: bool = false) -> void:
 	for j in range(sparks):
 		var a: float = j * TAU / maxi(1, sparks) - clock * .3
 		draw_circle(center + Vector2(cos(a), sin(a)) * (outer + 4), 1.6, ACCENT)
-	# Launcher array: one small turret per real launcher (2^tier), ringed around
-	# the core, up to 54 drawn; the city keeps them above ground.
-	var owned_turrets: int = int(sim.levels.get("turrets", 0))
+	# Turrets bought with the turret upgrade: each one is a real shooter in the
+	# sim and flashes and recoils on its own staggered beat.
+	var count: int = sim.turret_count()
+	if turret_flash.size() != count:
+		turret_flash.resize(count)
+		turret_aim.resize(count)
 	var city: bool = sim.stage == 0
-	var turrets: int = mini(40 if city else 48, owned_turrets)
-	turret_spots.resize(0)
-	var ring_radius: float = outer + 16
-	if city:
-		# City: the battery spreads along the ground, alternating left and right.
-		for j in range(turrets):
-			var side: float = -1.0 if j % 2 == 0 else 1.0
-			turret_spots.append(Vector2(center.x + side * (56 + (j / 2) * 32), 586))
-	else:
-		var placed: int = 0
-		for capacity in ARRAY_RINGS:
-			var in_ring: int = mini(capacity, turrets - placed)
-			if in_ring <= 0:
-				break
-			for j in range(in_ring):
-				var a: float = j * TAU / in_ring + clock * .12 * (1 if capacity % 8 else -1)
-				turret_spots.append(center + Vector2(cos(a), sin(a)) * ring_radius)
-			placed += in_ring
-			ring_radius += 15
-	if turret_flash.size() != turret_spots.size():
-		turret_flash.resize(turret_spots.size())
-	var linked: bool = int(sim.levels.pierce) > 0 or int(sim.levels.targets) > 0
-	if linked and not city and turret_spots.size() >= 3:
-		var loop := turret_spots.slice(0, mini(ARRAY_RINGS[0], turret_spots.size()))
+	if count >= 3 and not city and (int(sim.levels.pierce) > 0 or int(sim.levels.targets) > 0):
+		var loop := PackedVector2Array()
+		for j in range(mini(sim.TURRET_RINGS[0], count)):
+			loop.append(sim.turret_position(j))
 		loop.append(loop[0])
 		draw_polyline(loop, Color(GREY, .3), 1.0, true)
 	begin_batch()
-	for j in range(turret_spots.size()):
-		var lit: bool = turret_flash[j] > 0
-		var aim: float = (last_target - turret_spots[j]).angle()
+	var far: float = outer
+	for j in range(count):
+		var lit: float = clampf(turret_flash[j] / .12, 0, 1)
+		var home: Vector2 = sim.turret_position(j)
+		far = maxf(far, home.distance_to(center))
+		var aim: float = turret_aim[j] if turret_aim[j] != 0.0 else (last_target - home).angle()
 		var barrel := Vector2.from_angle(aim)
-		var spot: Vector2 = turret_spots[j] - barrel * (2.0 if lit else 0.0)
-		shape(spot, (5.6 if lit else 4.6) * swell * (1.4 if city else 1.0), 3, aim, INK if lit else GREY)
-		stroke(spot, spot + barrel * 9, Color(INK if lit else GREY, .9))
+		var spot: Vector2 = home - barrel * 3.0 * lit
+		var size: float = (4.6 + 1.2 * lit) * swell * (1.4 if city else 1.0)
+		shape(spot, size, 3, aim, GREY.lerp(INK, lit))
+		stroke(spot, spot + barrel * (size + 6), Color(GREY.lerp(INK, lit), .9))
 	flush_batch()
-	if owned_turrets > turrets:
-		var tag: Vector2 = Vector2(turret_spots[turret_spots.size() - 1].x + 18, 594) if city else center + Vector2(ring_radius - 6, -ring_radius + 8)
-		ink("×" + str(owned_turrets), tag, GREY, 12)
-	core_outer = outer + 16 if city else ring_radius
+	var owned_turrets: int = int(sim.levels.get("turrets", 0))
+	if owned_turrets > count and count > 0:
+		ink("×" + str(owned_turrets), sim.turret_position(count - 1) + Vector2(16, 6), GREY, 12)
+	core_outer = outer + 16 if city or count == 0 else far + 6
 
 func stage_scene(index: int) -> void:
 	var c := Vector2(500, 325)

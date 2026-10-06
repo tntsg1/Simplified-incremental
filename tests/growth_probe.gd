@@ -45,7 +45,7 @@ func _initialize() -> void:
 				var cov: float=0
 				for i in range(6):
 					if c.owned[i]:
-						dmg+=c.shot_damage(i)/c.shot_interval(i)/(100.0*c.hp_scale())
+						dmg+=c.shot_damage(i)/c.shot_interval(i)/(100.0*c.hp_scale())*(1.0+0.05*int(c.levels.get("turrets",0)))
 						cov+=c.coverage(i)/c.shot_interval(i)
 				var need: float=c.wave_total/c.wave_seconds() if c.mode=="wave" else 0.0
 				headroom=" dmg_x=%s cov_x=%s"%[sci(dmg/maxf(need,1e-9)),sci(cov/maxf(need,1e-9))] if c.mode=="wave" else " boss_hp=%s dps=%s"%[sci(c.boss_max_hp()),sci(c.nominal_dps())]

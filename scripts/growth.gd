@@ -6,12 +6,7 @@ static func damage_multiplier(ctx: RefCounted) -> float:
 	for threshold in [10, 25, 50, 75, 100, 125, 150]:
 		if l >= threshold:
 			bonuses += 1
-	return pow(1.15, l) * pow(2.0, bonuses) * turret_multiplier(ctx)
-
-
-static func turret_multiplier(ctx: RefCounted) -> float:
-	# Each turret adds +5% linearly; steeper pricing keeps it a steady side line.
-	return 1.0 + int(ctx.levels.get("turrets", 0)) * 0.05
+	return pow(1.15, l) * pow(2.0, bonuses)
 
 
 static func launcher_count(ctx: RefCounted) -> int:
@@ -62,6 +57,8 @@ static func nominal_dps(ctx: RefCounted) -> float:
 	for i in range(6):
 		if ctx.owned[i]:
 			total += ctx.shot_damage(i) / ctx.shot_interval(i)
+	# Turrets together add 5% of the arsenal per turret bought.
+	total *= 1.0 + 0.05 * int(ctx.levels.get("turrets", 0))
 	return total * (1.0 + ctx.crit_chance() * (ctx.crit_multiplier() - 1.0))
 
 

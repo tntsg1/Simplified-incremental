@@ -7,6 +7,7 @@ signal notice(message: String)
 signal checkpoint
 signal stage_entered
 signal fired(index: int, origin: Vector2, destination: Vector2, critical: bool)
+signal turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool)
 signal hit(point: Vector2, weapon: int, amount: float, critical: bool, boss: bool, kind: String)
 signal destroyed(point: Vector2, weapon: int, members: int, boss: bool, kind: String)
 
@@ -15,6 +16,11 @@ const Campaign = preload("res://scripts/campaign.gd")
 const Catalog = preload("res://scripts/catalog.gd")
 # Rewards grow slower than enemy HP, so upgrades must outpace each wave (sawtooth growth).
 const REWARD_HP_EXPONENT: float = 0.4
+# Turrets are real shooters: each fires on its own staggered beat. Together they
+# deal 5% of the whole arsenal's firepower per turret bought.
+const TURRET_PERIOD: float = 0.8
+const TURRET_SLOTS: int = 48
+const TURRET_RINGS: Array[int] = [12, 16, 20]
 const WAVE_GROUPS: Array[int] = [8, 12, 16, 20, 26, 32, 40, 48, 56, 64]
 var catalog = Catalog.new()
 var rng := RandomNumberGenerator.new()
@@ -255,6 +261,55 @@ func fire_weapon(index: int, target: Dictionary) -> void:
 	shots.append(p)
 	fired.emit(index,origin,destination,critical)
 
+func turret_count() -> int:
+	return mini(TURRET_SLOTS, int(levels.get("turrets", 0)))
+
+func turret_position(slot: int) -> Vector2:
+	if stage == 0:
+		var side: float = -1.0 if slot % 2 == 0 else 1.0
+		return Vector2(500.0 + side * (56.0 + (slot / 2) * 24.0), 586.0)
+	var count: int = turret_count()
+	var placed: int = 0
+	var radius: float = 74.0
+	for ring in range(TURRET_RINGS.size()):
+		var in_ring: int = mini(TURRET_RINGS[ring], count - placed)
+		if slot < placed + in_ring:
+			var a: float = (slot - placed) * TAU / in_ring + ring * 0.3
+			return defense_position() + Vector2(cos(a), sin(a)) * radius
+		placed += in_ring
+		radius += 12.0
+	return defense_position()
+
+func arsenal_rate(value: Callable) -> float:
+	var total: float = 0.0
+	for i in range(6):
+		if owned[i]:
+			total += float(value.call(i)) / shot_interval(i)
+	return total
+
+func turret_shot_damage() -> float:
+	return 0.05 * int(levels.get("turrets", 0)) * arsenal_rate(shot_damage) * TURRET_PERIOD / maxi(1, turret_count())
+
+func turret_coverage() -> int:
+	return maxi(1, int(0.05 * int(levels.get("turrets", 0)) * arsenal_rate(coverage) * TURRET_PERIOD / maxi(1, turret_count())))
+
+func fire_turret(slot: int, target: Dictionary) -> void:
+	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
+	p.clear()
+	var amount: float = turret_shot_damage()
+	var critical: bool = rng.randf() < crit_chance()
+	if critical:
+		amount *= crit_multiplier()
+	var cap: int = turret_coverage()
+	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
+	var origin: Vector2 = turret_position(slot)
+	var destination: Vector2 = target.pos
+	var speed: float = 220.0 * minf(20.0, pow(1.08, int(levels.speed)))
+	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / speed), "damage": amount, "effective": effective, "coverage": cap, "weapon": 0, "crit": critical, "beam": false, "turret": slot})
+	target.reserved = float(target.reserved) + effective
+	shots.append(p)
+	turret_fired.emit(slot, origin, destination, critical)
+
 func add_effect(point: Vector2, kind: String, amount: float = 0.0, weapon: int = 0) -> void:
 	if effects.size() >= 160:
 		return
@@ -356,6 +411,16 @@ func advance(delta: float, visuals: bool = true) -> void:
 				fire_weapon(i, target)
 				cooldowns[i] = shot_interval(i)
 				manual_queued = false
+	# Stateless staggered beat: turret k fires when its phase crosses a period
+	# boundary, so saves need no turret cooldowns and replay deterministically.
+	var turret_total: int = turret_count()
+	if turret_total > 0 and (automation or manual_held or manual_queued):
+		for k in range(turret_total):
+			var phase: float = TURRET_PERIOD * k / turret_total
+			if floor((elapsed + phase) / TURRET_PERIOD) > floor((elapsed - delta + phase) / TURRET_PERIOD):
+				var target: Dictionary = target_for_weapon() if automation else find_enemy(priority_id)
+				if not target.is_empty() and pending_hp(target) > 0 and in_range(target):
+					fire_turret(k, target)
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
 		p.age = float(p.age) + delta

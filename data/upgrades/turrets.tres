@@ -7,4 +7,4 @@ title="增设炮台"
 base_cost=25
 unlock_stage=0
 cost_growth=1.25
-description="每级在防线核心旁增设一座炮台，全体系伤害 +5%。价格增长较快。"
+description="每级增设一座自动炮台，每座约 0.8 秒独立开火一次；全部炮台合计相当于每座 +5% 全体系火力。"

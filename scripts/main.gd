@@ -36,6 +36,10 @@ var menu: String = ""
 var cards: Array[Dictionary] = []
 var auto_button: Button
 var hud_auto_button: Button
+# Fast-forward: the fixed 60 Hz sim simply takes more steps per frame, so a run
+# plays out identically at any speed; field animation scales with it.
+var game_speed: int=1
+var speed_button: Button
 var weapon_button: Button
 var saved: Dictionary = {}
 var proof: bool = false
@@ -126,6 +130,7 @@ func _ready() -> void:
 	sim.destroyed.connect(field.on_destroyed)
 	sim.members_removed.connect(field.on_members_removed)
 	sim.pierced.connect(field.on_pierced)
+	sim.turret_fired.connect(field.on_turret_fired)
 	resized.connect(layout)
 	parse_proof()
 	audio.set_enabled(sound_on and (not proof or "--listen" in OS.get_cmdline_user_args()))
@@ -135,6 +140,8 @@ func _ready() -> void:
 		reduced_effects=bool(saved.get("settings",{}).get("reduced_effects",false))
 		audio.music_level=clampf(float(saved.get("settings",{}).get("music_level",.55)),0,1)
 		audio.effects_level=clampf(float(saved.get("settings",{}).get("effects_level",.65)),0,1)
+		game_speed=clampi(int(saved.get("settings",{}).get("game_speed",1)),1,3)
+		refresh_speed_button()
 		audio.set_enabled(sound_on)
 		show_title()
 	if DisplayServer.get_name()=="headless":audio.set_enabled(false)
@@ -205,6 +212,11 @@ func build_hud() -> void:
 	var pause := button("暂停  [Esc]",func():open_pause())
 	pause.name = "PauseButton"
 	bottom.add_child(pause)
+	speed_button = button("",cycle_speed)
+	speed_button.name = "SpeedButton"
+	speed_button.tooltip_text = "加速游戏：×1 / ×2 / ×3"
+	bottom.add_child(speed_button)
+	refresh_speed_button()
 	toast = label("",17,Color("dbdbdb"))
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -240,6 +252,8 @@ func layout() -> void:
 	var pause: Control = bottom.get_node("PauseButton")
 	pause.position = Vector2(w-263,13)
 	pause.size = Vector2(167,46)
+	speed_button.position = Vector2(w-686,13)
+	speed_button.size = Vector2(166,46)
 	toast.position = Vector2(w*.2,h-142)
 	toast.size = Vector2(w*.6,30)
 	if is_instance_valid(modal):
@@ -541,8 +555,19 @@ func show_notice(message: String) -> void:
 	if is_instance_valid(audio) and (message.contains("突破") or message.contains("进化")):
 		audio.play("milestone",-11,1,false,true)
 
+func settings_payload() -> Dictionary:
+	return {"sound":sound_on,"reduced_effects":reduced_effects,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed}
+
+func cycle_speed() -> void:
+	game_speed = 1 if game_speed>=3 else game_speed+1
+	refresh_speed_button()
+
+func refresh_speed_button() -> void:
+	if is_instance_valid(speed_button):
+		speed_button.text = "加速 ×%d  [F]" %game_speed
+
 func save_game() -> void:
-	store.save_game(sim,{"sound":sound_on,"reduced_effects":reduced_effects,"music_level":audio.music_level,"effects_level":audio.effects_level})
+	store.save_game(sim,settings_payload())
 
 func play_tone(kind: String) -> void:
 	if kind=="buy":audio.play("purchase",-12)
@@ -558,15 +583,16 @@ func _process(delta: float) -> void:
 			sim.spawn_enemy(maxi(1,int(sim.stage_data().count_multiplier)/16))
 			var actor: Dictionary=sim.enemies.back()
 			actor.age=float(actor.lifetime)*(.1+float(int(actor.id)%12)*.04)
-	field.clock += delta
+	var speed: float=float(game_speed) if not sim.paused else 1.0
+	field.clock += delta*speed
 	field.reduced_effects=reduced_effects
-	field.animate(delta)
+	field.animate(delta*speed)
 	field.position=field_origin+field.shake_offset()
 	audio.update(sim,delta)
 	field.hover = field.to_local(get_global_mouse_position())
 	if proof and "--inspect" in OS.get_cmdline_user_args() and not sim.enemies.is_empty():field.hover=sim.enemies[mini(3,sim.enemies.size()-1)].pos
 	if not sim.paused:
-		accumulator += minf(delta,.1)
+		accumulator += minf(delta,.1)*game_speed
 		while accumulator>=1.0/60:
 			sim.advance(1.0/60)
 			accumulator -= 1.0/60
@@ -592,7 +618,7 @@ func _process(delta: float) -> void:
 	save_timer += delta
 	if save_timer>=10 and not sim.paused:
 		save_timer = 0
-		save_game()
+		store.save_game_async(sim,settings_payload())
 	if sim.mode in ["failed","victory"] and menu=="":
 		show_result()
 	field.queue_redraw()
@@ -610,6 +636,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode==KEY_F11:
 			var window_mode: int = DisplayServer.window_get_mode()
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if window_mode==DisplayServer.WINDOW_MODE_FULLSCREEN else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		elif event.keycode==KEY_F and menu=="" and sim.mode!="title":
+			cycle_speed()
 		elif event.keycode in [KEY_U,KEY_ESCAPE] and sim.mode!="title" and menu!="title":
 			if menu!="":
 				close_modal()
