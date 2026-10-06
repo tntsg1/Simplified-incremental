@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>天穹防线 · SKYGUARD</title>
+<meta name="description" content="从城市到宇宙的极简增量防御。满屏弹幕、指数膨胀的数字、把行星改造成武器。">
+<style>
+:root{--bg:#141414;--panel:#1a1a1a;--line:#2c2c2c;--dim:#6a6a6a;--grey:#b4b4b4;--ink:#ededed;--amber:#ffc94d;--ease:cubic-bezier(.16,1,.3,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;background:var(--bg)}
+body{background:var(--bg);color:var(--ink);font-family:"PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+canvas{display:block}
+.hero{position:relative;height:100vh;min-height:600px;overflow:hidden;cursor:none}
+.hero canvas{position:absolute;inset:0;width:100%;height:100%}
+.hero-copy{position:absolute;left:0;right:0;bottom:9vh;text-align:center;pointer-events:none;padding:0 16px}
+.eyebrow{font-size:13px;letter-spacing:.42em;color:var(--grey);text-transform:uppercase}
+h1{font-size:clamp(56px,11vw,148px);font-weight:500;letter-spacing:.06em;line-height:1.05;margin:18px 0 14px}
+.tag{font-size:clamp(15px,1.6vw,19px);color:var(--grey);letter-spacing:.08em}
+.cta{display:flex;gap:14px;justify-content:center;margin-top:34px;pointer-events:auto;flex-wrap:wrap}
+.btn{position:relative;display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border:1px solid var(--line);border-radius:10px;background:#1c1c1c;color:var(--ink);font-size:15px;letter-spacing:.06em;cursor:pointer;transition:transform .35s var(--ease),border-color .35s var(--ease),background .35s var(--ease)}
+.btn:hover{transform:translateY(-2px) scale(1.03);border-color:var(--ink);background:#262626}
+.btn:active{transform:scale(.96)}
+.btn.primary{border-color:var(--amber);color:var(--amber)}
+.btn.primary:hover{background:rgba(255,201,77,.08)}
+.scroll-hint{position:absolute;left:50%;bottom:28px;width:1px;height:46px;background:linear-gradient(var(--grey),transparent);transform-origin:top;animation:hint 2.4s var(--ease) infinite}
+@keyframes hint{0%{transform:scaleY(0);opacity:0}30%{opacity:1}100%{transform:scaleY(1) translateY(30px);opacity:0}}
+.reveal{opacity:0;transform:translateY(36px);transition:opacity 1.1s var(--ease),transform 1.1s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+.d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.24s}.d4{transition-delay:.32s}.d5{transition-delay:.4s}
+section{position:relative}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.label{font-size:12px;letter-spacing:.38em;color:var(--dim);text-transform:uppercase}
+h2{font-size:clamp(34px,5vw,64px);font-weight:500;letter-spacing:.04em;margin:16px 0 18px;line-height:1.15}
+.lead{color:var(--grey);font-size:17px;line-height:1.9;max-width:620px}
+.journey{height:620vh}
+.journey .stick{position:sticky;top:0;height:100vh;overflow:hidden}
+.journey canvas{position:absolute;inset:0;width:100%;height:100%}
+.chapters{position:absolute;left:6vw;top:50%;transform:translateY(-50%);width:min(380px,80vw)}
+.chapter{position:absolute;top:0;left:0;opacity:0;transform:translateY(24px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.chapter.on{opacity:1;transform:none}
+.chapter .n{font-size:13px;color:var(--amber);letter-spacing:.3em}
+.chapter h3{font-size:clamp(36px,4.6vw,58px);font-weight:500;margin:10px 0 8px;letter-spacing:.06em}
+.chapter .s{color:var(--dim);font-size:13px;letter-spacing:.2em}
+.chapter p{color:var(--grey);line-height:1.85;margin-top:16px;font-size:16px}
+.progress{position:absolute;right:5vw;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:14px}
+.progress i{display:block;width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .5s,transform .5s var(--ease)}
+.progress i.on{background:var(--ink);transform:scale(1.6)}
+.numbers{padding:22vh 0}
+.big{font-size:clamp(64px,13vw,190px);font-weight:500;letter-spacing:.02em;line-height:1;margin:30px 0 12px;font-variant-numeric:tabular-nums}
+.big .u{color:var(--amber)}
+.curve{width:100%;height:220px;margin-top:40px}
+.curve path{fill:none;stroke-width:2;stroke-linecap:round}
+.forms{padding:18vh 0}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-top:48px}
+.form{background:var(--panel);border:1px solid var(--line);border-radius:14px;aspect-ratio:1;position:relative;overflow:hidden;transition:border-color .5s var(--ease),transform .5s var(--ease)}
+.form:hover{border-color:var(--grey);transform:translateY(-4px)}
+.form canvas{width:100%;height:100%}
+.form span{position:absolute;left:16px;bottom:14px;font-size:14px;letter-spacing:.08em}
+.form small{position:absolute;left:16px;top:14px;color:var(--dim);font-size:12px;letter-spacing:.14em}
+.features{padding:14vh 0 18vh}
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:48px}
+.feat{border-top:1px solid var(--line);padding:26px 4px 10px}
+.feat b{display:block;font-weight:500;font-size:20px;margin-bottom:10px;letter-spacing:.04em}
+.feat p{color:var(--grey);line-height:1.8;font-size:15px}
+.feat em{font-style:normal;color:var(--amber)}
+.final{padding:20vh 0;text-align:center;border-top:1px solid var(--line)}
+footer{padding:40px 24px 60px;text-align:center;color:var(--dim);font-size:13px;letter-spacing:.1em}
+.cursor{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none;z-index:50;opacity:0;transition:opacity .3s}
+.cursor.on{opacity:1}
+@media (max-width:720px){.chapters{left:20px;top:auto;bottom:12vh;transform:none}.progress{right:14px}.hero{cursor:auto}}
+@media (prefers-reduced-motion:reduce){.reveal{transition:none;opacity:1;transform:none}.scroll-hint{animation:none}}
+</style>
+</head>
+<body>
+<canvas class="cursor" id="cursor" width="68" height="68"></canvas>
+
+<section class="hero" id="hero">
+  <canvas id="field"></canvas>
+  <div class="hero-copy">
+    <div class="eyebrow reveal d1">SKYGUARD · 极简增量防御</div>
+    <h1 class="reveal d2">天穹防线</h1>
+    <div class="tag reveal d3">从第一枚导弹，到宇宙最后的光</div>
+    <div class="cta reveal d4">
+      <a class="btn primary" href="play/">在浏览器中游玩</a>
+      <a class="btn" href="https://github.com/tntsg1/Simplified-incremental">查看源码</a>
+    </div>
+  </div>
+  <div class="scroll-hint"></div>
+</section>
+
+<section class="journey" id="journey">
+  <div class="stick">
+    <canvas id="scales"></canvas>
+    <div class="chapters" id="chapters"></div>
+    <div class="progress" id="progress"></div>
+  </div>
+</section>
+
+<section class="numbers">
+  <div class="wrap">
+    <div class="label reveal">Number inflation</div>
+    <h2 class="reveal d1">数字一路膨胀到 10³⁵</h2>
+    <p class="lead reveal d2">敌人的血量随章节指数增长，你的火力涨得更快。每一章开头被逼到防线，升级之后把整片天空扫空——锯齿形的成长，一次又一次。</p>
+    <div class="big reveal d3" id="big">$ 0</div>
+    <svg class="curve reveal d4" id="curve" viewBox="0 0 1000 220" preserveAspectRatio="none"></svg>
+  </div>
+</section>
+
+<section class="forms">
+  <div class="wrap">
+    <div class="label reveal">Celestial conversion</div>
+    <h2 class="reveal d1">把天体改造成武器</h2>
+    <p class="lead reveal d2">点击战场上的月球、行星、太阳、恒星与星系，把它们改造成独立开火的武器。每一种都有自己的轮廓——换章之后，它们缩成核心旁的星环，继续开火。</p>
+    <div class="form-grid" id="forms"></div>
+  </div>
+</section>
+
+<section class="features">
+  <div class="wrap">
+    <div class="label reveal">Features</div>
+    <h2 class="reveal d1">满屏弹幕，一眼成长</h2>
+    <div class="feat-grid">
+      <div class="feat reveal d1"><b>铺天盖地的敌流</b><p>没有停顿的波次，敌人源源不断地涌来。你越强，吞噬得越快。</p></div>
+      <div class="feat reveal d2"><b>真实的炮台阵列</b><p>每座炮台都在<em>独立开火</em>，扇形铺开，打向每一群威胁。</p></div>
+      <div class="feat reveal d3"><b>一键集火</b><p>点击任意敌人，所有武器、所有在途导弹<em>同时转向</em>。</p></div>
+      <div class="feat reveal d1"><b>冲击波网格</b><p>每一次击毁都会推动背景点阵，整个战场都在回应你。</p></div>
+      <div class="feat reveal d2"><b>加速到 ×8</b><p>放置友好：切出窗口照常运行，按 F 一路加速。</p></div>
+      <div class="feat reveal d3"><b>六个尺度</b><p>城市 → 地球 → 太阳系 → 银河 → 星系团 → 宇宙，六个巨型威胁等你拦截。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <div class="label reveal">Ready</div>
+    <h2 class="reveal d1">守住天穹</h2>
+    <div class="cta reveal d2"><a class="btn primary" href="play/">立即开始</a><a class="btn" href="https://github.com/tntsg1/Simplified-incremental">GitHub</a></div>
+  </div>
+</section>
+<footer>天穹防线 · SKYGUARD · Godot 4.7</footer>
+
+<script>
+(() => {
+const INK = "#ededed", GREY = "#b4b4b4", DIM = "#6a6a6a", DARK = "#2c2c2c", AMBER = "#ffc94d", BG = "#141414";
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const TAU = Math.PI * 2;
+const units = ["", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"];
+const fmt = v => { if (v < 1000) return Math.floor(v).toString(); let i = 0; while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; } return v.toFixed(2) + units[i]; };
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => 1 - Math.pow(1 - t, 3);
+
+// Soft additive glow sprite shared by every canvas.
+const glow = document.createElement("canvas"); glow.width = glow.height = 128;
+{ const g = glow.getContext("2d"); const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(.18, "rgba(255,255,255,.7)"); r.addColorStop(.45, "rgba(255,255,255,.2)"); r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128); }
+
+function fit(c) { const d = Math.min(devicePixelRatio || 1, 2); const w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
+  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); return [x, w, h]; }
+function poly(x, cx, cy, r, n, rot) { x.beginPath(); for (let i = 0; i <= n; i++) { const a = rot + i * TAU / n; i ? x.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r) : x.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } }
+
+// Pause canvases that are off screen.
+const visible = new Map();
+const io = new IntersectionObserver(es => es.forEach(e => { visible.set(e.target, e.isIntersecting); if (e.isIntersecting && e.target.classList.contains("reveal")) e.target.classList.add("in"); }), { threshold: .12 });
+document.querySelectorAll(".reveal").forEach(el => io.observe(el));
+
+// ---------------- Hero: a live miniature battlefield ----------------
+const field = document.getElementById("field"); io.observe(field);
+const hero = { foes: [], shots: [], fx: [], nums: [], waves: [], turrets: 18, t: 0, power: 1, mouse: null, focus: null, spawn: 0 };
+function heroSpawn(w, h, pre) {
+  const a = Math.random() * TAU, R = Math.max(w, h) * .52 * (pre ? .35 + Math.random() * .65 : 1);
+  hero.foes.push({ x: w / 2 + Math.cos(a) * R, y: h * .36 + Math.sin(a) * R, v: 55 + Math.random() * 70, s: 7 + Math.random() * 9, k: Math.random() < .5 ? 3 : 4, hp: 3 + Math.random() * 5, rot: Math.random() * TAU, spin: (Math.random() - .5) * 2, flash: 0, born: 0, id: Math.random() });
+}
+function heroStep(dt, w, h) {
+  hero.t += dt; hero.power *= Math.pow(1.11, dt);
+  const cx = w / 2, cy = h * .36;
+  if (!hero.seeded) { hero.seeded = true; for (let i = 0; i < 34; i++) heroSpawn(w, h, true); }
+  hero.spawn -= dt;
+  while (hero.spawn <= 0 || hero.foes.length < 26) { heroSpawn(w, h); hero.spawn += .16; if (hero.foes.length > 70) break; }
+  for (const f of hero.foes) { const dx = cx - f.x, dy = cy - f.y, d = Math.hypot(dx, dy) || 1; f.x += dx / d * f.v * dt; f.y += dy / d * f.v * dt; f.rot += f.spin * dt; f.flash = Math.max(0, f.flash - dt * 6); f.born += dt; if (d < 50) f.hp = -1, f.leak = true; }
+  if (hero.focus && !hero.foes.includes(hero.focus)) hero.focus = null;
+  for (let k = 0; k < hero.turrets; k++) {
+    const phase = (hero.t * 4 + k / hero.turrets) % 1, prev = ((hero.t - dt) * 4 + k / hero.turrets) % 1;
+    if (phase < prev && hero.foes.length) {
+      const a = k / hero.turrets * TAU + hero.t * .3, ox = cx + Math.cos(a) * 64, oy = cy + Math.sin(a) * 64;
+      const sorted = hero.foes.slice().sort((p, q) => Math.hypot(p.x - cx, p.y - cy) - Math.hypot(q.x - cx, q.y - cy));
+      const target = hero.focus || sorted[k % Math.min(sorted.length, 8)];
+      hero.shots.push({ x: ox, y: oy, px: ox, py: oy, target, crit: Math.random() < .14 });
+    }
+  }
+  for (const s of hero.shots) {
+    if (!hero.foes.includes(s.target)) { let best = null, bd = 1e9; for (const f of hero.foes) { const d = Math.hypot(f.x - s.x, f.y - s.y); if (d < bd) { bd = d; best = f; } } s.target = best; if (!best) { s.dead = true; continue; } }
+    const t = s.target, dx = t.x - s.x, dy = t.y - s.y, d = Math.hypot(dx, dy), step = 900 * dt;
+    s.px = s.x; s.py = s.y;
+    if (d <= step) { s.dead = true; t.hp -= s.crit ? 2.5 : 1; t.flash = 1; const dmg = hero.power * (s.crit ? 3 : 1) * (40 + Math.random() * 20);
+      if (hero.nums.length < 60) hero.nums.push({ x: t.x + (Math.random() - .5) * 26, y: t.y - 8, v: dmg, crit: s.crit, age: 0 });
+      hero.fx.push({ kind: "spark", x: t.x, y: t.y, age: 0, dur: .25, s: s.crit ? 16 : 10, crit: s.crit }); }
+    else { s.x += dx / d * step; s.y += dy / d * step; }
+  }
+  hero.shots = hero.shots.filter(s => !s.dead);
+  for (const f of hero.foes) if (f.hp <= 0) {
+    if (!f.leak) { hero.fx.push({ kind: "boom", x: f.x, y: f.y, age: 0, dur: .8, s: f.s * 2.2, seed: Math.random() * 9 }); hero.waves.push({ x: f.x, y: f.y, age: 0 }); }
+    f.dead = true;
+  }
+  hero.foes = hero.foes.filter(f => !f.dead);
+  hero.fx = hero.fx.filter(e => (e.age += dt) < e.dur);
+  hero.nums = hero.nums.filter(n => (n.age += dt) < .8);
+  hero.waves = hero.waves.filter(wv => (wv.age += dt) < 1.1).slice(-10);
+}
+function heroDraw(x, w, h) {
+  const cx = w / 2, cy = h * .36;
+  x.fillStyle = BG; x.fillRect(0, 0, w, h);
+  // Dot grid pushed by shockwaves.
+  x.fillStyle = "#2a2a2a";
+  const sp = 26;
+  for (let gy = sp / 2; gy < h; gy += sp) for (let gx = sp / 2; gx < w; gx += sp) {
+    let ox = 0, oy = 0, lit = 0;
+    for (const wv of hero.waves) { const dx = gx - wv.x, dy = gy - wv.y, d = Math.hypot(dx, dy) || 1, r = wv.age * 520, k = Math.max(0, 1 - Math.abs(d - r) / 70), f = 1 - wv.age / 1.1; if (k > 0) { ox += dx / d * 9 * k * f * f; oy += dy / d * 9 * k * f * f; lit += k * f; } }
+    if (lit > .05) { x.fillStyle = `rgba(237,237,237,${Math.min(.8, .16 + lit * .6)})`; x.fillRect(gx + ox - 1, gy + oy - 1, 2, 2); x.fillStyle = "#2a2a2a"; }
+    else x.fillRect(gx + ox - 1, gy + oy - 1, 2, 2);
+  }
+  // Core and turret ring.
+  const pulse = 1 + Math.sin(hero.t * 3) * .03;
+  for (let i = 3; i >= 1; i--) { x.strokeStyle = i === 1 ? GREY : DIM; x.lineWidth = 1.3; poly(x, cx, cy, (12 + i * 9) * pulse, 6, hero.t * (i % 2 ? .3 : -.22) + i); x.stroke(); }
+  x.fillStyle = INK; poly(x, cx, cy, 11 * pulse, 6, hero.t * .5); x.fill();
+  for (let k = 0; k < hero.turrets; k++) { const a = k / hero.turrets * TAU + hero.t * .3; const tx = cx + Math.cos(a) * 64, ty = cy + Math.sin(a) * 64; x.fillStyle = GREY; poly(x, tx, ty, 4.2, 3, a); x.fill(); }
+  // Threats.
+  for (const f of hero.foes) {
+    const born = Math.min(1, f.born / .3), sq = 1 - .25 * f.flash;
+    x.save(); x.translate(f.x, f.y); x.rotate(f.rot); x.scale(sq * born, (2 - sq) * born);
+    x.fillStyle = f.flash > .1 ? "#fff" : (f.k === 3 ? INK : GREY); poly(x, 0, 0, f.s, f.k, 0); x.fill(); x.restore();
+    if (f === hero.focus) { x.strokeStyle = AMBER; x.lineWidth = 2; for (let j = 0; j < 4; j++) { const a = Math.PI / 4 + j * Math.PI / 2; x.beginPath(); x.arc(f.x, f.y, f.s + 12, a - .35, a + .35); x.stroke(); } }
+  }
+  // Explosions.
+  for (const e of hero.fx) {
+    const t = e.age / e.dur, fade = 1 - t;
+    if (e.kind === "boom") { x.strokeStyle = `rgba(237,237,237,${fade * .6})`; x.lineWidth = 1; x.beginPath(); x.arc(e.x, e.y, e.s * (.3 + ease(t) * 1.5), 0, TAU); x.stroke();
+      for (let j = 0; j < 9; j++) { const a = j * 2.399 + e.seed, r = e.s * (.6 + (j % 4) * .35) * ease(t); x.fillStyle = `rgba(237,237,237,${fade})`; poly(x, e.x + Math.cos(a) * r, e.y + Math.sin(a) * r, 3.2 * (1 - t * .7) + .6, 3, a + t * 9); x.fill(); } }
+    else { x.strokeStyle = e.crit ? `rgba(255,201,77,${fade})` : `rgba(237,237,237,${fade})`; x.lineWidth = 1.4; x.beginPath(); x.arc(e.x, e.y, e.s * (.4 + t), 0, TAU); x.stroke(); }
+  }
+  // Rounds.
+  x.lineCap = "round";
+  for (const s of hero.shots) { x.strokeStyle = s.crit ? "rgba(255,201,77,.8)" : "rgba(237,237,237,.55)"; x.lineWidth = 1.5; const dx = s.x - s.px, dy = s.y - s.py, d = Math.hypot(dx, dy) || 1; x.beginPath(); x.moveTo(s.x - dx / d * 14, s.y - dy / d * 14); x.lineTo(s.x, s.y); x.stroke(); }
+  // Additive light.
+  x.globalCompositeOperation = "lighter";
+  for (const s of hero.shots) x.drawImage(glow, s.x - 7, s.y - 7, 14, 14);
+  for (const e of hero.fx) if (e.kind === "boom") { const t = e.age / e.dur, r = e.s * (1.2 + t * 2); x.globalAlpha = (1 - t) * (1 - t) * .8; x.drawImage(glow, e.x - r, e.y - r, r * 2, r * 2); }
+  x.globalAlpha = .22 + Math.sin(hero.t * 3) * .04; x.drawImage(glow, cx - 90, cy - 90, 180, 180); x.globalAlpha = 1;
+  x.globalCompositeOperation = "source-over";
+  // Damage numbers.
+  x.textAlign = "center"; x.lineJoin = "round";
+  for (const n of hero.nums) { const t = n.age / .8, a = 1 - t * t, pop = 1 + .35 * Math.max(0, 1 - t * 6); x.font = `500 ${Math.round((n.crit ? 17 : 12) * pop)}px "Microsoft YaHei UI",sans-serif`;
+    const yy = n.y - 22 * ease(t); x.strokeStyle = `rgba(20,20,20,${a * .9})`; x.lineWidth = 4; x.strokeText(fmt(n.v), n.x, yy); x.fillStyle = n.crit ? `rgba(255,201,77,${a})` : `rgba(215,215,215,${a})`; x.fillText(fmt(n.v), n.x, yy); }
+  // Edge vignette so the copy stays readable.
+  const vg = x.createLinearGradient(0, h * .55, 0, h); vg.addColorStop(0, "rgba(20,20,20,0)"); vg.addColorStop(1, "rgba(20,20,20,.92)"); x.fillStyle = vg; x.fillRect(0, h * .55, w, h * .45);
+}
+field.addEventListener("pointerdown", e => {
+  const r = field.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  let best = null, bd = 80; for (const f of hero.foes) { const d = Math.hypot(f.x - px, f.y - py); if (d < bd) { bd = d; best = f; } }
+  hero.waves.push({ x: px, y: py, age: 0 }); if (best) { hero.focus = best; for (const s of hero.shots) s.target = best; }
+});
+
+// Custom reticle cursor over the hero.
+const cur = document.getElementById("cursor"), cx2 = cur.getContext("2d"); let mx = -100, my = -100, rx = -100, ry = -100, onHero = false;
+cx2.scale(2, 2);
+addEventListener("pointermove", e => { mx = e.clientX; my = e.clientY; });
+document.getElementById("hero").addEventListener("pointerenter", () => { onHero = matchMedia("(pointer:fine)").matches; cur.classList.toggle("on", onHero); });
+document.getElementById("hero").addEventListener("pointerleave", () => { onHero = false; cur.classList.remove("on"); });
+
+// ---------------- Scale journey: zoom out from city to cosmos ----------------
+const scales = document.getElementById("scales"), journey = document.getElementById("journey"); io.observe(scales);
+const CH = [
+  ["01", "城市", "CITY · 10 KM", "第一座发射井。点击来袭的陨石，亲手打出第一发导弹。"],
+  ["02", "地球", "EARTH · 12,742 KM", "防线升上轨道。月球与空间站都能被改造成武器。"],
+  ["03", "太阳系", "SOL · 100 AU", "行星在轨道上开火，太阳化为戴森球。"],
+  ["04", "银河", "GALAXY · 100,000 LY", "恒星成为光矛，银心黑洞成为引擎。"],
+  ["05", "星系团", "CLUSTER · 100 MLY", "整个本星系群都在你的火力网之中。"],
+  ["06", "宇宙", "COSMOS · 93 GLY", "宇宙网的节点同时开火，迎接最后的威胁。"],
+];
+const chapters = document.getElementById("chapters"), progress = document.getElementById("progress");
+CH.forEach(c => { const d = document.createElement("div"); d.className = "chapter"; d.innerHTML = `<div class="n">${c[0]} / 06</div><h3>${c[1]}</h3><div class="s">${c[2]}</div><p>${c[3]}</p>`; chapters.appendChild(d); progress.appendChild(document.createElement("i")); });
+const galaxyPts = []; for (let i = 0; i < 900; i++) { const t = Math.random(), r = Math.sqrt(t) * 230, a = t * 7.5 + (i % 4) * TAU / 4 + (Math.random() - .5) * .26; galaxyPts.push([Math.cos(a) * r, Math.sin(a) * r, i % 4 ? 1 : 1.8]); }
+let jTarget = 0, jShown = 0;
+function scene(x, i, t) {
+  x.lineWidth = 1;
+  const ring = r => { x.strokeStyle = DARK; x.beginPath(); x.arc(0, 0, r, 0, TAU); x.stroke(); };
+  if (i === 0) { for (let k = 0; k < 26; k++) { const bx = -560 + k * 44, bh = 26 + (k * 37.3) % 96 + (k % 7 ? 0 : 34); x.fillStyle = k % 2 ? "#1c1c1c" : "#191919"; x.fillRect(bx, 40 - bh, 34, bh); } x.strokeStyle = DIM; x.beginPath(); x.moveTo(-600, 40); x.lineTo(600, 40); x.stroke(); }
+  if (i === 1) { ring(190); ring(247); x.fillStyle = "#1c1c1c"; x.beginPath(); x.arc(0, 0, 81, 0, TAU); x.fill(); x.strokeStyle = DIM; x.lineWidth = 2; x.stroke(); x.lineWidth = 1; const a = t * .4; x.fillStyle = GREY; x.beginPath(); x.arc(Math.cos(a) * 247, Math.sin(a) * 247, 9, 0, TAU); x.fill(); }
+  if (i === 2) { for (let k = 0; k < 5; k++) { ring(70 + k * 55); const a = k * 1.72 + t * .3 / (k + 1); x.fillStyle = k === 1 ? GREY : DIM; x.beginPath(); x.arc(Math.cos(a) * (70 + k * 55), Math.sin(a) * (70 + k * 55), 4 + k * 1.5, 0, TAU); x.fill(); } x.fillStyle = "#1c1c1c"; x.beginPath(); x.arc(0, 0, 42, 0, TAU); x.fill(); x.strokeStyle = GREY; x.lineWidth = 2; x.stroke(); }
+  if (i === 3) { x.save(); x.rotate(t * .05); for (const p of galaxyPts) { x.fillStyle = "rgba(180,180,180,.45)"; x.fillRect(p[0] * 1.1, p[1] * 1.1, p[2], p[2]); } x.restore(); ring(285); }
+  if (i === 4) { for (let k = 0; k < 7; k++) { const a = k * 2.4, px = Math.cos(a) * 215, py = Math.sin(a) * 215; x.strokeStyle = DARK; x.beginPath(); x.moveTo(0, 0); x.lineTo(px, py); x.stroke(); x.save(); x.translate(px, py); x.rotate(a + t * .08); for (let j = 0; j < galaxyPts.length; j += 4) { const p = galaxyPts[j]; x.fillStyle = "rgba(180,180,180,.4)"; x.fillRect(p[0] * .28, p[1] * .28, 1, 1); } x.restore(); } ring(295); }
+  if (i === 5) { for (let k = 0; k < 34; k++) { const a = k * 2.399, r = Math.sqrt(k / 34) * 290, a2 = a + 1.5; x.strokeStyle = "#223"; x.strokeStyle = DARK; x.beginPath(); x.moveTo(Math.cos(a) * r, Math.sin(a) * r); x.lineTo(Math.cos(a2) * r * .75, Math.sin(a2) * r * .75); x.stroke(); x.fillStyle = DIM; x.beginPath(); x.arc(Math.cos(a) * r, Math.sin(a) * r, 2 + k % 3, 0, TAU); x.fill(); } ring(300); }
+  // The defense core: one more shell per scale.
+  for (let k = i + 1; k >= 1; k--) { x.strokeStyle = k === 1 ? GREY : DIM; poly(x, 0, i === 0 ? 30 : 0, 9 + k * 6, 6, t * (k % 2 ? .3 : -.2) + k); x.stroke(); }
+  x.fillStyle = INK; poly(x, 0, i === 0 ? 30 : 0, 9, 6, t * .5); x.fill();
+}
+function scalesDraw(x, w, h, t) {
+  x.fillStyle = BG; x.fillRect(0, 0, w, h);
+  const p = Math.min(4.999, Math.max(0, jShown)), i = Math.floor(p), f = p - i, k = Math.min(w, h) / 760;
+  const smooth = f * f * (3 - 2 * f);
+  // Next scale zooms in from 3x as the current one shrinks into its centre.
+  if (smooth > .02 && i < 5) { x.save(); x.translate(w * .58, h / 2); x.scale(k * lerp(3, 1, smooth), k * lerp(3, 1, smooth)); x.globalAlpha = smooth; scene(x, i + 1, t); x.restore(); }
+  x.save(); x.translate(w * .58, h / 2); const s = k * Math.pow(.04, smooth); x.scale(s, s); x.globalAlpha = 1 - smooth * .6; scene(x, i, t); x.restore(); x.globalAlpha = 1;
+  const on = Math.round(p);
+  chapters.querySelectorAll(".chapter").forEach((c, j) => c.classList.toggle("on", j === on));
+  progress.querySelectorAll("i").forEach((d, j) => d.classList.toggle("on", j === on));
+}
+function journeyTarget() { const r = journey.getBoundingClientRect(), span = r.height - innerHeight; jTarget = Math.min(1, Math.max(0, -r.top / span)) * 5; }
+addEventListener("scroll", journeyTarget, { passive: true });
+
+// ---------------- Number inflation ----------------
+const big = document.getElementById("big"); io.observe(big); let bigT = 0;
+const curve = document.getElementById("curve");
+{ let d = "M0 200", v = 200; const pts = []; for (let c = 0; c < 6; c++) { for (let s = 0; s < 10; s++) { const xx = c * 166 + s * 15; v -= 2.6 + s * .3; pts.push(`L${xx.toFixed(1)} ${v.toFixed(1)}`); } v += 18; pts.push(`L${(c * 166 + 152).toFixed(1)} ${v.toFixed(1)}`); }
+  curve.innerHTML = `<path d="${d} ${pts.join(" ")}" stroke="${GREY}" id="cpath"/><circle r="5" fill="${AMBER}" id="cdot"/>`; }
+const cpath = document.getElementById("cpath"), cdot = document.getElementById("cdot"), clen = cpath.getTotalLength();
+cpath.style.strokeDasharray = clen; cpath.style.strokeDashoffset = clen;
+function numbersStep(dt) {
+  if (!visible.get(big)) return;
+  bigT = Math.min(1, bigT + dt / 5.5);
+  const e = ease(bigT), v = Math.pow(10, 35 * e);
+  let u = 0, n = v; while (n >= 1000 && u < units.length - 1) { n /= 1000; u++; }
+  big.innerHTML = `$ ${u ? n.toFixed(2) : Math.floor(n)}<span class="u">${units[u]}</span>`;
+  cpath.style.strokeDashoffset = clen * (1 - e); const pt = cpath.getPointAtLength(clen * e); cdot.setAttribute("cx", pt.x); cdot.setAttribute("cy", pt.y);
+}
+
+// ---------------- Celestial forms ----------------
+const FORMS = [["crescent", "月轨主炮", "月球"], ["dyson", "戴森球", "太阳"], ["star5", "天狼星炮", "天狼星"], ["hole", "黑洞引擎", "银心黑洞"], ["spiral", "仙女座阵列", "仙女座星系"], ["ringed", "土星环炮", "土星"], ["octa", "木星巨炮", "木星"], ["node", "长城引擎", "宇宙网节点"]];
+const formsEl = document.getElementById("forms"), formCards = [];
+FORMS.forEach(f => { const card = document.createElement("div"); card.className = "form reveal"; card.innerHTML = `<small>${f[2]}</small><canvas></canvas><span>${f[1]}</span>`; formsEl.appendChild(card); io.observe(card); const c = card.querySelector("canvas"); io.observe(c); const st = { form: f[0], c, conv: 1, hover: false }; card.addEventListener("pointerenter", () => { st.hover = true; st.conv = 0; }); card.addEventListener("pointerleave", () => st.hover = false); formCards.push(st); });
+function formDraw(st, t) {
+  const [x, w, h] = fit(st.c); x.clearRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2 - 6, r = Math.min(w, h) * .22, k = ease(Math.min(1, st.conv));
+  if (st.conv < 1) { for (let j = 0; j < 3; j++) { x.strokeStyle = j ? `rgba(237,237,237,${1 - k})` : `rgba(255,201,77,${1 - k})`; x.lineWidth = 1.4; x.beginPath(); x.arc(cx, cy, r + (1 - k) * (90 + j * 26), 0, TAU); x.stroke(); } }
+  x.globalCompositeOperation = "lighter"; const gl = r * (3.2 + (st.hover ? .6 : 0)); x.globalAlpha = .16 + (1 - k) * .5 + (st.hover ? .08 : 0); x.drawImage(glow, cx - gl, cy - gl, gl * 2, gl * 2); x.globalAlpha = 1; x.globalCompositeOperation = "source-over";
+  x.save(); x.translate(cx, cy); x.scale(.6 + .4 * k, .6 + .4 * k); x.strokeStyle = INK; x.fillStyle = INK; x.lineWidth = 1.8; const sp = t * .7;
+  switch (st.form) {
+    case "crescent": x.lineWidth = 4; x.beginPath(); x.arc(0, 0, r, .7 + sp, TAU - .7 + sp); x.stroke(); x.lineWidth = 2.5; x.beginPath(); x.moveTo(0, 0); x.lineTo(Math.cos(sp) * (r + 16), Math.sin(sp) * (r + 16)); x.stroke(); break;
+    case "dyson": poly(x, 0, 0, r, 6, sp); x.stroke(); x.strokeStyle = AMBER; poly(x, 0, 0, r + 12, 12, -sp * .4); x.stroke(); x.fillStyle = "#2a2a2a"; x.beginPath(); x.arc(0, 0, r * .55, 0, TAU); x.fill(); break;
+    case "hole": for (let j = 0; j < 4; j++) { x.globalAlpha = 1 - j * .18; const a0 = t * (1.4 - j * .2) + j; x.beginPath(); x.arc(0, 0, r * (.5 + j * .2), a0, a0 + 4.2); x.stroke(); } x.globalAlpha = 1; break;
+    case "spiral": for (let j = 0; j < 3; j++) { x.beginPath(); for (let q = 0; q < 10; q++) { const a = sp + j * TAU / 3 + q * .3, rr = r * (.15 + q * .1); q ? x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : x.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.stroke(); } break;
+    case "ringed": x.beginPath(); x.arc(0, 0, r * .7, 0, TAU); x.stroke(); x.globalAlpha = .7; x.beginPath(); x.arc(0, 0, r * 1.25, sp, sp + TAU * .85); x.stroke(); x.globalAlpha = 1; break;
+    case "octa": poly(x, 0, 0, r, 8, sp * .5); x.stroke(); x.globalAlpha = .6; x.beginPath(); x.moveTo(-r * .8, -r * .25); x.lineTo(r * .8, -r * .25); x.moveTo(-r * .8, r * .25); x.lineTo(r * .8, r * .25); x.stroke(); x.globalAlpha = 1; break;
+    case "node": poly(x, 0, 0, r, 6, sp); x.stroke(); for (let j = 0; j < 6; j++) { const a = sp + j * TAU / 6; x.beginPath(); x.moveTo(Math.cos(a) * r, Math.sin(a) * r); x.lineTo(Math.cos(a) * (r + 10), Math.sin(a) * (r + 10)); x.stroke(); } break;
+    default: { x.beginPath(); for (let j = 0; j <= 10; j++) { const a = sp + j * Math.PI / 5, rr = j % 2 ? r * .5 : r; j ? x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : x.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.stroke(); }
+  }
+  x.restore();
+}
+
+// ---------------- One frame loop for everything ----------------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  const speed = reduced ? .25 : 1;
+  if (visible.get(field) !== false) { const [x, w, h] = fit(field); heroStep(dt * speed, w, h); heroDraw(x, w, h); }
+  if (visible.get(scales)) { jShown = lerp(jShown, jTarget, 1 - Math.exp(-dt * 7)); const [x, w, h] = fit(scales); scalesDraw(x, w, h, now / 1000); }
+  numbersStep(dt);
+  for (const st of formCards) if (visible.get(st.c)) { st.conv = Math.min(1, st.conv + dt / 1.1); formDraw(st, now / 1000); }
+  // Reticle: inertia follow, rotating brackets.
+  rx = lerp(rx, mx, 1 - Math.exp(-dt * 22)); ry = lerp(ry, my, 1 - Math.exp(-dt * 22));
+  if (onHero) { cur.style.transform = `translate(${rx}px,${ry}px)`; cx2.clearRect(0, 0, 34, 34); cx2.strokeStyle = INK; cx2.lineWidth = 1.6; for (let j = 0; j < 4; j++) { const a = now / 700 + Math.PI / 4 + j * Math.PI / 2; cx2.beginPath(); cx2.arc(17, 17, 12, a - .32, a + .32); cx2.stroke(); } cx2.fillStyle = INK; cx2.fillRect(16, 16, 2, 2); }
+  requestAnimationFrame(frame);
+}
+journeyTarget();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
