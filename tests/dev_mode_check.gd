@@ -21,6 +21,12 @@ func frames(n: int) -> void:
 	for i in range(n):
 		await process_frame
 
+func until(condition: Callable, seconds: float = 3.0) -> void:
+	# Boss kills trigger slow motion, so wait on the outcome, not a frame count.
+	var stop: int = Time.get_ticks_msec() + int(seconds * 1000)
+	while not condition.call() and Time.get_ticks_msec() < stop:
+		await process_frame
+
 func run() -> void:
 	game = preload("res://scenes/main.tscn").instantiate()
 	game.store.enabled = false
@@ -40,14 +46,15 @@ func run() -> void:
 	sim.wave = 10
 	sim.start_boss()
 	game.dev_kill_boss()
-	await frames(4)
+	await until(func(): return sim.mode == "transition")
 	check(sim.mode == "transition" and sim.stage_bosses == 1, "kill boss finishes the stage")
 	sim.mode_time = 99
-	await frames(4)
+	await until(func(): return sim.stage == 1)
 	check(sim.stage == 1, "transition reaches next stage")
 	game.dev_next_stage()
+	await until(func(): return sim.mode == "transition")
 	sim.mode_time = 99
-	await frames(4)
+	await until(func(): return sim.stage == 2)
 	check(sim.stage == 2, "next-stage shortcut jumps ahead")
 	game.dev_toggle_god()
 	sim.health = 5

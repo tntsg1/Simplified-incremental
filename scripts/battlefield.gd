@@ -20,7 +20,6 @@ var draw_ms: float = 0
 var reduced_effects: bool = false
 var trauma: float = 0
 var labels_left: int = 24
-var dot_mesh: MultiMesh
 var galaxy_mesh: MultiMesh
 var galaxy_points: PackedVector2Array = []
 var feedback: Array[Dictionary] = []
@@ -44,7 +43,7 @@ var dock_age: Array[float] = [-1, -1, -1, -1, -1, -1]
 var core_outer: float = 20
 # Barrage layer: purely cosmetic rounds that show the real launcher count and
 # fire rate. Combat timing and damage stay in the simulation untouched.
-const BULLET_CAP: int = 2400
+const BULLET_CAP: int = 900
 const NUMBER_CAP: int = 80
 # Additive glow layer: light trails, flashes and halos drawn over the flat field.
 const GlowTexture = preload("res://assets/glow.svg")
@@ -56,6 +55,24 @@ var coins: Array[Dictionary] = []
 var coin_arrivals: int = 0
 var money_anchor := Vector2(500, -80)
 var last_mode: String = ""
+# Shockwaves ripple the background grid (shader) on every kill and big event.
+const WAVE_CAP: int = 12
+var grid_rect: ColorRect
+var grid_material: ShaderMaterial
+var waves: Array[Dictionary] = []
+# Sim time not yet stepped this frame: threats move linearly, so drawing them at
+# age + lead is exact and stays smooth on any refresh rate.
+var render_lead: float = 0
+# Big-moment staging: wave/boss banners, cinematic bars, boss-death slow motion.
+var banner: Dictionary = {}
+var banner_cache: Dictionary = {}
+var letterbox: float = 0
+var slowmo_request: bool = false
+# Ambient dust spiralling into the core keeps the field alive between waves.
+const DUST: int = 70
+var dust_angle := PackedFloat32Array()
+var dust_radius := PackedFloat32Array()
+var dust_speed := PackedFloat32Array()
 var b_from := PackedVector2Array()
 var b_ctrl := PackedVector2Array()
 var b_to := PackedVector2Array()
@@ -64,6 +81,7 @@ var b_dur := PackedFloat32Array()
 var b_style := PackedInt32Array()
 var b_crit := PackedByteArray()
 var b_value := PackedFloat32Array()
+var b_target := PackedInt32Array()
 # Shaped damage-number lines are reused by text; volleys repeat the same values.
 var line_cache: Dictionary = {}
 var numbers_this_frame: int = 0
@@ -85,20 +103,8 @@ var seg_colors := PackedColorArray()
 func _ready() -> void:
 	font = SystemFont.new()
 	font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC"])
-	dot_mesh = MultiMesh.new()
-	dot_mesh.transform_format = MultiMesh.TRANSFORM_2D
-	dot_mesh.use_colors = true
 	var quad := QuadMesh.new()
 	quad.size = Vector2(2, 2)
-	dot_mesh.mesh = quad
-	var dots: Array[Vector2] = []
-	for x in range(-144, 1150, 24):
-		for y in range(-12, 640, 24):
-			dots.append(Vector2(x, y))
-	dot_mesh.instance_count = dots.size()
-	for i in range(dots.size()):
-		dot_mesh.set_instance_transform_2d(i, Transform2D(0, dots[i]))
-		dot_mesh.set_instance_color(i, DOT)
 	var random := RandomNumberGenerator.new()
 	random.seed = 9294
 	for i in range(1400):
@@ -116,6 +122,20 @@ func _ready() -> void:
 		galaxy_mesh.set_instance_color(i, Color(GREY, .18 + (i % 7) * .05))
 	for i in range(160):
 		feedback_pool.append({})
+	grid_material = ShaderMaterial.new()
+	grid_material.shader = preload("res://assets/grid_warp.gdshader")
+	grid_material.set_shader_parameter("origin", Vector2(-150, -20))
+	grid_rect = ColorRect.new()
+	grid_rect.position = Vector2(-150, -20)
+	grid_rect.size = Vector2(1300, 660)
+	grid_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grid_rect.material = grid_material
+	grid_rect.show_behind_parent = true
+	add_child(grid_rect)
+	for i in range(DUST):
+		dust_angle.append(randf() * TAU)
+		dust_radius.append(randf_range(60, 680))
+		dust_speed.append(randf_range(14, 40))
 	glow = Node2D.new()
 	var additive := CanvasItemMaterial.new()
 	additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -171,6 +191,29 @@ func flush_batch() -> void:
 	tri_colors.clear()
 	tri_indices.clear()
 
+func shape_squash(center: Vector2, radius: float, sides: int, rotation: float, fill: Color, along: float, across: float, axis: float) -> void:
+	# Squash and stretch: scale `along` the axis and `across` it, then fill.
+	if radius <= .3:
+		return
+	var u := Vector2.from_angle(axis)
+	var v := u.orthogonal()
+	var points := PackedVector2Array()
+	for i in range(sides):
+		var a: float = rotation + i * TAU / sides
+		var offset: Vector2 = Vector2(cos(a), sin(a)) * radius
+		points.append(center + u * offset.dot(u) * along + v * offset.dot(v) * across)
+	if batching:
+		var base: int = tri_points.size()
+		for point in points:
+			tri_points.append(point)
+			tri_colors.append(fill)
+		for i in range(1, sides - 1):
+			tri_indices.append(base)
+			tri_indices.append(base + i)
+			tri_indices.append(base + i + 1)
+	else:
+		draw_colored_polygon(points, fill)
+
 func star(center: Vector2, radius: float, rotation: float, color: Color) -> void:
 	var points := PackedVector2Array()
 	for i in range(10):
@@ -220,6 +263,29 @@ func pop(age: float) -> float:
 
 # ---------- feedback events ----------
 
+func add_wave(pos: Vector2, strength: float, duration: float = 1.1) -> void:
+	if reduced_effects:
+		strength *= .4
+	if waves.size() >= WAVE_CAP:
+		waves.pop_front()
+	waves.append({"pos": pos, "age": 0.0, "dur": duration, "strength": strength})
+
+func update_waves(delta: float) -> void:
+	var packed: Array[Vector4] = []
+	for i in range(waves.size() - 1, -1, -1):
+		waves[i].age = float(waves[i].age) + delta
+		if float(waves[i].age) >= float(waves[i].dur):
+			waves.remove_at(i)
+	for w in waves:
+		var t: float = float(w.age) / float(w.dur)
+		var pos: Vector2 = w.pos
+		packed.append(Vector4(pos.x, pos.y, float(w.age) * 520.0, float(w.strength) * (1 - t) * (1 - t)))
+	while packed.size() < WAVE_CAP:
+		packed.append(Vector4.ZERO)
+	grid_material.set_shader_parameter("waves", packed)
+	grid_material.set_shader_parameter("wave_count", waves.size())
+	grid_material.set_shader_parameter("time", clock)
+
 func add_feedback(kind: String, point: Vector2, index: int, size: float, duration: float, destination: Vector2 = Vector2.ZERO) -> void:
 	if feedback.size() >= 140:
 		return
@@ -233,8 +299,8 @@ func barrage_size(index: int) -> int:
 	var packets: float = sim.salvo_packets(index)
 	# Even the first silo volley is a small swarm; it thickens with every launcher
 	# doubling, fire-rate packing and turret bought.
-	var size: float = 3.0 + log(launchers) / log(2.0) * 2.4 + (ceilf(log(packets) / log(2.0)) * 1.5 if packets > 1.0 else 0.0) + int(sim.levels.get("turrets", 0)) * .15
-	return clampi(int(size), 3, 44)
+	var size: float = 3.0 + log(launchers) / log(2.0) * 1.6 + (ceilf(log(packets) / log(2.0)) if packets > 1.0 else 0.0)
+	return clampi(int(size), 3, 24)
 
 func flight_time(index: int, from: Vector2, to: Vector2) -> float:
 	var speed_scale: float = pow(1.08, int(sim.levels.speed))
@@ -254,8 +320,10 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 	# at where it will be on arrival keeps rounds on it instead of trailing behind.
 	var velocity := Vector2.ZERO
 	var share: float = 0.0
+	var target_id: int = -1
 	if not sim.shots.is_empty():
 		share = float(sim.shots.back().effective) / count
+		target_id = int(sim.shots.back().target)
 		var target: Dictionary = sim.find_enemy(int(sim.shots.back().target))
 		if not target.is_empty():
 			velocity = (Vector2(target.end) - Vector2(target.start)) / maxf(.01, float(target.lifetime))
@@ -282,12 +350,13 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 		b_style.append(index)
 		b_crit.append(1 if critical else 0)
 		b_value.append(share)
+		b_target.append(target_id)
 
 func on_turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool) -> void:
 	if slot < turret_flash.size():
 		turret_flash[slot] = .12
 		turret_aim[slot] = (destination - origin).angle()
-	spawn_barrage(0, origin, destination, critical, maxi(2, barrage_size(0) / 5))
+	spawn_barrage(0, origin, destination, critical, 1)
 
 func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
 	last_target = destination
@@ -347,6 +416,8 @@ func on_destroyed(point: Vector2, index: int, members: int, boss: bool, _kind: S
 	var size: float = 110 if boss else 18 + minf(20, log(maxf(1, members)) * 2)
 	add_feedback("boss_death" if boss else "shards", point, index, size, 2.2 if boss else .7)
 	add_feedback("flash", point, index, size * (5.0 if boss else 2.6), .9 if boss else .28)
+	add_feedback("embers", point, index, size, 1.6 if boss else 1.0)
+	add_wave(point, 60.0 if boss else 5.0 + minf(9.0, log(maxf(1, members))), 1.8 if boss else 1.0)
 	# Loot flies to the money counter: the visible half of every reward.
 	for k in range(3 if boss else (1 if members < 50 else 2)):
 		if coins.size() >= COIN_CAP:
@@ -356,6 +427,7 @@ func on_destroyed(point: Vector2, index: int, members: int, boss: bool, _kind: S
 	# Shake is reserved for big moments; constant hit shake read as stutter.
 	if boss:
 		trauma = .75
+		slowmo_request = true
 
 func animate(delta: float) -> void:
 	trauma = maxf(0, trauma - delta * 2.3)
@@ -376,6 +448,19 @@ func animate(delta: float) -> void:
 			feedback_pool.append(feedback[i])
 			feedback.remove_at(i)
 	track_growth(delta)
+	update_waves(delta)
+	if not banner.is_empty():
+		banner.age = float(banner.age) + delta
+		if float(banner.age) >= float(banner.dur):
+			banner = {}
+	var bars_wanted: float = 1.0 if not banner.is_empty() and bool(banner.cinematic) and float(banner.age) < float(banner.dur) - .4 else 0.0
+	letterbox = move_toward(letterbox, bars_wanted, delta * 3.5)
+	for i in range(DUST):
+		dust_radius[i] -= dust_speed[i] * delta * (1.0 + 60.0 / maxf(30.0, dust_radius[i]))
+		dust_angle[i] += delta * 26.0 / maxf(30.0, dust_radius[i])
+		if dust_radius[i] < 26:
+			dust_radius[i] = randf_range(520, 700)
+			dust_angle[i] = randf() * TAU
 	for j in range(turret_flash.size()):
 		turret_flash[j] = maxf(0, turret_flash[j] - delta)
 	numbers_this_frame = 0
@@ -385,17 +470,32 @@ func animate(delta: float) -> void:
 			coins.remove_at(i)
 			coin_arrivals += 1
 	if sim != null and sim.mode != last_mode:
+		if sim.mode == "wave":
+			show_banner("第 %02d 波" % sim.wave, sim.stage_data().title + "  ·  " + sim.stage_data().scale_label, 1.6)
+		elif sim.mode == "boss":
+			show_banner(sim.stage_data().boss_title.split(" · ")[0], "巨型威胁接近  ·  " + sim.stage_data().boss_title.split(" · ")[-1], 2.4, true)
 		if sim.mode == "intermission":
+			show_banner("拦截完成", "防线恢复  ·  下一波即将来袭", 2.6)
 			add_feedback("sweep", sim.defense_position(), 0, 900, 1.0)
+			add_wave(sim.defense_position(), 22.0, 1.6)
 		last_mode = sim.mode
 	if glow != null:
 		glow.queue_redraw()
+	# Rounds whose target already died wink out instead of flying to empty space.
+	var living: Dictionary = {}
+	if sim != null:
+		for e in sim.enemies:
+			if not bool(e.dead):
+				living[int(e.id)] = true
 	var alive: int = b_age.size()
 	var i: int = 0
 	while i < alive:
 		b_age[i] += delta
+		if b_age[i] >= 0 and b_value[i] > 0 and not living.has(b_target[i]) and b_dur[i] - b_age[i] > .12:
+			b_dur[i] = b_age[i] + .12
+			b_value[i] = 0
 		if b_age[i] >= b_dur[i]:
-			if b_value[i] > 0 and numbers.size() < NUMBER_CAP and numbers_this_frame < 10:
+			if b_value[i] >= 1.0 and numbers.size() < NUMBER_CAP and numbers_this_frame < 10:
 				numbers_this_frame += 1
 				add_number(b_to[i] + Vector2(randf_range(-22, 22), randf_range(-14, 6)), b_value[i], b_crit[i] == 1, false, 11)
 			# Swap-remove: draw order of rounds does not matter.
@@ -408,6 +508,7 @@ func animate(delta: float) -> void:
 			b_style[i] = b_style[alive]
 			b_crit[i] = b_crit[alive]
 			b_value[i] = b_value[alive]
+			b_target[i] = b_target[alive]
 		else:
 			i += 1
 	if alive != b_age.size():
@@ -419,6 +520,7 @@ func animate(delta: float) -> void:
 		b_style.resize(alive)
 		b_crit.resize(alive)
 		b_value.resize(alive)
+		b_target.resize(alive)
 
 func reset_growth() -> void:
 	prev_levels = {}
@@ -450,6 +552,7 @@ func track_growth(delta: float) -> void:
 		growth[i].age = before + delta
 		if before < 0 and float(growth[i].age) >= 0:
 			growth_bounce = 1.0
+			add_wave(sim.defense_position(), 12.0, 1.0)
 			core_pulse = 1.0
 		if float(growth[i].age) > 1.6:
 			growth.remove_at(i)
@@ -459,6 +562,7 @@ func track_growth(delta: float) -> void:
 			if dock_age[i] >= .9:
 				dock_age[i] = -1
 				add_feedback("shards", sim.weapon_origin(i), i, 26, .6)
+				add_wave(sim.weapon_origin(i), 24.0, 1.2)
 				trauma = minf(.5, trauma + .2)
 
 func shake_offset() -> Vector2:
@@ -477,19 +581,21 @@ func draw_bullets() -> void:
 			continue
 		var t: float = age / b_dur[i]
 		var style: int = b_style[i]
-		var tail: float = .22 if style == 1 else .1
 		var f: Vector2 = b_from[i]
 		var c: Vector2 = b_ctrl[i]
 		var to: Vector2 = b_to[i]
-		var u: float = maxf(0, t - tail)
+		var u: float = maxf(0, t - .03)
 		var pos: Vector2 = f.lerp(c, t).lerp(c.lerp(to, t), t)
-		var back: Vector2 = f.lerp(c, u).lerp(c.lerp(to, u), u)
+		var near: Vector2 = f.lerp(c, u).lerp(c.lerp(to, u), u)
 		if style == 2:
 			var side: Vector2 = (to - f).orthogonal().normalized()
 			# Wobble only mid-flight so the round still lands on target.
 			pos += side * sin(t * 22 + age) * 5 * sin(t * PI)
-			back += side * sin(u * 22 + age) * 5 * sin(u * PI)
-		var dir: Vector2 = (pos - back).normalized()
+			near += side * sin(u * 22 + age) * 5 * sin(u * PI)
+		var dir: Vector2 = (pos - near).normalized()
+		# Fixed-length tracer that grows out of the muzzle: a glowing pellet,
+		# not a hair-thin line spanning half the screen.
+		var back: Vector2 = pos - dir * (22.0 if style == 1 else 14.0) * minf(1.0, t * 8.0)
 		var crit: bool = b_crit[i] == 1
 		if style == 4 and t > .5:
 			# Quasar rounds split into three halfway and reconverge on the target.
@@ -533,6 +639,53 @@ func coin_position(c: Dictionary) -> Vector2:
 	var ctrl: Vector2 = c.ctrl
 	return from.lerp(ctrl, e).lerp(ctrl.lerp(money_anchor, e), e)
 
+func show_banner(title: String, subtitle: String, duration: float, cinematic: bool = false) -> void:
+	banner = {"title": banner_line(title, 46), "subtitle": banner_line(subtitle, 15), "age": 0.0, "dur": duration, "cinematic": cinematic}
+
+func banner_line(text: String, size: int) -> TextLine:
+	var key: String = text + "|" + str(size)
+	if not banner_cache.has(key):
+		if banner_cache.size() > 40:
+			banner_cache.clear()
+		var line := TextLine.new()
+		line.add_string(text, font, size)
+		banner_cache[key] = line
+	return banner_cache[key]
+
+func ease_out_back(t: float) -> float:
+	var c: float = 1.70158
+	return 1 + (c + 1) * pow(t - 1, 3) + c * pow(t - 1, 2)
+
+func draw_staging() -> void:
+	# Cinematic bars for the boss entrance.
+	if letterbox > 0:
+		var h: float = 52 * smoothstep(0.0, 1.0, letterbox)
+		draw_rect(Rect2(-150, -20, 1300, h), Color(BG, .96))
+		draw_rect(Rect2(-150, 640 - h, 1300, h), Color(BG, .96))
+	if banner.is_empty():
+		return
+	var age: float = banner.age
+	var dur: float = banner.dur
+	var enter: float = clampf(age / .3, 0, 1)
+	var leave: float = clampf((age - (dur - .4)) / .4, 0, 1)
+	var alpha: float = smoothstep(0.0, 1.0, enter) * (1 - leave)
+	var title: TextLine = banner.title
+	var subtitle: TextLine = banner.subtitle
+	var center := Vector2(500, 210)
+	var grow: float = 1.12 - .12 * ease_out_back(enter)
+	var rise: float = (1 - smoothstep(0.0, 1.0, enter)) * 26 - leave * 18
+	draw_set_transform(center + Vector2(0, rise), 0, Vector2.ONE * grow)
+	var size: Vector2 = title.get_size()
+	title.draw_outline(get_canvas_item(), -size * .5, 8, Color(BG, .9 * alpha))
+	title.draw(get_canvas_item(), -size * .5, Color(INK, alpha))
+	draw_set_transform(Vector2.ZERO)
+	var span: float = 240 * smoothstep(0.0, 1.0, clampf((age - .1) / .45, 0, 1))
+	var line_y: float = center.y + rise + size.y * .5 + 10
+	draw_line(Vector2(center.x - span, line_y), Vector2(center.x - 20, line_y), Color(GREY, .7 * alpha), 1.2, true)
+	draw_line(Vector2(center.x + 20, line_y), Vector2(center.x + span, line_y), Color(GREY, .7 * alpha), 1.2, true)
+	var sub_size: Vector2 = subtitle.get_size()
+	subtitle.draw(get_canvas_item(), Vector2(center.x - sub_size.x * .5, line_y + 8), Color(ACCENT if bool(banner.cinematic) else GREY, alpha))
+
 func draw_glow() -> void:
 	# Everything here is additive: overlaps brighten instead of covering.
 	if sim == null or sim.mode == "transition" or reduced_effects:
@@ -552,6 +705,15 @@ func draw_glow() -> void:
 			"flash":
 				var size: float = r * (.6 + t * .8)
 				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * size, Vector2.ONE * size * 2), false, Color(1, 1, 1, (1 - t) * (1 - t) * .9))
+				# Shockwave: a bright ring that thins as it races outward.
+				var shock: float = r * .45 * (1 - pow(1 - t, 2.5))
+				glow.draw_arc(p, shock, 0, TAU, 40, Color(1, 1, 1, (1 - t) * .55), 1 + 6 * (1 - t), true)
+			"embers":
+				for j in range(9):
+					var a: float = j * 2.399 + int(fx.seed) * .7
+					var drift: Vector2 = Vector2(cos(a), sin(a)) * r * (.5 + t * (.6 + (j % 3) * .25)) + Vector2(0, t * t * 16)
+					var size: float = (5.0 - (j % 3)) * (1 - t)
+					glow.draw_texture_rect(GlowTexture, Rect2(p + drift - Vector2.ONE * size, Vector2.ONE * size * 2), false, Color(1, .92, .8, (1 - t) * (1 - t) * .7))
 			"muzzle":
 				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * r * 2.4, Vector2.ONE * r * 4.8), false, Color(1, 1, 1, (1 - t) * .5))
 			"spark", "critical":
@@ -567,6 +729,12 @@ func draw_glow() -> void:
 			continue
 		var q: Vector2 = coin_position(c)
 		glow.draw_texture_rect(GlowTexture, Rect2(q - Vector2.ONE * 9, Vector2.ONE * 18), false, Color(1, 1, 1, .5))
+	for i in range(DUST):
+		var r: float = dust_radius[i]
+		var spot: Vector2 = core_at + Vector2.from_angle(dust_angle[i]) * r
+		var near: float = clampf(1.0 - r / 600.0, 0, 1)
+		var size: float = 2.5 + near * 2.5
+		glow.draw_texture_rect(GlowTexture, Rect2(spot - Vector2.ONE * size, Vector2.ONE * size * 2), false, Color(1, 1, 1, .1 + near * .25))
 
 func draw_feedback() -> void:
 	for fx in feedback:
@@ -605,13 +773,16 @@ func draw_feedback() -> void:
 				else:
 					ring(p, r * (.3 + travel * 1.4), Color(INK, fade * .5), 1.0)
 				if not reduced_effects or boss:
-					for j in range(24 if boss else 7):
+					# Shards fly at different speeds with a short motion trail.
+					var lag: float = 1 - pow(1 - maxf(0, t - .08), 3)
+					for j in range(28 if boss else 11):
 						var a: float = j * 2.399 + seed_value
 						var dir := Vector2(cos(a), sin(a))
-						var reach: float = r * (.7 + (j % 4) * .35)
+						var reach: float = r * (.6 + (j % 5) * .32)
 						var q: Vector2 = p + dir * reach * travel
-						var size: float = (6.0 if boss else 3.2) * (1 - t * .8) + .6
-						shape(q, size, 3, a + t * 9, Color(INK if j % 3 else GREY, fade))
+						var size: float = (6.0 if boss else 3.4) * (1 - t * .8) + .6
+						stroke(p + dir * reach * lag, q, Color(INK, fade * .45), 1.0)
+						shape(q, size, 3, a + t * 11, Color(INK if j % 3 else GREY, fade))
 
 # ---------- scene ----------
 
@@ -783,7 +954,8 @@ func boss_shape(p: Vector2, radius: float, kind: String, flash: float) -> void:
 			shape(p, radius * .5, 4, -clock * .5, Color(0, 0, 0, 0), GREY, 2)
 
 func enemy(e: Dictionary) -> void:
-	var p: Vector2 = e.pos
+	var lead_ratio: float = clampf((float(e.age) + render_lead) / float(e.lifetime), 0.0, 1.0)
+	var p: Vector2 = Vector2(e.start).lerp(e.end, lead_ratio) if not sim.paused else Vector2(e.pos)
 	var radius: float = float(e.radius)
 	var boss: bool = bool(e.boss)
 	var focused: bool = int(e.id) == sim.priority_id or hover.distance_to(p) < radius + 13
@@ -810,13 +982,18 @@ func enemy(e: Dictionary) -> void:
 		var fill: Color = (INK if ship else GREY).lerp(Color.WHITE, flash)
 		if dense and not focused:
 			fill.a = clampf(.5 + danger * .5 + flash, .5, 1)
+		# Hit: squashed along the flight line and bulging sideways; newborn
+		# threats are stretched along it, carrying their entry speed.
+		var young: float = clampf(1.0 - float(e.age) / .4, 0, 1)
+		var along: float = 1.0 - .26 * flash + .55 * young
+		var across: float = 1.0 + .22 * flash - .2 * young
 		if bool(e.elite):
 			shape(p, size * 1.15, 6 if ship else 8, spin * .5, Color(0, 0, 0, 0), INK, 1.5)
-			shape(p, size * .7, 3 if ship else 4, heading if ship else spin, fill)
+			shape_squash(p, size * .7, 3 if ship else 4, heading if ship else spin, fill, along, across, heading)
 		elif ship:
-			shape(p, size, 3, heading, fill)
+			shape_squash(p, size, 3, heading, fill, along, across, heading)
 		else:
-			shape(p, size, 4, spin, fill)
+			shape_squash(p, size, 4, spin, fill, along, across, heading)
 		if int(e.members) > 1:
 			var companions: int = 5 if not dense else 2 if focused or danger > .8 else 0
 			for j in range(mini(companions, int(e.members) - 1)):
@@ -879,7 +1056,7 @@ func _draw() -> void:
 	var started: int = Time.get_ticks_usec()
 	if sim == null or font == null:
 		return
-	draw_multimesh(dot_mesh, null)
+
 	var idx: int = sim.stage
 	labels_left = 6 if sim.enemies.size() > 70 else 24
 	if sim.mode == "transition":
@@ -929,8 +1106,6 @@ func _draw() -> void:
 				var r: float = 4 + float(fx.amount) * (t + .1)
 				ring(fx.pos, r, Color(ACCENT if fx.kind == "breach" else GREY, (1 - t) * .7), 1.4)
 		flush_batch()
-		if sim.mode == "intermission":
-			ink("拦截完成 · 下一波即将来袭", Vector2(395, 190), GREY, 18)
 	begin_batch()
 	draw_feedback()
 	flush_batch()
@@ -962,5 +1137,7 @@ func _draw() -> void:
 		if float(c.age) >= 0:
 			shape(coin_position(c), 3.2, 4, clock * 6, INK)
 	flush_batch()
+	if sim.mode != "transition":
+		draw_staging()
 	inspector()
 	draw_ms = (Time.get_ticks_usec() - started) / 1000.0

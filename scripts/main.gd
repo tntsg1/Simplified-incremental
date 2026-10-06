@@ -51,6 +51,8 @@ var game_speed: int=1
 var speed_button: Button
 # Developer mode (` key): test shortcuts and extra fast-forward steps.
 var dev_mode: bool=false
+# Boss kills play in slow motion for a moment (real seconds left).
+var slowmo: float=0
 var dev_god: bool=false
 var dev_bar: HBoxContainer
 var dev_god_button: Button
@@ -310,6 +312,13 @@ func center_modal() -> void:
 	if is_instance_valid(modal):
 		modal.size = modal.get_combined_minimum_size()
 		modal.position = (size-modal.size)*.5
+		# Panels spring open instead of popping in.
+		modal.pivot_offset = modal.size*.5
+		modal.scale = Vector2.ONE*.94
+		modal.modulate.a = 0
+		var tween := modal.create_tween().set_parallel(true)
+		tween.tween_property(modal,"scale",Vector2.ONE,.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tween.tween_property(modal,"modulate:a",1.0,.14)
 
 func show_title() -> void:
 	menu = "title"
@@ -677,7 +686,12 @@ func _process(delta: float) -> void:
 			sim.spawn_enemy(maxi(1,int(sim.stage_data().count_multiplier)/16))
 			var actor: Dictionary=sim.enemies.back()
 			actor.age=float(actor.lifetime)*(.1+float(int(actor.id)%12)*.04)
-	var speed: float=float(game_speed) if not sim.paused else 1.0
+	if field.slowmo_request:
+		field.slowmo_request=false
+		slowmo=.7
+	slowmo=maxf(0,slowmo-delta)
+	var time_scale: float=game_speed*(.2 if slowmo>0 else 1.0)
+	var speed: float=time_scale if not sim.paused else 1.0
 	field.clock += delta*speed
 	field.reduced_effects=reduced_effects
 	field.animate(delta*speed)
@@ -688,10 +702,11 @@ func _process(delta: float) -> void:
 	if not sim.paused:
 		if dev_god:
 			sim.health = 100.0
-		accumulator += minf(delta,.1)*game_speed
+		accumulator += minf(delta,.1)*time_scale
 		while accumulator>=1.0/60:
 			sim.advance(1.0/60)
 			accumulator -= 1.0/60
+	field.render_lead = accumulator if not sim.paused else 0.0
 	if sim.money<shown_money or shown_money<=0 or sim.money<=0:
 		shown_money=sim.money
 	elif sim.money>shown_money*1.0001+.5:
