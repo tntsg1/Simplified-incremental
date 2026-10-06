@@ -102,6 +102,13 @@ var ult_charge: float = 0.0
 var ult_deaths: int = 0
 var ult: Dictionary = {}
 var spawn_hold: float = 0.0
+# Space threats materialise along the visible edge of the screen; the view
+# reports its visible field rectangle here (the default matches a 16:9 window).
+var spawn_rect: Rect2 = Rect2(-250, -10, 1500, 640)
+# Right after a scale jump the field is topped up one group at a time, so the
+# new scale fills in as a stream instead of a sudden ring of threats.
+var topup_clock: float = 0.0
+const TOPUP_GAP: float = 0.14
 # Developer switches: no cooldown (always charged, re-fire mid-strike) and a
 # forced weapon so any scale's doomsday weapon can be tested anywhere.
 var ult_unlimited: bool = false
@@ -226,6 +233,12 @@ func min_alive() -> int:
 		return 0 if wave <= 5 else 3
 	return 16 + wave * 2
 
+func ramped_min_alive() -> int:
+	# The first wave of a scale builds up over a few seconds after the zoom-out.
+	if wave == 1:
+		return int(min_alive() * clampf(wave_elapsed / 6.0, 0.0, 1.0))
+	return min_alive()
+
 func living_count() -> int:
 	var n: int = 0
 	for e in enemies:
@@ -263,19 +276,36 @@ func spawn_enemy(members: int) -> void:
 	var origin: Vector2
 	var end: Vector2
 	if stage == 0:
-		origin = Vector2(rng.randf_range(130.0, 870.0), -20.0)
+		origin = Vector2(rng.randf_range(130.0, 870.0), minf(-20.0, spawn_rect.position.y))
 		end = Vector2(origin.x + rng.randf_range(-70.0, 70.0), 570.0)
 	else:
-		var a: float = rng.randf_range(-PI, PI)
-		origin = Vector2(500.0, 315.0) + Vector2(cos(a) * 560.0, sin(a) * 300.0)
+		origin = edge_point(rng.randf())
 		end = defense_position() + (origin - defense_position()).normalized() * 68.0
 	var lifetime: float = rng.randf_range(16.0, 22.0) if stage == 0 else rng.randf_range(17.0, 23.0)
+	if stage > 0:
+		# Same feel of speed from every edge: farther starts take a little longer.
+		lifetime *= clampf(sqrt(origin.distance_to(defense_position()) / 480.0), 0.85, 1.6)
 	if elite:
 		lifetime *= 0.74
 	# Flood waves split the same total HP across WAVE_SCALE times the threats.
 	var unit_hp: float = (300.0 if elite else 100.0) * hp_scale() / (WAVE_SCALE if stage > 0 else 1)
 	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": lifetime, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": kind, "elite": elite, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 12.0 + (8.0 if elite else 0.0) + (minf(22.0, log(float(members)) * 3.0) if members > 1 else 0.0), "boss": false, "dead": false})
 	enemies.append(e)
+
+func edge_point(u: float) -> Vector2:
+	# A point on the perimeter of the spawn rectangle, uniform by length.
+	var r: Rect2 = spawn_rect
+	var d: float = u * 2.0 * (r.size.x + r.size.y)
+	if d < r.size.x:
+		return r.position + Vector2(d, 0)
+	d -= r.size.x
+	if d < r.size.y:
+		return r.position + Vector2(r.size.x, d)
+	d -= r.size.y
+	if d < r.size.x:
+		return r.end - Vector2(d, 0)
+	d -= r.size.x
+	return Vector2(r.position.x, r.end.y - d)
 
 func start_boss() -> void:
 	Campaign.start_boss(self)
@@ -940,7 +970,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 	if mode == "wave" and spawn_left > 0 and spawn_hold <= 0.0:
 		spawn_clock -= delta
 		var burst: int = 0
-		while spawn_left > 0 and burst < 6 and (spawn_clock <= 0.0 or living_count() < min_alive()):
+		topup_clock -= delta
+		while spawn_left > 0 and burst < 6 and (spawn_clock <= 0.0 or (living_count() < ramped_min_alive() and topup_clock <= 0.0)):
+			if spawn_clock > 0.0 and wave == 1 and wave_elapsed < 8.0:
+				topup_clock = TOPUP_GAP
 			var members: int = mini(spawn_left, group_size())
 			if stage >= 1 and (serial + 1) % 9 == 0:
 				members = 1

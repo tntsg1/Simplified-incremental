@@ -389,6 +389,17 @@ func layout() -> void:
 	field.scale = Vector2.ONE*zoom
 	field.position = Vector2(w*.5-500*zoom,145)
 	field_origin=field.position
+	# Threats materialise just inside the visible edge of the battlefield, so
+	# every shot the defense fires lands somewhere the player can see.
+	var top_left: Vector2 = (Vector2(0,118)-field_origin)/zoom
+	var bottom_right: Vector2 = (Vector2(w,h-104)-field_origin)/zoom
+	sim.spawn_rect = Rect2(top_left,bottom_right-top_left).grow(-16)
+	# The dot grid covers the whole window (with room for camera shake).
+	var screen: Rect2 = Rect2(-field_origin/zoom,Vector2(w,h)/zoom).grow(90)
+	if field.grid_rect != null:
+		field.grid_rect.position = screen.position
+		field.grid_rect.size = screen.size
+		field.grid_material.set_shader_parameter("origin",screen.position)
 	stage_label.position = Vector2(40,26)
 	scale_label.position = Vector2(42,72)
 	money_label.position = Vector2(w*.45,29)

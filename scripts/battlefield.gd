@@ -1562,6 +1562,8 @@ func enemy(e: Dictionary) -> void:
 		var spin: float = clock * (.6 + float(int(e.seed) % 7) * .15) + int(e.seed)
 		var ship: bool = str(e.kind).contains("ship")
 		var fill: Color = (INK if ship else GREY).lerp(Color.WHITE, flash)
+		# Threats materialise at the screen edge: they fade up behind their warp-in streak.
+		fill.a *= smoothstep(0.0, 1.0, float(e.age) / .45)
 		if dense and not focused:
 			fill.a = clampf(.5 + danger * .5 + flash, .5, 1)
 		# Hit: squashed along the flight line and bulging sideways; newborn
