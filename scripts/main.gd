@@ -77,6 +77,11 @@ var game_speed: int=1
 var speed_button: Button
 # Developer mode (` key): test shortcuts and extra fast-forward steps.
 var dev_mode: bool=false
+# Celestial conversion card: opens beside a clicked body, battle keeps running.
+var body_card: PanelContainer
+var body_card_slot: int=-1
+var body_card_button: Button
+var body_card_price: Label
 # Boss kills play in slow motion for a moment (real seconds left).
 var slowmo: float=0
 var dev_god: bool=false
@@ -224,6 +229,8 @@ func _ready() -> void:
 	sim.members_removed.connect(field.on_members_removed)
 	sim.pierced.connect(field.on_pierced)
 	sim.turret_fired.connect(field.on_turret_fired)
+	sim.body_fired.connect(field.on_body_fired)
+	sim.body_converted.connect(field.on_body_converted)
 	resized.connect(layout)
 	parse_proof()
 	audio.set_enabled(sound_on and (not proof or "--listen" in OS.get_cmdline_user_args()))
@@ -513,7 +520,7 @@ func open_shop() -> void:
 	v.add_child(grid)
 	for i in range(sim.catalog.upgrades.size()):
 		var spec: Resource = sim.catalog.upgrades[i]
-		if sim.stage < int(spec.unlock_stage):
+		if sim.stage < int(spec.unlock_stage) or bool(spec.retired):
 			continue
 		var p := PanelContainer.new()
 		var card_width: float=(minf(1120,size.x-80)-40-12*(grid.columns-1))/grid.columns
@@ -729,6 +736,68 @@ func animate_hud(delta: float) -> void:
 	var enter: float = clampf((5.0-toast_time)/.3,0,1)
 	toast.position.y = size.y-142+(1-enter)*(1-enter)*18
 
+func open_body_card(slot: int) -> void:
+	close_body_card()
+	body_card_slot = slot
+	var spec: Dictionary = sim.BODIES[sim.stage][slot]
+	body_card = PanelContainer.new()
+	body_card.add_theme_stylebox_override("panel",panel_style(Color("1a1a1a"),Color("ffc94d"),10))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation",8)
+	body_card.add_child(v)
+	v.add_child(label("改造 " + str(spec.name),20))
+	v.add_child(label("→ " + str(spec.weapon) + "  ·  每 0.4 秒开火，相当于全体系火力 +12%",13,Color("b4b4b4")))
+	v.add_child(label("换章后缩入核心，继续开火",12,Color("7f7f7f")))
+	body_card_price = label("",15,Color("ffc94d"))
+	v.add_child(body_card_price)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation",8)
+	body_card_button = button("改造",confirm_body_card,true)
+	body_card_button.custom_minimum_size = Vector2(150,40)
+	row.add_child(body_card_button)
+	var cancel := button("取消",close_body_card)
+	cancel.custom_minimum_size = Vector2(100,40)
+	row.add_child(cancel)
+	v.add_child(row)
+	ui.add_child(body_card)
+	refresh_body_card()
+	body_card.call_deferred("set","pivot_offset",Vector2(150,60))
+	body_card.scale = Vector2.ONE*.85
+	body_card.modulate.a = 0
+	var tween := body_card.create_tween().set_parallel(true)
+	tween.tween_property(body_card,"scale",Vector2.ONE,.24).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(body_card,"modulate:a",1.0,.14)
+
+func refresh_body_card() -> void:
+	if not is_instance_valid(body_card):
+		return
+	if body_card_slot < 0 or sim.mode in ["title","transition","victory","failed"] or sim.body_converted_at(sim.stage,body_card_slot):
+		close_body_card()
+		return
+	var price: float = sim.body_cost()
+	var missing: float = price - sim.money
+	body_card_price.text = "价格  $" + Catalog.number(price)
+	body_card_button.disabled = missing > 0
+	body_card_button.text = "改造" if missing <= 0 else "还差 $" + Catalog.number(missing)
+	var anchor: Vector2 = field.to_global(sim.body_position(sim.stage,body_card_slot))
+	var card_size: Vector2 = body_card.get_combined_minimum_size()
+	var place: Vector2 = anchor + Vector2(28,-card_size.y*.5)
+	if place.x + card_size.x > size.x - 20:
+		place.x = anchor.x - 28 - card_size.x
+	place.y = clampf(place.y,124,size.y-110-card_size.y)
+	body_card.position = body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place
+
+func confirm_body_card() -> void:
+	if body_card_slot >= 0 and sim.convert_body(body_card_slot):
+		play_tone("buy")
+		close_body_card()
+
+func close_body_card() -> void:
+	if is_instance_valid(body_card):
+		body_card.queue_free()
+	body_card = null
+	body_card_slot = -1
+
 func settings_payload() -> Dictionary:
 	return {"sound":sound_on,"reduced_effects":reduced_effects,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed}
 
@@ -873,6 +942,7 @@ func _process(delta: float) -> void:
 		display_mode=sim.mode
 		display_stage=sim.stage
 	animate_hud(delta)
+	refresh_body_card()
 	toast_time = maxf(0,toast_time-delta)
 	toast.modulate.a = minf(1,toast_time)
 	save_timer += delta
@@ -900,6 +970,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_dev_mode()
 		elif event.keycode==KEY_F and menu=="" and sim.mode!="title":
 			cycle_speed()
+		elif event.keycode==KEY_ESCAPE and is_instance_valid(body_card):
+			close_body_card()
 		elif event.keycode in [KEY_U,KEY_ESCAPE] and sim.mode!="title" and menu!="title":
 			if menu!="":
 				close_modal()
@@ -907,12 +979,19 @@ func _unhandled_input(event: InputEvent) -> void:
 				open_shop()
 			else:
 				open_pause()
+	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
+		close_body_card()
 	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
 		if not event.pressed:
 			sim.manual_held = false
 		elif menu=="" and sim.mode in ["wave","boss"]:
 			var point: Vector2 = field.to_local(event.position)
 			field.on_click(point)
+			var body: int = field.body_at(point)
+			if body >= 0:
+				open_body_card(body)
+				return
+			close_body_card()
 			var selected: int = sim.select_target(point)
 			if selected>=0 and not sim.automation:
 				sim.manual_held = true

@@ -6,4 +6,5 @@ key="speed"
 title="拦截速度"
 base_cost=15
 unlock_stage=0
+retired=true
 description="每级弹速 +8%，最高 20 倍。弹头更快命中，减少在途浪费。"

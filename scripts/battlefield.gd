@@ -76,6 +76,9 @@ var combo_pop: float = 0
 var combo_line: TextLine
 var combo_shown: int = -1
 var kills_seen: int = -1
+# Celestial bodies: hover/flash state and the body under the cursor.
+var body_flash: Dictionary = {}
+var body_hover: int = -1
 # Mouse reticle: follows with a little inertia and snaps open around threats.
 var show_reticle: bool = false
 var reticle_pos := Vector2(500, 300)
@@ -318,10 +321,9 @@ func barrage_size(index: int) -> int:
 	return clampi(int(size), 3, 24)
 
 func flight_time(index: int, from: Vector2, to: Vector2) -> float:
-	var speed_scale: float = pow(1.08, int(sim.levels.speed))
 	if bool(sim.catalog.weapons[index].beam):
-		return maxf(.12, .30 / sqrt(speed_scale) + .1)
-	return maxf(.08, from.distance_to(to) / (220.0 * minf(20.0, speed_scale)))
+		return .22
+	return maxf(.08, from.distance_to(to) / sim.PROJECTILE_SPEED)
 
 func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: bool, override: int = -1) -> void:
 	var count: int = barrage_size(index) if override < 0 else override
@@ -482,6 +484,8 @@ func animate(delta: float) -> void:
 			count_kills(sim.kills - kills_seen)
 			kills_seen = sim.kills
 	punch = maxf(0, punch - delta * 3.0)
+	for key in body_flash.keys():
+		body_flash[key] = maxf(0.0, float(body_flash[key]) - delta)
 	reticle_pos = reticle_pos.lerp(hover, minf(1.0, delta * 24.0))
 	var locked: Dictionary = {}
 	if sim != null and show_reticle:
@@ -530,19 +534,20 @@ func animate(delta: float) -> void:
 		last_mode = sim.mode
 	if glow != null:
 		glow.queue_redraw()
-	# Rounds whose target already died wink out instead of flying to empty space.
+	# Rounds whose target died swerve onto the nearest living threat, or fly
+	# straight off-screen when none is left. Their real shot already expired, so
+	# they carry no damage number any more.
 	var living: Dictionary = {}
 	if sim != null:
 		for e in sim.enemies:
 			if not bool(e.dead):
-				living[int(e.id)] = true
+				living[int(e.id)] = e
 	var alive: int = b_age.size()
 	var i: int = 0
 	while i < alive:
 		b_age[i] += delta
-		if b_age[i] >= 0 and b_value[i] > 0 and not living.has(b_target[i]) and b_dur[i] - b_age[i] > .12:
-			b_dur[i] = b_age[i] + .12
-			b_value[i] = 0
+		if b_age[i] >= 0 and b_target[i] >= 0 and not living.has(b_target[i]) and b_age[i] < b_dur[i]:
+			redirect_round(i, living)
 		if b_age[i] >= b_dur[i]:
 			if b_value[i] >= 1.0 and numbers.size() < NUMBER_CAP and numbers_this_frame < 10:
 				numbers_this_frame += 1
@@ -570,6 +575,39 @@ func animate(delta: float) -> void:
 		b_crit.resize(alive)
 		b_value.resize(alive)
 		b_target.resize(alive)
+
+func redirect_round(i: int, living: Dictionary) -> void:
+	var t: float = clampf(b_age[i] / b_dur[i], 0, 1)
+	var u: float = maxf(0, t - .03)
+	var f: Vector2 = b_from[i]
+	var c: Vector2 = b_ctrl[i]
+	var to: Vector2 = b_to[i]
+	var pos: Vector2 = f.lerp(c, t).lerp(c.lerp(to, t), t)
+	var near: Vector2 = f.lerp(c, u).lerp(c.lerp(to, u), u)
+	var dir: Vector2 = (pos - near).normalized() if pos.distance_to(near) > .001 else (to - f).normalized()
+	var best: Dictionary = {}
+	var nearest: float = INF
+	for e in living.values():
+		var d: float = pos.distance_to(e.pos)
+		if d < nearest:
+			nearest = d
+			best = e
+	var goal: Vector2
+	if best.is_empty():
+		goal = pos + dir * 1400.0
+		b_target[i] = -1
+	else:
+		var travel: float = maxf(.08, nearest / sim.PROJECTILE_SPEED)
+		var velocity: Vector2 = (Vector2(best.end) - Vector2(best.start)) / maxf(.01, float(best.lifetime))
+		goal = Vector2(best.pos) + velocity * travel
+		b_target[i] = int(best.id)
+	var span: float = pos.distance_to(goal)
+	b_from[i] = pos
+	b_ctrl[i] = pos + dir * minf(90.0, span * .4)
+	b_to[i] = goal
+	b_age[i] = 0.0
+	b_dur[i] = maxf(.08, span / sim.PROJECTILE_SPEED)
+	b_value[i] = 0.0
 
 func reset_growth() -> void:
 	prev_levels = {}
@@ -802,6 +840,11 @@ func draw_glow() -> void:
 					var drift: Vector2 = Vector2(cos(a), sin(a)) * r * (.5 + t * (.6 + (j % 3) * .25)) + Vector2(0, t * t * 16)
 					var size: float = (5.0 - (j % 3)) * (1 - t)
 					glow.draw_texture_rect(GlowTexture, Rect2(p + drift - Vector2.ONE * size, Vector2.ONE * size * 2), false, Color(1, .92, .8, (1 - t) * (1 - t) * .7))
+			"convert":
+				var bloom: float = clampf((t - .45) / .55, 0, 1)
+				if bloom > 0:
+					var size: float = r * 3 + bloom * r * 6 + 40
+					glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * size, Vector2.ONE * size * 2), false, Color(1, .92, .7, (1 - bloom) * .9))
 			"muzzle":
 				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * r * 2.4, Vector2.ONE * r * 4.8), false, Color(1, 1, 1, (1 - t) * .5))
 			"spark", "critical":
@@ -843,6 +886,15 @@ func draw_feedback() -> void:
 				draw_line(p, destination, Color(INK, fade * .9), r, true)
 			"muzzle":
 				draw_circle(p, r * (1 - t * .5), Color(INK, fade))
+			"convert":
+				if t < .5:
+					var k: float = t / .5
+					for j in range(3):
+						var gather: float = (1 - pow(k, 1.6)) * (90 + j * 26) + r
+						ring(p, gather, Color(ACCENT if j == 0 else INK, k * .9), 1.4)
+				else:
+					var k: float = (t - .5) / .5
+					ring(p, r + 10 + k * 120, Color(INK, (1 - k) * .8), 1.4)
 			"click":
 				var ease: float = 1 - pow(1 - t, 3)
 				ring(p, r * (.3 + ease), Color(INK, fade * .8), 1.4)
@@ -959,13 +1011,15 @@ func stage_scene(index: int) -> void:
 			ring(c, 247, DARK)
 			draw_circle(c, 81, SHADE)
 			ring(c, 81, DIM, 2)
-			draw_circle(c + Vector2(247, -33), 9, DARK)
+			if index != sim.stage or sim.mode == "transition":
+				draw_circle(c + Vector2(247, -33), 9, DARK)
 			ink("地球", c + Vector2(-15, 106), DIM, 13)
 		2:
 			for i in range(5):
 				ring(c, 70 + i * 55, DARK)
-				var a: float = i * 1.72 + .2 + clock * .03 / (i + 1)
-				draw_circle(c + Vector2(cos(a), sin(a)) * (70 + i * 55), 4 + i * 1.5, DIM if i != 1 else GREY)
+				if index != sim.stage or sim.mode == "transition":
+					var a: float = i * 1.72 + .2
+					draw_circle(c + Vector2(cos(a), sin(a)) * (70 + i * 55), 4 + i * 1.5, DIM if i != 1 else GREY)
 			draw_circle(c, 42, SHADE)
 			ring(c, 42, GREY, 2)
 			ink("太阳", c + Vector2(-15, 62), DIM, 13)
@@ -994,6 +1048,73 @@ func stage_scene(index: int) -> void:
 			ring(c, 300, DARK, 1.4)
 			ink("可观测宇宙 · 防御枢纽", c + Vector2(-65, 56), DIM, 13)
 	core(Vector2(500, 572) if index == 0 else c, index + 1, index == sim.stage and sim.mode != "transition")
+
+func body_at(point: Vector2) -> int:
+	# The unconverted body of the current scale under the cursor, or -1.
+	if sim == null or sim.mode in ["title", "transition", "victory"]:
+		return -1
+	var best: int = -1
+	var nearest: float = INF
+	for k in range(sim.BODIES[sim.stage].size()):
+		if sim.body_converted_at(sim.stage, k):
+			continue
+		var d: float = point.distance_to(sim.body_position(sim.stage, k))
+		if d < float(sim.BODIES[sim.stage][k].size) + 16.0 and d < nearest:
+			nearest = d
+			best = k
+	return best
+
+func on_body_fired(body_stage: int, slot: int, origin: Vector2, destination: Vector2, critical: bool) -> void:
+	body_flash[body_stage * 16 + slot] = .14
+	spawn_barrage(mini(body_stage, 5), origin, destination, critical, 4)
+	if body_stage == sim.stage:
+		add_feedback("muzzle", origin, mini(body_stage, 5), 10, .14)
+
+func on_body_converted(body_stage: int, slot: int) -> void:
+	var at: Vector2 = sim.body_position(body_stage, slot)
+	var size: float = float(sim.BODIES[body_stage][slot].size)
+	add_feedback("convert", at, 0, size, 1.1)
+	add_wave(at, 34.0, 1.6)
+	punch = maxf(punch, .7)
+	trauma = minf(.55, trauma + .25)
+	show_banner(str(sim.BODIES[body_stage][slot].weapon) + "上线", str(sim.BODIES[body_stage][slot].name) + "  ·  天体改造完成", 1.9)
+
+func draw_bodies() -> void:
+	if sim.mode == "transition":
+		return
+	var stage_now: int = sim.stage
+	body_hover = body_at(hover)
+	for s in range(stage_now + 1):
+		for k in range(sim.BODIES[s].size()):
+			var converted: bool = sim.body_converted_at(s, k)
+			if s < stage_now and not converted:
+				continue
+			var at: Vector2 = sim.body_position(s, k)
+			var size: float = float(sim.BODIES[s][k].size) if s == stage_now else 5.0
+			var lit: float = clampf(float(body_flash.get(s * 16 + k, 0.0)) / .14, 0, 1)
+			if s == stage_now:
+				# The body itself: rooftops are blocks, everything else a flat disc.
+				if s == 0:
+					draw_rect(Rect2(at - Vector2(size, size * .5), Vector2(size * 2, size)), Color("2a2a2a"))
+				elif not (s == 2 and k == 5) and s != 4 and s != 5:
+					draw_circle(at, size, Color("2c2c2c").lerp(GREY, .25 if converted else 0.0))
+			if converted:
+				var spin: float = clock * (.9 if k % 2 == 0 else -.7)
+				var ring_size: float = size + (7.0 if s == stage_now else 3.0) + lit * 3.0
+				shape(at, ring_size, 6, spin, Color(0, 0, 0, 0), INK.lerp(Color.WHITE, lit), 1.6 if s == stage_now else 1.2)
+				var aim: Vector2 = (last_target - at).normalized()
+				draw_line(at + aim * ring_size, at + aim * (ring_size + 7 + lit * 3), INK, 2.0, true)
+				if s == stage_now and (s == 2 and k == 5):
+					# Dyson sphere: a second counter-rotating lattice round the sun.
+					shape(at, size + 16, 12, -clock * .3, Color(0, 0, 0, 0), Color(ACCENT, .7), 1.4)
+			elif s == stage_now:
+				var hovered: bool = k == body_hover
+				var dash_r: float = size + 9 + sin(clock * 3 + k) * 1.5
+				for j in range(0, 16, 2):
+					var a0: float = clock * .4 + j * TAU / 16
+					draw_arc(at, dash_r, a0, a0 + TAU / 16, 4, Color(ACCENT if hovered else GREY, .9 if hovered else .45), 1.4, true)
+				if hovered:
+					ink("改造 " + str(sim.BODIES[s][k].name) + "  $" + sim.Catalog.number(sim.body_cost()), at + Vector2(-40, -dash_r - 10), ACCENT, 12)
 
 func weapon(index: int, point: Vector2, small: bool = false) -> void:
 	# Turret i is a (3+i)-gon, so older weapons stay recognisable at larger scales.
@@ -1182,6 +1303,7 @@ func _draw() -> void:
 		for i in range(6):
 			if sim.owned[i]:
 				weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
+		draw_bodies()
 		begin_batch()
 		for e in sim.enemies:
 			if not bool(e.dead):

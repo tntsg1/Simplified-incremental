@@ -11,6 +11,7 @@ static func start_new(ctx: RefCounted, seed_value: int = 4262026) -> void:
 	for key in ctx.levels:
 		ctx.levels[key] = 0
 	ctx.owned.assign([true, false, false, false, false, false])
+	ctx.bodies.assign([0, 0, 0, 0, 0, 0])
 	ctx.weapon_damage.assign([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 	ctx.automation = false
 	ctx.paused = false

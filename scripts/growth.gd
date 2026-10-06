@@ -58,7 +58,7 @@ static func nominal_dps(ctx: RefCounted) -> float:
 		if ctx.owned[i]:
 			total += ctx.shot_damage(i) / ctx.shot_interval(i)
 	# Turrets together add 5% of the arsenal per turret bought.
-	total *= 1.0 + 0.05 * int(ctx.levels.get("turrets", 0))
+	total *= 1.0 + 0.05 * int(ctx.levels.get("turrets", 0)) + ctx.BODY_SHARE * ctx.total_bodies()
 	return total * (1.0 + ctx.crit_chance() * (ctx.crit_multiplier() - 1.0))
 
 
@@ -73,7 +73,7 @@ static func buy_upgrade(ctx: RefCounted, index: int, requested: int = 1) -> int:
 	if index < 0 or index >= ctx.catalog.upgrades.size():
 		return 0
 	var u: Resource = ctx.catalog.upgrades[index]
-	if ctx.stage < int(u.unlock_stage):
+	if ctx.stage < int(u.unlock_stage) or bool(u.retired):
 		return 0
 	var bought: int = 0
 	for i in range(mini(requested, 1000)):

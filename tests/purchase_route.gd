@@ -5,13 +5,16 @@ static func buy(c: RefCounted, policy: String="balanced") -> void:
 		c.buy_automation()
 	if c.stage>0 and not c.owned[c.stage] and not c.buy_weapon():
 		return
+	for slot in range(c.BODIES[c.stage].size()):
+		if not c.body_converted_at(c.stage, slot) and c.money >= c.body_cost():
+			c.convert_body(slot)
 	var reserve: float=200 if c.stage==0 and not c.automation and c.wave>=5 else 0
 	for purchase in range(60):
 		var best: int=-1
 		var score: float=0
 		for i in range(c.catalog.upgrades.size()):
 			var u: Resource=c.catalog.upgrades[i]
-			if c.stage<int(u.unlock_stage):
+			if c.stage<int(u.unlock_stage) or bool(u.retired):
 				continue
 			var cost: float=c.upgrade_cost(i)
 			if policy=="balanced" and cost>c.money-reserve:

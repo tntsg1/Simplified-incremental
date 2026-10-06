@@ -8,6 +8,8 @@ signal checkpoint
 signal stage_entered
 signal fired(index: int, origin: Vector2, destination: Vector2, critical: bool)
 signal turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool)
+signal body_fired(body_stage: int, slot: int, origin: Vector2, destination: Vector2, critical: bool)
+signal body_converted(body_stage: int, slot: int)
 signal hit(point: Vector2, weapon: int, amount: float, critical: bool, boss: bool, kind: String)
 signal destroyed(point: Vector2, weapon: int, members: int, boss: bool, kind: String)
 
@@ -18,9 +20,25 @@ const Catalog = preload("res://scripts/catalog.gd")
 const REWARD_HP_EXPONENT: float = 0.4
 # Turrets are real shooters: each fires on its own staggered beat. Together they
 # deal 5% of the whole arsenal's firepower per turret bought.
+# Rounds fly at one fixed, fast speed (the old speed upgrade added nothing real).
+const PROJECTILE_SPEED: float = 1100.0
 const TURRET_PERIOD: float = 0.25
 const TURRET_SLOTS: int = 48
 const TURRET_RINGS: Array[int] = [12, 16, 20]
+# Celestial conversion: bodies drawn in each scale's scene can be clicked and
+# turned into weapons. Each converted body fires on its own beat for a fixed
+# share of the arsenal and keeps firing (from orbit round the core) in later scales.
+const BODY_PERIOD: float = 0.4
+const BODY_SHARE: float = 0.12
+const BODY_PRICE_GROWTH: float = 2.2
+const BODIES: Array = [
+	[{"name": "西区摩天楼", "weapon": "楼顶炮台", "at": Vector2(150, 470), "size": 12.0}, {"name": "中央塔", "weapon": "塔顶导弹阵", "at": Vector2(330, 455), "size": 12.0}, {"name": "东区摩天楼", "weapon": "楼顶炮台", "at": Vector2(860, 470), "size": 12.0}],
+	[{"name": "月球", "weapon": "月轨主炮", "orbit": 247.0, "angle": -0.13, "speed": 0.05, "size": 13.0}, {"name": "近地空间站", "weapon": "轨道炮站", "orbit": 190.0, "angle": 2.1, "speed": 0.11, "size": 8.0}, {"name": "同步卫星", "weapon": "激光卫星", "orbit": 190.0, "angle": 4.3, "speed": 0.11, "size": 8.0}],
+	[{"name": "水星", "weapon": "水星炮", "orbit": 70.0, "angle": 0.2, "speed": 0.03, "size": 6.0}, {"name": "金星", "weapon": "金星炮", "orbit": 125.0, "angle": 1.92, "speed": 0.015, "size": 8.0}, {"name": "火星", "weapon": "火星炮", "orbit": 180.0, "angle": 3.64, "speed": 0.01, "size": 9.0}, {"name": "木星", "weapon": "木星巨炮", "orbit": 235.0, "angle": 5.36, "speed": 0.0075, "size": 12.0}, {"name": "土星", "weapon": "土星环炮", "orbit": 290.0, "angle": 0.8, "speed": 0.006, "size": 11.0}, {"name": "太阳", "weapon": "戴森球", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 42.0}],
+	[{"name": "天狼星", "weapon": "天狼星炮", "orbit": 160.0, "angle": 0.1, "speed": 0.02, "size": 7.0}, {"name": "参宿四", "weapon": "红巨星炮", "orbit": 230.0, "angle": 1.7, "speed": 0.015, "size": 9.0}, {"name": "织女星", "weapon": "织女星炮", "orbit": 200.0, "angle": 3.3, "speed": 0.018, "size": 7.0}, {"name": "大角星", "weapon": "大角星炮", "orbit": 260.0, "angle": 4.8, "speed": 0.012, "size": 8.0}, {"name": "银心黑洞", "weapon": "黑洞引擎", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 14.0}],
+	[{"name": "仙女座星系", "weapon": "仙女座阵列", "orbit": 215.0, "angle": 0.0, "speed": 0.0, "size": 18.0}, {"name": "三角座星系", "weapon": "三角座阵列", "orbit": 215.0, "angle": 2.4, "speed": 0.0, "size": 18.0}, {"name": "大麦哲伦云", "weapon": "麦哲伦阵列", "orbit": 215.0, "angle": 4.8, "speed": 0.0, "size": 18.0}, {"name": "小麦哲伦云", "weapon": "麦哲伦副阵", "orbit": 215.0, "angle": 7.2, "speed": 0.0, "size": 18.0}, {"name": "人马矮星系", "weapon": "人马阵列", "orbit": 215.0, "angle": 9.6, "speed": 0.0, "size": 18.0}, {"name": "大熊矮星系", "weapon": "大熊阵列", "orbit": 215.0, "angle": 12.0, "speed": 0.0, "size": 18.0}, {"name": "天龙矮星系", "weapon": "天龙阵列", "orbit": 215.0, "angle": 14.4, "speed": 0.0, "size": 18.0}],
+	[{"name": "长城节点", "weapon": "长城引擎", "node": 5, "size": 8.0}, {"name": "室女座节点", "weapon": "室女座引擎", "node": 9, "size": 8.0}, {"name": "后发座节点", "weapon": "后发座引擎", "node": 14, "size": 8.0}, {"name": "巨引源", "weapon": "巨引源引擎", "node": 20, "size": 9.0}, {"name": "拉尼亚凯亚", "weapon": "超星系团引擎", "node": 26, "size": 9.0}, {"name": "牧夫座空洞", "weapon": "空洞引擎", "node": 31, "size": 9.0}],
+]
 const WAVE_GROUPS: Array[int] = [32, 48, 64, 80, 104, 128, 160, 192, 224, 256]
 # Waves hold three times the threats at a third of the bounty each: a flood on
 # screen with the same economy.
@@ -47,6 +65,8 @@ var wave_elapsed: float = 0.0
 var mode_time: float = 0.0
 var spawn_clock: float = 0.0
 var surge_spawned: int = 0
+# Converted celestial bodies: one bitmask per scale.
+var bodies: Array[int] = [0, 0, 0, 0, 0, 0]
 var spawn_left: int = 0
 var wave_total: int = 0
 var wave_killed: int = 0
@@ -258,10 +278,10 @@ func fire_weapon(index: int, target: Dictionary) -> void:
 	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
 	var origin: Vector2 = weapon_origin(index)
 	var destination: Vector2 = target.pos
-	var speed: float = 220.0 * minf(20.0, pow(1.08, int(levels.speed)))
+	var speed: float = PROJECTILE_SPEED
 	var duration: float = origin.distance_to(destination) / speed
 	if bool(catalog.weapons[index].beam):
-		duration = maxf(0.035, 0.30 / sqrt(pow(1.08, int(levels.speed))))
+		duration = 0.12
 	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, duration), "damage": amount, "effective": effective, "coverage": cap, "weapon": index, "crit": critical, "beam": bool(catalog.weapons[index].beam)})
 	target.reserved = float(target.reserved) + effective
 	shots.append(p)
@@ -307,6 +327,87 @@ func turret_lanes() -> Array[Dictionary]:
 	lanes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.lifetime) - float(a.age) < float(b.lifetime) - float(b.age))
 	return lanes
 
+func body_converted_at(body_stage: int, slot: int) -> bool:
+	return (bodies[body_stage] >> slot) & 1 == 1
+
+func converted_count(body_stage: int) -> int:
+	var n: int = 0
+	for k in range(BODIES[body_stage].size()):
+		if body_converted_at(body_stage, k):
+			n += 1
+	return n
+
+func total_bodies() -> int:
+	var n: int = 0
+	for s in range(stage + 1):
+		n += converted_count(s)
+	return n
+
+func body_cost() -> float:
+	var base: float = 80.0 if stage == 0 else float(stage_data().weapon_price) * 2.0
+	return base * pow(BODY_PRICE_GROWTH, converted_count(stage))
+
+func convert_body(slot: int) -> bool:
+	if slot < 0 or slot >= BODIES[stage].size() or body_converted_at(stage, slot) or mode in ["title", "transition", "victory"]:
+		return false
+	var price: float = body_cost()
+	if money + 0.00001 < price:
+		return false
+	money -= price
+	bodies[stage] |= 1 << slot
+	body_converted.emit(stage, slot)
+	notice.emit(str(BODIES[stage][slot].name) + "改造完成 · " + str(BODIES[stage][slot].weapon) + "上线")
+	checkpoint.emit()
+	return true
+
+func scene_body_position(body_stage: int, slot: int) -> Vector2:
+	# Where the body sits in its own scale's scene (orbits follow game time).
+	var spec: Dictionary = BODIES[body_stage][slot]
+	var c := Vector2(500.0, 325.0)
+	if spec.has("at"):
+		return spec.at
+	if spec.has("node"):
+		var i: int = int(spec.node)
+		var r: float = sqrt(float(i) / 34.0) * 290.0
+		return c + Vector2(cos(i * 2.399), sin(i * 2.399)) * r
+	var a: float = float(spec.angle) + elapsed * float(spec.speed)
+	return c + Vector2(cos(a), sin(a)) * float(spec.orbit)
+
+func body_position(body_stage: int, slot: int) -> Vector2:
+	if body_stage == stage:
+		return scene_body_position(body_stage, slot)
+	# Bodies from smaller scales have shrunk into an orbit round the core.
+	var index: int = 0
+	for s in range(body_stage):
+		index += BODIES[s].size()
+	index += slot
+	var a: float = index * 0.71 + elapsed * 0.25
+	var radius: float = 150.0 + (index % 3) * 14.0
+	return defense_position() + Vector2(cos(a), sin(a) * (0.55 if stage == 0 else 1.0)) * radius
+
+func body_shot_damage() -> float:
+	return BODY_SHARE * arsenal_rate(shot_damage) * BODY_PERIOD
+
+func body_coverage() -> int:
+	return maxi(1, int(BODY_SHARE * arsenal_rate(coverage) * BODY_PERIOD))
+
+func fire_body(body_stage: int, slot: int, target: Dictionary) -> void:
+	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
+	p.clear()
+	var amount: float = body_shot_damage()
+	var critical: bool = rng.randf() < crit_chance()
+	if critical:
+		amount *= crit_multiplier()
+	var cap: int = body_coverage()
+	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
+	var origin: Vector2 = body_position(body_stage, slot)
+	var destination: Vector2 = target.pos
+	var speed: float = PROJECTILE_SPEED
+	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / speed), "damage": amount, "effective": effective, "coverage": cap, "weapon": mini(body_stage, 5), "crit": critical, "beam": false, "body": slot})
+	target.reserved = float(target.reserved) + effective
+	shots.append(p)
+	body_fired.emit(body_stage, slot, origin, destination, critical)
+
 func fire_turret(slot: int, target: Dictionary) -> void:
 	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
 	p.clear()
@@ -318,7 +419,7 @@ func fire_turret(slot: int, target: Dictionary) -> void:
 	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
 	var origin: Vector2 = turret_position(slot)
 	var destination: Vector2 = target.pos
-	var speed: float = 220.0 * minf(20.0, pow(1.08, int(levels.speed)))
+	var speed: float = PROJECTILE_SPEED
 	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / speed), "damage": amount, "effective": effective, "coverage": cap, "weapon": 0, "crit": critical, "beam": false, "turret": slot})
 	target.reserved = float(target.reserved) + effective
 	shots.append(p)
@@ -457,6 +558,24 @@ func advance(delta: float, visuals: bool = true) -> void:
 					target = lanes[k % lanes.size()]
 				if not target.is_empty():
 					fire_turret(k, target)
+	# Converted bodies keep a staggered beat of their own, fanned like turrets.
+	var body_total: int = total_bodies()
+	if body_total > 0:
+		var body_lanes: Array[Dictionary] = []
+		var body_lanes_built: bool = false
+		var beat: int = 0
+		for s in range(stage + 1):
+			for k in range(BODIES[s].size()):
+				if not body_converted_at(s, k):
+					continue
+				var phase: float = BODY_PERIOD * beat / body_total
+				beat += 1
+				if floor((elapsed + phase) / BODY_PERIOD) > floor((elapsed - delta + phase) / BODY_PERIOD):
+					if not body_lanes_built:
+						body_lanes = turret_lanes()
+						body_lanes_built = true
+					if not body_lanes.is_empty():
+						fire_body(s, k, body_lanes[(beat * 3) % body_lanes.size()])
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
 		p.age = float(p.age) + delta
@@ -555,7 +674,7 @@ func snapshot() -> Dictionary:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "surge_spawned": surge_spawned, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
+	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "surge_spawned": surge_spawned, "bodies": bodies.duplicate(), "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
 
 func restore(data: Dictionary) -> bool:
 	if str(data.get("game", "")) != "skyguard" or int(data.get("version", 0)) != 1:
@@ -618,6 +737,9 @@ func restore(data: Dictionary) -> bool:
 	spawn_clock = float(data.spawn_clock)
 	spawn_left = int(data.spawn_left)
 	surge_spawned = int(data.get("surge_spawned", 0))
+	var saved_bodies: Variant = data.get("bodies", [])
+	for s in range(6):
+		bodies[s] = int(saved_bodies[s]) if saved_bodies is Array and saved_bodies.size() == 6 else 0
 	wave_total = int(data.wave_total)
 	wave_killed = int(data.wave_killed)
 	kills = int(data.kills)
