@@ -49,7 +49,7 @@ var hud_auto_button: Button
 const SPEEDS: Array[int]=[1,2,4,8]
 var game_speed: int=1
 var speed_button: Button
-# Developer mode (F9): test shortcuts and extra fast-forward steps.
+# Developer mode (` key): test shortcuts and extra fast-forward steps.
 var dev_mode: bool=false
 var dev_god: bool=false
 var dev_bar: HBoxContainer
@@ -737,7 +737,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode==KEY_F11:
 			var window_mode: int = DisplayServer.window_get_mode()
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if window_mode==DisplayServer.WINDOW_MODE_FULLSCREEN else DisplayServer.WINDOW_MODE_FULLSCREEN)
-		elif event.keycode==KEY_F9 and sim.mode!="title":
+		elif event.keycode==KEY_QUOTELEFT and sim.mode!="title":
 			toggle_dev_mode()
 		elif event.keycode==KEY_F and menu=="" and sim.mode!="title":
 			cycle_speed()

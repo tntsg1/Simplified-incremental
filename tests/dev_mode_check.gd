@@ -1,5 +1,5 @@
 extends SceneTree
-# Developer mode: F9 toggles it; shortcuts skip waves, kill bosses, jump stages.
+# Developer mode: the ` key toggles it; shortcuts skip waves, kill bosses, jump stages.
 var game: Control
 var failures: int = 0
 
@@ -29,8 +29,8 @@ func run() -> void:
 	game.saved = {}
 	game.start_game()
 	var sim = game.sim
-	key(KEY_F9)
-	check(game.dev_mode and game.dev_bar.visible, "F9 opens developer bar")
+	key(KEY_QUOTELEFT)
+	check(game.dev_mode and game.dev_bar.visible, "` opens developer bar")
 	var before: float = sim.money
 	game.dev_money()
 	check(sim.money >= before * 10.0 + 1000.0 - 0.01, "money x10")
@@ -56,7 +56,7 @@ func run() -> void:
 	game.game_speed = 8
 	game.cycle_speed()
 	check(game.game_speed == 16, "dev mode unlocks x16")
-	key(KEY_F9)
+	key(KEY_QUOTELEFT)
 	check(not game.dev_mode and game.game_speed == 8 and not game.dev_god, "closing dev mode restores limits")
 	print("DEV_RESULT failures=", failures)
 	quit(1 if failures else 0)
