@@ -10,7 +10,9 @@ signal fired(index: int, origin: Vector2, destination: Vector2, critical: bool)
 signal turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool)
 signal body_fired(body_stage: int, slot: int, origin: Vector2, destination: Vector2, critical: bool)
 signal body_converted(body_stage: int, slot: int)
+signal shell_burst(point: Vector2, radius: float, body_stage: int, critical: bool)
 signal retargeted(old_target: int, new_target: int)
+signal focused(target_id: int)
 signal hit(point: Vector2, weapon: int, amount: float, critical: bool, boss: bool, kind: String)
 signal destroyed(point: Vector2, weapon: int, members: int, boss: bool, kind: String)
 
@@ -22,7 +24,7 @@ const REWARD_HP_EXPONENT: float = 0.4
 # Turrets are real shooters: each fires on its own staggered beat. Together they
 # deal 5% of the whole arsenal's firepower per turret bought.
 # Rounds fly at one fixed, fast speed (the old speed upgrade added nothing real).
-const PROJECTILE_SPEED: float = 1100.0
+const PROJECTILE_SPEED: float = 850.0
 const TURRET_PERIOD: float = 0.25
 const TURRET_SLOTS: int = 48
 const TURRET_RINGS: Array[int] = [12, 16, 20]
@@ -32,21 +34,28 @@ const TURRET_RINGS: Array[int] = [12, 16, 20]
 const BODY_PERIOD: float = 0.4
 const BODY_SHARE: float = 0.12
 const BODY_PRICE_GROWTH: float = 2.2
+# Celestial cannons lob slow heavy shells that burst over a whole area —
+# their job is suppression: every threat in the blast takes the hit.
+const BODY_SPEED: float = 520.0
+const BODY_SPLASH: float = 95.0
+const BODY_SPLASH_SHARE: float = 0.6
+const BODY_SPLASH_LIMIT: int = 24
 const BODIES: Array = [
-	[{"name": "西区摩天楼", "weapon": "楼顶炮台", "at": Vector2(150, 470), "size": 12.0}, {"name": "中央塔", "weapon": "塔顶导弹阵", "at": Vector2(330, 455), "size": 12.0}, {"name": "东区摩天楼", "weapon": "楼顶炮台", "at": Vector2(860, 470), "size": 12.0}],
-	[{"name": "月球", "weapon": "月轨主炮", "orbit": 247.0, "angle": -0.13, "speed": 0.05, "size": 13.0}, {"name": "近地空间站", "weapon": "轨道炮站", "orbit": 190.0, "angle": 2.1, "speed": 0.11, "size": 8.0}, {"name": "同步卫星", "weapon": "激光卫星", "orbit": 190.0, "angle": 4.3, "speed": 0.11, "size": 8.0}],
-	[{"name": "水星", "weapon": "水星炮", "orbit": 70.0, "angle": 0.2, "speed": 0.03, "size": 6.0}, {"name": "金星", "weapon": "金星炮", "orbit": 125.0, "angle": 1.92, "speed": 0.015, "size": 8.0}, {"name": "火星", "weapon": "火星炮", "orbit": 180.0, "angle": 3.64, "speed": 0.01, "size": 9.0}, {"name": "木星", "weapon": "木星巨炮", "orbit": 235.0, "angle": 5.36, "speed": 0.0075, "size": 12.0}, {"name": "土星", "weapon": "土星环炮", "orbit": 290.0, "angle": 0.8, "speed": 0.006, "size": 11.0}, {"name": "太阳", "weapon": "戴森球", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 42.0}],
-	[{"name": "天狼星", "weapon": "天狼星炮", "orbit": 160.0, "angle": 0.1, "speed": 0.02, "size": 7.0}, {"name": "参宿四", "weapon": "红巨星炮", "orbit": 230.0, "angle": 1.7, "speed": 0.015, "size": 9.0}, {"name": "织女星", "weapon": "织女星炮", "orbit": 200.0, "angle": 3.3, "speed": 0.018, "size": 7.0}, {"name": "大角星", "weapon": "大角星炮", "orbit": 260.0, "angle": 4.8, "speed": 0.012, "size": 8.0}, {"name": "银心黑洞", "weapon": "黑洞引擎", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 14.0}],
-	[{"name": "仙女座星系", "weapon": "仙女座阵列", "orbit": 215.0, "angle": 0.0, "speed": 0.0, "size": 18.0}, {"name": "三角座星系", "weapon": "三角座阵列", "orbit": 215.0, "angle": 2.4, "speed": 0.0, "size": 18.0}, {"name": "大麦哲伦云", "weapon": "麦哲伦阵列", "orbit": 215.0, "angle": 4.8, "speed": 0.0, "size": 18.0}, {"name": "小麦哲伦云", "weapon": "麦哲伦副阵", "orbit": 215.0, "angle": 7.2, "speed": 0.0, "size": 18.0}, {"name": "人马矮星系", "weapon": "人马阵列", "orbit": 215.0, "angle": 9.6, "speed": 0.0, "size": 18.0}, {"name": "大熊矮星系", "weapon": "大熊阵列", "orbit": 215.0, "angle": 12.0, "speed": 0.0, "size": 18.0}, {"name": "天龙矮星系", "weapon": "天龙阵列", "orbit": 215.0, "angle": 14.4, "speed": 0.0, "size": 18.0}],
-	[{"name": "长城节点", "weapon": "长城引擎", "node": 5, "size": 8.0}, {"name": "室女座节点", "weapon": "室女座引擎", "node": 9, "size": 8.0}, {"name": "后发座节点", "weapon": "后发座引擎", "node": 14, "size": 8.0}, {"name": "巨引源", "weapon": "巨引源引擎", "node": 20, "size": 9.0}, {"name": "拉尼亚凯亚", "weapon": "超星系团引擎", "node": 26, "size": 9.0}, {"name": "牧夫座空洞", "weapon": "空洞引擎", "node": 31, "size": 9.0}],
+	[{"name": "西区摩天楼", "form": "twin", "style": 0, "weapon": "楼顶炮台", "at": Vector2(150, 470), "size": 12.0}, {"name": "中央塔", "form": "pods", "style": 0, "weapon": "塔顶导弹阵", "at": Vector2(330, 455), "size": 12.0}, {"name": "东区摩天楼", "form": "twin", "style": 1, "weapon": "楼顶炮台", "at": Vector2(860, 470), "size": 12.0}],
+	[{"name": "月球", "form": "crescent", "style": 1, "weapon": "月轨主炮", "orbit": 247.0, "angle": -0.13, "speed": 0.05, "size": 13.0}, {"name": "近地空间站", "form": "panels", "style": 1, "weapon": "轨道炮站", "orbit": 190.0, "angle": 2.1, "speed": 0.11, "size": 8.0}, {"name": "同步卫星", "form": "dish", "style": 3, "weapon": "激光卫星", "orbit": 190.0, "angle": 4.3, "speed": 0.11, "size": 8.0}],
+	[{"name": "水星", "form": "tri", "style": 0, "weapon": "水星炮", "orbit": 70.0, "angle": 0.2, "speed": 0.03, "size": 6.0}, {"name": "金星", "form": "penta", "style": 2, "weapon": "金星炮", "orbit": 125.0, "angle": 1.92, "speed": 0.015, "size": 8.0}, {"name": "火星", "form": "star4", "style": 4, "weapon": "火星炮", "orbit": 180.0, "angle": 3.64, "speed": 0.01, "size": 9.0}, {"name": "木星", "form": "octa", "style": 1, "weapon": "木星巨炮", "orbit": 235.0, "angle": 5.36, "speed": 0.0075, "size": 12.0}, {"name": "土星", "form": "ringed", "style": 2, "weapon": "土星环炮", "orbit": 290.0, "angle": 0.8, "speed": 0.006, "size": 11.0}, {"name": "太阳", "form": "dyson", "style": 3, "weapon": "戴森球", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 42.0}],
+	[{"name": "天狼星", "form": "star5", "style": 3, "weapon": "天狼星炮", "orbit": 160.0, "angle": 0.1, "speed": 0.02, "size": 7.0}, {"name": "参宿四", "form": "star6", "style": 4, "weapon": "红巨星炮", "orbit": 230.0, "angle": 1.7, "speed": 0.015, "size": 9.0}, {"name": "织女星", "form": "star7", "style": 2, "weapon": "织女星炮", "orbit": 200.0, "angle": 3.3, "speed": 0.018, "size": 7.0}, {"name": "大角星", "form": "star8", "style": 5, "weapon": "大角星炮", "orbit": 260.0, "angle": 4.8, "speed": 0.012, "size": 8.0}, {"name": "银心黑洞", "form": "hole", "style": 5, "weapon": "黑洞引擎", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 14.0}],
+	[{"name": "仙女座星系", "form": "spiral", "style": 4, "weapon": "仙女座阵列", "orbit": 215.0, "angle": 0.0, "speed": 0.0, "size": 18.0}, {"name": "三角座星系", "form": "spiral", "style": 2, "weapon": "三角座阵列", "orbit": 215.0, "angle": 2.4, "speed": 0.0, "size": 18.0}, {"name": "大麦哲伦云", "form": "spiral", "style": 3, "weapon": "麦哲伦阵列", "orbit": 215.0, "angle": 4.8, "speed": 0.0, "size": 18.0}, {"name": "小麦哲伦云", "form": "spiral", "style": 0, "weapon": "麦哲伦副阵", "orbit": 215.0, "angle": 7.2, "speed": 0.0, "size": 18.0}, {"name": "人马矮星系", "form": "spiral", "style": 5, "weapon": "人马阵列", "orbit": 215.0, "angle": 9.6, "speed": 0.0, "size": 18.0}, {"name": "大熊矮星系", "form": "spiral", "style": 1, "weapon": "大熊阵列", "orbit": 215.0, "angle": 12.0, "speed": 0.0, "size": 18.0}, {"name": "天龙矮星系", "form": "spiral", "style": 4, "weapon": "天龙阵列", "orbit": 215.0, "angle": 14.4, "speed": 0.0, "size": 18.0}],
+	[{"name": "长城节点", "form": "node", "style": 5, "weapon": "长城引擎", "node": 5, "size": 8.0}, {"name": "室女座节点", "form": "node", "style": 3, "weapon": "室女座引擎", "node": 9, "size": 8.0}, {"name": "后发座节点", "form": "node", "style": 2, "weapon": "后发座引擎", "node": 14, "size": 8.0}, {"name": "巨引源", "form": "node", "style": 4, "weapon": "巨引源引擎", "node": 20, "size": 9.0}, {"name": "拉尼亚凯亚", "form": "node", "style": 5, "weapon": "超星系团引擎", "node": 26, "size": 9.0}, {"name": "牧夫座空洞", "form": "node", "style": 1, "weapon": "空洞引擎", "node": 31, "size": 9.0}],
 ]
 const WAVE_GROUPS: Array[int] = [32, 48, 64, 80, 104, 128, 160, 192, 224, 256]
 # Waves hold three times the threats at a third of the bounty each: a flood on
 # screen with the same economy.
 const WAVE_SCALE: int = 3
-# Waves arrive as surges: a crowd floods in over ~1.4 s, gets shredded, then the
-# next one comes. A steady trickle could never fill the screen.
-const SURGE_SPREAD: float = 1.4
+# Extra volume per wave (full HP and bounty per threat): the flood lasts longer.
+const WAVE_VOLUME: int = 1
+# Threats arrive as one continuous flood: a steady stream that is topped up at
+# once whenever the field thins out, so a stronger defense simply devours it faster.
 var catalog = Catalog.new()
 var rng := RandomNumberGenerator.new()
 var mode: String = "title"
@@ -65,7 +74,6 @@ var elapsed: float = 0.0
 var wave_elapsed: float = 0.0
 var mode_time: float = 0.0
 var spawn_clock: float = 0.0
-var surge_spawned: int = 0
 # Converted celestial bodies: one bitmask per scale.
 var bodies: Array[int] = [0, 0, 0, 0, 0, 0]
 var spawn_left: int = 0
@@ -179,12 +187,21 @@ func reward_scale() -> float:
 func wave_seconds() -> float:
 	return 25.0 + 7.0 * (wave - 1)
 
-func surge_count() -> int:
-	return 1 if wave_total <= 3 else clampi(2 + (wave - 1) / 3, 2, 5)
+func min_alive() -> int:
+	# The manual city opening stays a gentle trickle; space scales flood the field.
+	if stage == 0:
+		return 0 if wave <= 5 else 3
+	return 16 + wave * 2
 
-func surge_groups() -> int:
-	var groups: int = ceili(float(wave_total) / group_size())
-	return maxi(1, ceili(float(groups) / surge_count()))
+func living_count() -> int:
+	var n: int = 0
+	for e in enemies:
+		if not bool(e.dead):
+			n += 1
+	return n
+
+func wave_size() -> int:
+	return int(stage_data().wave_members[wave - 1]) * int(stage_data().count_multiplier) * wave_density() * (WAVE_SCALE * WAVE_VOLUME if stage > 0 else 1)
 
 func group_size() -> int:
 	if stage == 0:
@@ -248,14 +265,35 @@ func select_target(point: Vector2) -> int:
 			result = int(e.id)
 	if result >= 0:
 		priority_id = result
+		focus_shots(find_enemy(result))
 	return result
+
+# Focus fire: every round already in flight swerves onto the chosen threat.
+func focus_shots(target: Dictionary) -> void:
+	if target.is_empty():
+		return
+	for p in shots:
+		if int(p.target) == int(target.id):
+			continue
+		var old: Dictionary = find_enemy(int(p.target))
+		if not old.is_empty():
+			old.reserved = maxf(0.0, float(old.reserved) - float(p.effective))
+		var here: Vector2 = p.pos
+		p.target = int(target.id)
+		p.from = here
+		p.age = 0.0
+		p.duration = 0.05 if bool(p.beam) else maxf(0.035, here.distance_to(target.pos) / PROJECTILE_SPEED)
+		p.effective = float(p.damage) if bool(target.boss) else minf(float(p.damage), int(p.coverage) * float(target.unit_hp))
+		target.reserved = float(target.reserved) + float(p.effective)
+	focused.emit(int(target.id))
 
 func pending_hp(e: Dictionary) -> float:
 	return float(e.hp) + (int(e.members) - 1) * float(e.unit_hp) - float(e.reserved)
 
 func target_for_weapon() -> Dictionary:
+	# A focus-fire target draws every gun while it lives (spare rounds swerve on).
 	var explicit: Dictionary = find_enemy(priority_id)
-	if not explicit.is_empty() and pending_hp(explicit) > 0.0001:
+	if not explicit.is_empty():
 		return explicit
 	var best: Dictionary = {}
 	var remaining: float = INF
@@ -287,6 +325,9 @@ func fire_weapon(index: int, target: Dictionary) -> void:
 	target.reserved = float(target.reserved) + effective
 	shots.append(p)
 	fired.emit(index,origin,destination,critical)
+
+# Damage actually landed per source (main arsenal / turret ring / bodies).
+var source_damage: Dictionary = {"main": 0.0, "turret": 0.0, "body": 0.0}
 
 func turret_count() -> int:
 	return mini(TURRET_SLOTS, int(levels.get("turrets", 0)))
@@ -403,8 +444,7 @@ func fire_body(body_stage: int, slot: int, target: Dictionary) -> void:
 	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
 	var origin: Vector2 = body_position(body_stage, slot)
 	var destination: Vector2 = target.pos
-	var speed: float = PROJECTILE_SPEED
-	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / speed), "damage": amount, "effective": effective, "coverage": cap, "weapon": mini(body_stage, 5), "crit": critical, "beam": false, "body": slot})
+	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / BODY_SPEED), "damage": amount, "effective": effective, "coverage": cap, "weapon": mini(body_stage, 5), "crit": critical, "beam": false, "body": slot, "body_stage": body_stage})
 	target.reserved = float(target.reserved) + effective
 	shots.append(p)
 	body_fired.emit(body_stage, slot, origin, destination, critical)
@@ -426,11 +466,28 @@ func retarget_shot(p: Dictionary) -> Dictionary:
 	p.target = int(best.id)
 	p.from = here
 	p.age = 0.0
-	p.duration = 0.05 if bool(p.beam) else maxf(0.035, nearest / PROJECTILE_SPEED)
+	p.duration = 0.05 if bool(p.beam) else maxf(0.035, nearest / (BODY_SPEED if p.has("body") else PROJECTILE_SPEED))
 	p.effective = float(p.damage) if bool(best.boss) else minf(float(p.damage), int(p.coverage) * float(best.unit_hp))
 	best.reserved = float(best.reserved) + float(p.effective)
 	retargeted.emit(old, int(best.id))
 	return best
+
+func shell_burst_at(center: Dictionary, p: Dictionary, visuals: bool) -> float:
+	# The heavy shell detonates: every other threat inside the blast takes a share.
+	var share: float = float(p.damage) * BODY_SPLASH_SHARE
+	var dealt: float = 0.0
+	var count: int = 0
+	var here: Vector2 = center.pos
+	for other in enemies:
+		if count >= BODY_SPLASH_LIMIT:
+			break
+		if other == center or bool(other.dead) or Vector2(other.pos).distance_to(here) > BODY_SPLASH:
+			continue
+		dealt += apply_damage(other, share, int(p.coverage), int(p.weapon))
+		count += 1
+	if visuals:
+		shell_burst.emit(here, BODY_SPLASH, int(p.get("body_stage", p.weapon)), bool(p.crit))
+	return dealt
 
 func fire_turret(slot: int, target: Dictionary) -> void:
 	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
@@ -523,22 +580,15 @@ func advance(delta: float, visuals: bool = true) -> void:
 	wave_elapsed += delta
 	if mode == "wave" and spawn_left > 0:
 		spawn_clock -= delta
-		# Cleared the field? The next surge rolls in almost at once, so a strong
-		# defense pushes through waves faster instead of staring at empty space.
-		if surge_spawned == 0 and spawn_clock > 0.6 and enemies.is_empty():
-			spawn_clock = 0.6
-		while spawn_clock <= 0.0 and spawn_left > 0:
+		var burst: int = 0
+		while spawn_left > 0 and burst < 6 and (spawn_clock <= 0.0 or living_count() < min_alive()):
 			var members: int = mini(spawn_left, group_size())
 			if stage >= 1 and (serial + 1) % 9 == 0:
 				members = 1
 			spawn_enemy(members)
 			spawn_left -= members
-			surge_spawned += 1
-			if surge_spawned >= surge_groups():
-				surge_spawned = 0
-				spawn_clock += wave_seconds() / surge_count()
-			else:
-				spawn_clock += SURGE_SPREAD / surge_groups()
+			burst += 1
+			spawn_clock = maxf(spawn_clock, 0.0) + spawn_interval(members)
 	for e in enemies:
 		if bool(e.dead):
 			continue
@@ -576,7 +626,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 					lanes = turret_lanes()
 					lanes_built = true
 				var explicit: Dictionary = find_enemy(priority_id)
-				if not explicit.is_empty() and k % 2 == 0:
+				if not explicit.is_empty():
 					target = explicit
 				elif not lanes.is_empty():
 					target = lanes[k % lanes.size()]
@@ -598,7 +648,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 					if not body_lanes_built:
 						body_lanes = turret_lanes()
 						body_lanes_built = true
-					if not body_lanes.is_empty():
+					var focus: Dictionary = find_enemy(priority_id)
+					if not focus.is_empty():
+						fire_body(s, k, focus)
+					elif not body_lanes.is_empty():
 						fire_body(s, k, body_lanes[(beat * 3) % body_lanes.size()])
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
@@ -616,6 +669,9 @@ func advance(delta: float, visuals: bool = true) -> void:
 			if not target.is_empty():
 				target.reserved = maxf(0.0, float(target.reserved) - float(p.effective))
 				var spent: float = apply_damage(target, float(p.damage), int(p.coverage), int(p.weapon),bool(p.crit))
+				source_damage["turret" if p.has("turret") else ("body" if p.has("body") else "main")] += spent
+				if p.has("body"):
+					source_damage.body += shell_burst_at(target, p, visuals)
 				if stage >= 3 and int(levels.pierce) > 0 and float(p.damage) > spent:
 					var spare: float = float(p.damage) - spent
 					var radius: float = 55.0 + int(levels.area) * 2.0
@@ -660,7 +716,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 		if bool(enemies[i].dead):
 			enemy_pool.append(enemies[i])
 			enemies.remove_at(i)
-	if mode == "wave" and spawn_left == 0 and enemies.is_empty():
+	if mode == "wave" and spawn_left == 0 and wave < 10:
+		# No pause between waves: the next one keeps the flood going.
+		Campaign.next_wave(self)
+	elif mode == "wave" and spawn_left == 0 and enemies.is_empty():
 		mode = "intermission"
 		mode_time = 0.0
 		health = 100.0
@@ -702,7 +761,7 @@ func snapshot() -> Dictionary:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "surge_spawned": surge_spawned, "bodies": bodies.duplicate(), "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
+	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
 
 func restore(data: Dictionary) -> bool:
 	if str(data.get("game", "")) != "skyguard" or int(data.get("version", 0)) != 1:
@@ -764,7 +823,6 @@ func restore(data: Dictionary) -> bool:
 	mode_time = float(data.mode_time)
 	spawn_clock = float(data.spawn_clock)
 	spawn_left = int(data.spawn_left)
-	surge_spawned = int(data.get("surge_spawned", 0))
 	var saved_bodies: Variant = data.get("bodies", [])
 	for s in range(6):
 		bodies[s] = int(saved_bodies[s]) if saved_bodies is Array and saved_bodies.size() == 6 else 0

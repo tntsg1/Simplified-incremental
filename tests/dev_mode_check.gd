@@ -42,7 +42,9 @@ func run() -> void:
 	check(sim.money >= before * 10.0 + 1000.0 - 0.01, "money x10")
 	game.dev_skip_wave()
 	await frames(4)
-	check(sim.mode == "intermission", "skip wave completes it")
+	check(sim.mode == "wave" and sim.wave == 2, "skip wave rolls into the next")
+	game.dev_prev_wave()
+	check(sim.wave == 1 and sim.mode == "wave", "previous wave steps back")
 	sim.wave = 10
 	sim.start_boss()
 	game.dev_kill_boss()
@@ -56,6 +58,8 @@ func run() -> void:
 	sim.mode_time = 99
 	await until(func(): return sim.stage == 2)
 	check(sim.stage == 2, "next-stage shortcut jumps ahead")
+	game.dev_prev_stage()
+	check(sim.stage == 1 and sim.wave == 1 and sim.mode == "wave", "previous stage steps back")
 	game.dev_toggle_god()
 	sim.health = 5
 	await frames(2)

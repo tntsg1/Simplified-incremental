@@ -81,6 +81,9 @@ func set_enabled(value: bool) -> void:
 		AudioServer.set_bus_mute(AudioServer.get_bus_index(bus),not value or level<=0)
 
 func play(key: String, volume: float=-10, pitch: float=1.0, vary: bool=false, important: bool=false) -> void:
+	# Keep purchases and progression cues; repetitive combat/alarm effects are silent.
+	if key not in ["purchase", "milestone", "wave_clear"]:
+		return
 	if not enabled or effects_level<=0:
 		return
 	if not important:
@@ -145,8 +148,7 @@ func update(sim: RefCounted, delta: float) -> void:
 		desired+=linear_to_db(maxf(.01,music_level))
 		music[i].volume_db=move_toward(music[i].volume_db,desired,delta*18)
 		if desired<=-60 and music[i].volume_db<=-59:music[i].stop()
-	if sim.mode=="boss" and not tension.playing:
-		tension.play()
+	# Boss pulse is intentionally silent; retain the chapter's background music.
 	var tension_target: float=(-29+linear_to_db(maxf(.001,music_level))) if sim.mode=="boss" and not sim.paused else -60
 	tension.volume_db=move_toward(tension.volume_db,tension_target,delta*25)
 	if sim.mode!="boss" and tension.volume_db<=-59:tension.stop()

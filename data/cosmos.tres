@@ -15,6 +15,6 @@ hp_growth=1.2
 boss_window=70.0
 boss_title="宇宙灾变核心 · THE SILENCE"
 boss_kind="rift"
-weapon_price=100000000000000.0
+weapon_price=60000000000000.0
 boss_reward=4246732800.0
 briefing="六层火力汇聚在最后的边界。击毁灾变核心，让所有防线迎来黎明。"

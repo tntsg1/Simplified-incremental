@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<title>SKYGUARD — Trailer</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  body { margin: 0; background: #050505; color: #ededed; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #050505; }
+  #sky { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .line { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 240px; box-sizing: border-box; }
+  .line p { margin: 0; font-family: "EB Garamond", serif; font-size: 64px; font-weight: 400; letter-spacing: 0.02em; line-height: 1.25; color: #ededed; max-width: 1400px; }
+  .low { align-items: flex-end; padding-bottom: 150px; }
+  .low p { font-size: 54px; }
+  .caps { font-family: "Montserrat", sans-serif; font-weight: 400; text-transform: uppercase; letter-spacing: 0.6em; color: #b4b4b4; }
+  .reel { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .label { position: absolute; left: 0; right: 0; bottom: 96px; display: flex; justify-content: center; }
+  .label span { display: block; font-size: 30px; padding: 14px 0 0; color: #ededed; }
+  .bars { position: absolute; left: 0; right: 0; height: 150px; background: #050505; }
+  #bars, .label { z-index: 5; }
+  #counter { position: absolute; left: 0; right: 0; top: 330px; display: flex; justify-content: center; }
+  #counter b { display: block; font-family: "Montserrat", sans-serif; font-weight: 400; font-size: 150px; letter-spacing: 0.04em; color: #ededed; }
+  #scale { position: absolute; left: 0; right: 0; top: 560px; display: flex; justify-content: center; }
+  #scale span { display: block; font-size: 28px; }
+  #title { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #title h1 { margin: 0; font-family: "Montserrat", sans-serif; font-weight: 400; font-size: 168px; letter-spacing: 0.42em; padding-left: 0.42em; color: #f4f4f4; }
+  #title h1 .g { display: inline-block; }
+  #title .sub { display: block; margin-top: 34px; font-size: 26px; }
+  #end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 150px; box-sizing: border-box; }
+  #end p { margin: 0; font-family: "EB Garamond", serif; font-size: 40px; color: #b4b4b4; }
+  #end .url { display: block; margin-top: 22px; font-size: 22px; letter-spacing: 0.32em; color: #ededed; }
+  #flash { position: absolute; inset: 0; background: #ffffff; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="56">
+  <canvas id="sky" width="1920" height="1080"></canvas>
+
+  <!-- Act I — silence, the fall, the first light -->
+  <div id="l1" class="clip line" data-start="0.8" data-duration="4.2"><p>In the beginning, there was only silence.</p></div>
+  <div id="l2" class="clip line low" data-start="5.8" data-duration="4.8"><p>Then the sky began to fall.</p></div>
+  <div id="l3" class="clip line low" data-start="11.8" data-duration="4.6"><p>One light answered.</p></div>
+  <div id="l4" class="clip line low" data-start="17.2" data-duration="3.0"><p>It learned. It multiplied.</p></div>
+  <div id="l5" class="clip line low" data-start="20.2" data-duration="2.7"><p>Moons became cannons. Stars became spears.</p></div>
+
+  <!-- Act II — a glimpse of the real game -->
+  <video id="v-city" class="clip reel" data-start="23" data-duration="1.6" data-media-start="0" src="assets/city.mp4" muted playsinline></video>
+  <video id="v-solar" class="clip reel" data-start="24.6" data-duration="1.6" data-media-start="0.2" src="assets/solar.mp4" muted playsinline></video>
+  <video id="v-galaxy" class="clip reel" data-start="26.2" data-duration="1.6" data-media-start="0.2" src="assets/galaxy.mp4" muted playsinline></video>
+  <video id="v-cluster" class="clip reel" data-start="27.8" data-duration="1.6" data-media-start="0" src="assets/stars.mp4" muted playsinline></video>
+  <video id="v-cosmos" class="clip reel" data-start="29.4" data-duration="1.6" data-media-start="0.2" src="assets/cosmos.mp4" muted playsinline></video>
+  <div id="bars" class="clip" data-start="23" data-duration="8" style="position:absolute;inset:0">
+    <div class="bars" style="top:0"></div><div style="position:absolute;left:0;right:0;top:150px;height:220px;background:linear-gradient(#050505,rgba(5,5,5,0))"></div><div class="bars" style="bottom:0"></div>
+  </div>
+  <div id="lab1" class="clip label" data-start="23" data-duration="1.6"><span class="caps">A city</span></div>
+  <div id="lab2" class="clip label" data-start="24.6" data-duration="1.6"><span class="caps">A solar system</span></div>
+  <div id="lab3" class="clip label" data-start="26.2" data-duration="1.6"><span class="caps">A galaxy</span></div>
+  <div id="lab4" class="clip label" data-start="27.8" data-duration="1.6"><span class="caps">A sea of stars</span></div>
+  <div id="lab5" class="clip label" data-start="29.4" data-duration="1.6"><span class="caps">The cosmos</span></div>
+
+  <!-- Act III — inflation, the cosmic web -->
+  <div id="counter" class="clip" data-start="31.2" data-duration="6.8"><b id="num">1</b></div>
+  <div id="scale" class="clip" data-start="31.2" data-duration="6.8"><span id="scaleTxt" class="caps">10 km</span></div>
+  <div id="l6" class="clip line low" data-start="31.6" data-duration="6.2"><p>Every number, a little closer to infinity.</p></div>
+  <div id="l7" class="clip line low" data-start="38.6" data-duration="7.4"><p>Until the universe itself became the shield.</p></div>
+
+  <!-- Title -->
+  <div id="title" class="clip" data-start="47.2" data-duration="8.8">
+    <h1 id="word"><span class="g">S</span><span class="g">K</span><span class="g">Y</span><span class="g">G</span><span class="g">U</span><span class="g">A</span><span class="g">R</span><span class="g">D</span></h1>
+    <span id="hold" class="sub caps">Hold the sky</span>
+  </div>
+  <div id="end" class="clip" data-start="50.6" data-duration="5.4">
+    <p id="tag">A minimalist incremental defense. Free in your browser.</p>
+    <span id="url" class="url caps">stellarascensiongame.com/skyguard</span>
+  </div>
+  <div id="flash" class="clip" data-start="46.4" data-duration="2.2"></div>
+
+  <audio id="score" data-start="0" data-duration="56" src="assets/score.wav"></audio>
+</div>
+
+<script>
+(() => {
+  const W = 1920, H = 1080, CX = W / 2, CY = H / 2, TAU = Math.PI * 2;
+  const cv = document.getElementById("sky"), x = cv.getContext("2d");
+  // Seeded PRNG — every frame is a pure function of time.
+  let seed = 20261005;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+  const ss = (a, b, v) => { const k = clamp((v - a) / (b - a)); return k * k * (3 - 2 * k); };
+  const win = (t, a, b, fi, fo) => ss(a, a + fi, t) * (1 - ss(b - fo, b, t));
+  const stars = Array.from({ length: 1400 }, () => ({ a: rnd() * TAU, r: Math.pow(rnd(), 0.6) * 1300, s: rnd() < 0.08 ? 1.8 : 0.9 + rnd() * 0.5, tw: rnd() * TAU, z: 0.3 + rnd() * 0.7 }));
+  const meteors = Array.from({ length: 60 }, (_, i) => ({ a: rnd() * TAU, t0: 6 + rnd() * 10.5, sp: 0.16 + rnd() * 0.12, len: 40 + rnd() * 90 }));
+  const web = Array.from({ length: 140 }, () => { const a = rnd() * TAU, r = 90 + Math.pow(rnd(), 0.7) * 820; return { x: Math.cos(a) * r * 1.25, y: Math.sin(a) * r * 0.78, d: r, p: rnd() }; });
+  const links = []; for (let i = 0; i < web.length; i++) { let best = [], bd = []; for (let j = 0; j < web.length; j++) if (j !== i) { const d = Math.hypot(web[i].x - web[j].x, web[i].y - web[j].y); best.push([d, j]); } best.sort((a, b) => a[0] - b[0]); for (let k = 0; k < 2; k++) if (i < best[k][1]) links.push([i, best[k][1], rnd()]); }
+
+  function poly(px, py, r, n, rot) { x.beginPath(); for (let k = 0; k <= n; k++) { const a = rot + k * TAU / n; k ? x.lineTo(px + Math.cos(a) * r, py + Math.sin(a) * r) : x.moveTo(px + Math.cos(a) * r, py + Math.sin(a) * r); } }
+  function glow(px, py, r, a) { const g = x.createRadialGradient(px, py, 0, px, py, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(px - r, py - r, r * 2, r * 2); }
+
+  function draw(t) {
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.fillStyle = "#050505"; x.fillRect(0, 0, W, H);
+    // Camera: slow push, then a long pull back as the defense grows, then a drift into the web.
+    const zoom = 1.25 - 0.25 * ss(0, 11, t) - 0.45 * ss(16, 23, t) + 0.25 * ss(31, 38, t) - 0.2 * ss(38, 46, t) + 0.15 * ss(47, 56, t);
+    const spin = t * 0.012;
+    // Stars: parallax drift and twinkle.
+    const sa = ss(0.2, 4.5, t) * (1 - 0.6 * win(t, 23, 31, 0.3, 0.3));
+    for (const s of stars) {
+      const r = s.r * (zoom * (0.6 + s.z * 0.5)), a = s.a + spin * s.z;
+      const px = CX + Math.cos(a) * r * 1.3, py = CY + Math.sin(a) * r * 0.8;
+      if (px < -4 || px > W + 4 || py < -4 || py > H + 4) continue;
+      const tw = 0.55 + 0.45 * Math.sin(t * 1.3 + s.tw);
+      x.fillStyle = `rgba(237,237,237,${Math.min(1, sa * tw * s.z * 1.5)})`; x.fillRect(px, py, s.s * 1.3, s.s * 1.3);
+    }
+    // Dot grid — the battlefield — breathing with shockwaves.
+    const ga = win(t, 5.5, 31, 2.5, 1.5) * 0.5;
+    if (ga > 0.01) {
+      const step = 46 * zoom, wave = (t - 11) * 900;
+      for (let gx = CX % step - step; gx < W + step; gx += step) for (let gy = CY % step - step; gy < H + step; gy += step) {
+        const d = Math.hypot(gx - CX, gy - CY), push = t > 11 && t < 14 ? Math.exp(-Math.pow((d - wave) / 60, 2)) * 10 : 0;
+        const ux = (gx - CX) / (d || 1), uy = (gy - CY) / (d || 1);
+        x.fillStyle = `rgba(150,150,150,${ga * (0.4 + push / 12)})`; x.fillRect(gx + ux * push - 1, gy + uy * push - 1, 2, 2);
+      }
+    }
+    x.save(); x.translate(CX, CY); x.scale(zoom, zoom);
+    // The first light: a single breathing point that becomes the core.
+    const coreA = ss(0.5, 3.5, t) * (1 - ss(46.2, 47.2, t));
+    const breathe = 1 + 0.25 * Math.sin(t * 1.6);
+    if (coreA > 0) {
+      glow(0, 0, (60 + 140 * ss(11, 12, t)) * breathe, 0.25 * coreA);
+      x.fillStyle = `rgba(255,255,255,${coreA})`;
+      if (t < 11) { x.beginPath(); x.arc(0, 0, 3.2 * breathe, 0, TAU); x.fill(); }
+      else {
+        const shells = 1 + Math.floor(5 * ss(16, 23, t)) + Math.floor(3 * ss(38, 44, t));
+        poly(0, 0, 12, 6, t * 0.5); x.fill();
+        for (let k = 1; k <= shells; k++) { x.strokeStyle = `rgba(237,237,237,${coreA * (k === 1 ? 0.9 : 0.5)})`; x.lineWidth = 1.4; poly(0, 0, 12 + k * 11, 6, t * (k % 2 ? 0.3 : -0.22) + k); x.stroke(); }
+      }
+    }
+    // Ignition shockwave rings.
+    for (const [at, gain] of [[11, 1], [23, 0.6], [47.2, 1]]) if (t > at && t < at + 3) { const k = (t - at) / 3; x.strokeStyle = `rgba(255,255,255,${(1 - k) * 0.8 * gain})`; x.lineWidth = 2 * (1 - k) + 0.5; x.beginPath(); x.arc(0, 0, 30 + k * 1100, 0, TAU); x.stroke(); }
+    // Falling sky: threats streak toward the centre; after 11s, the light answers.
+    if (t > 6 && t < 23.5) {
+      for (const m of meteors) {
+        const age = t - m.t0; if (age < 0) continue;
+        const dist = 1150 - age * 1150 * m.sp; const hitAt = 11 + ((m.a * 7) % 1) * 11;
+        const killed = t > hitAt && t > 11; if (dist < 90 || (killed && t - hitAt > 0.6)) continue;
+        const ux = Math.cos(m.a), uy = Math.sin(m.a), px = ux * dist, py = uy * dist;
+        if (!killed) {
+          const tail = x.createLinearGradient(px, py, px + ux * m.len, py + uy * m.len); tail.addColorStop(0, "rgba(237,237,237,.9)"); tail.addColorStop(1, "rgba(237,237,237,0)");
+          x.strokeStyle = tail; x.lineWidth = 1.6; x.beginPath(); x.moveTo(px, py); x.lineTo(px + ux * m.len, py + uy * m.len); x.stroke();
+          x.fillStyle = "#fff"; poly(px, py, 5, 3, m.a + t); x.fill();
+        } else {
+          const k = (t - hitAt) / 0.6;
+          x.strokeStyle = `rgba(255,255,255,${(1 - k) * 0.9})`; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, 0); x.lineTo(px, py); x.stroke();
+          for (let j = 0; j < 5; j++) { const a = m.a + j * 1.3; x.fillStyle = `rgba(237,237,237,${1 - k})`; x.fillRect(px + Math.cos(a) * k * 40, py + Math.sin(a) * k * 40, 3, 3); }
+          x.strokeStyle = `rgba(237,237,237,${1 - k})`; x.beginPath(); x.arc(px, py, 6 + k * 30, 0, TAU); x.stroke();
+        }
+      }
+    }
+    // Growth: orbit rings draw on, converted bodies fire volleys.
+    const growA = win(t, 15.5, 23.4, 1.2, 0.5);
+    if (growA > 0) {
+      const forms = [3, 5, 8, 4, 6, 7];
+      for (let k = 0; k < 6; k++) {
+        const r = 150 + k * 95, draw = ss(16 + k * 0.6, 18 + k * 0.6, t);
+        x.strokeStyle = `rgba(110,110,110,${growA})`; x.lineWidth = 1; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + TAU * draw); x.stroke();
+        if (draw > 0.98) {
+          const a = t * (0.25 - k * 0.03) + k * 2.1, bx = Math.cos(a) * r, by = Math.sin(a) * r;
+          x.strokeStyle = `rgba(237,237,237,${growA})`; x.lineWidth = 1.6; poly(bx, by, 13, forms[k], -t * 0.8); x.stroke();
+          for (let j = 0; j < 4; j++) { const ph = ((t * 1.6 + j * 0.25 + k * 0.13) % 1), ta = a + 2.2 + j * 0.9, tx = Math.cos(ta) * 1100, ty = Math.sin(ta) * 1100;
+            const px = bx + (tx - bx) * ph, py = by + (ty - by) * ph, qx = bx + (tx - bx) * Math.max(0, ph - 0.05), qy = by + (ty - by) * Math.max(0, ph - 0.05);
+            x.strokeStyle = `rgba(255,255,255,${growA * (1 - ph)})`; x.lineWidth = 1.5; x.beginPath(); x.moveTo(qx, qy); x.lineTo(px, py); x.stroke(); }
+        }
+      }
+    }
+    // Scale journey: rings rush outward — each one a whole world left behind.
+    const scA = win(t, 31, 38.4, 0.8, 0.8);
+    if (scA > 0) {
+      for (let k = 0; k < 14; k++) { const ph = ((t - 31) * 0.32 + k / 14) % 1, r = 40 * Math.pow(48, ph); x.strokeStyle = `rgba(237,237,237,${scA * (1 - ph) * 0.7})`; x.lineWidth = 1; x.beginPath(); x.arc(0, 0, r, 0, TAU); x.stroke(); if (k % 3 === 0) { x.setLineDash([2, 10]); x.beginPath(); x.arc(0, 0, r * 1.06, 0, TAU); x.stroke(); x.setLineDash([]); } }
+    }
+    // Cosmic web: filaments draw themselves, nodes ignite, then every node fires home.
+    const wA = win(t, 37.6, 47.0, 1.2, 0.4);
+    if (wA > 0) {
+      const grow = ss(38, 42.5, t), fire = ss(43, 46.2, t);
+      for (const [i, j, p] of links) {
+        const a = web[i], b = web[j], k = clamp((grow * 1.4 - p * 0.4 - a.d / 2000));
+        if (k <= 0) continue;
+        x.strokeStyle = `rgba(180,180,180,${wA * 0.45})`; x.lineWidth = 1; x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k); x.stroke();
+      }
+      for (const n of web) {
+        const on = ss(38.5 + n.d / 400, 39.5 + n.d / 400, t);
+        if (on <= 0) continue;
+        glow(n.x, n.y, 16, 0.35 * on * wA);
+        x.fillStyle = `rgba(255,255,255,${on * wA})`; x.beginPath(); x.arc(n.x, n.y, 2.2, 0, TAU); x.fill();
+        if (fire > 0) { const ph = (fire * 2.4 + n.p) % 1, k2 = Math.min(1, ph); x.strokeStyle = `rgba(255,255,255,${wA * 0.8 * (1 - k2) * fire})`; x.lineWidth = 1.2; x.beginPath(); x.moveTo(n.x * (1 - k2), n.y * (1 - k2)); x.lineTo(n.x * Math.max(0, 1 - k2 - 0.08), n.y * Math.max(0, 1 - k2 - 0.08)); x.stroke(); }
+      }
+    }
+    // Title: a slow, vast halo behind the wordmark.
+    const tA = ss(47.2, 50, t);
+    if (tA > 0) {
+      for (let k = 0; k < 3; k++) { x.strokeStyle = `rgba(237,237,237,${tA * (0.18 - k * 0.05)})`; x.lineWidth = 1; poly(0, 0, 420 + k * 60 + (t - 47.2) * 6, 6, t * (k % 2 ? 0.02 : -0.015) + k * 0.3); x.stroke(); }
+    }
+    x.restore();
+    // Vignette.
+    const v = x.createRadialGradient(CX, CY, H * 0.35, CX, CY, H * 0.95); v.addColorStop(0, "rgba(5,5,5,0)"); v.addColorStop(1, "rgba(5,5,5,.85)"); x.fillStyle = v; x.fillRect(0, 0, W, H);
+  }
+
+  // Inflation counter and scale labels, driven by the same clock.
+  const units = ["", " thousand", " million", " billion", " trillion", " quadrillion", " quintillion", " sextillion", " septillion", " octillion", " nonillion", " decillion"];
+  const SCALES = [[31.2, "10 km"], [32.4, "12,742 km"], [33.6, "100 AU"], [34.8, "100,000 light-years"], [36.0, "100 million light-years"], [37.0, "93 billion light-years"]];
+  const num = document.getElementById("num"), scaleTxt = document.getElementById("scaleTxt");
+  function texts(t) {
+    const k = ss(31.4, 37.4, t), v = Math.pow(10, 35 * k);
+    let u = 0, n = v; while (n >= 1000 && u < units.length - 1) { n /= 1000; u++; }
+    num.textContent = (u ? n.toFixed(2) : Math.floor(n).toString()) + units[u];
+    let s = SCALES[0][1]; for (const [at, label] of SCALES) if (t >= at) s = label; scaleTxt.textContent = s;
+  }
+
+  const clock = { t: 0 };
+  const tl = gsap.timeline({ paused: true });
+  tl.to(clock, { t: 56, duration: 56, ease: "none", onUpdate: () => { draw(clock.t); texts(clock.t); } }, 0);
+  // Typography: each line surfaces out of blur, breathes, and dissolves.
+  const lines = [["#l1 p", 0.8, 4.2], ["#l2 p", 5.8, 4.8], ["#l3 p", 11.8, 4.6], ["#l4 p", 17.2, 3.0], ["#l5 p", 20.2, 2.7], ["#l6 p", 31.6, 6.2], ["#l7 p", 38.6, 7.4]];
+  for (const [sel, at, dur] of lines) {
+    tl.fromTo(sel, { opacity: 0, filter: "blur(14px)", scale: 1.06 }, { opacity: 1, filter: "blur(0px)", scale: 1, duration: 1.6, ease: "power2.out" }, at);
+    tl.to(sel, { opacity: 0, filter: "blur(10px)", duration: 1.0, ease: "power2.in" }, at + dur - 1.0);
+  }
+  // Montage: each glimpse pushes in slowly, labels sharpen in.
+  ["#v-city", "#v-solar", "#v-galaxy", "#v-cluster", "#v-cosmos"].forEach((sel, i) => {
+    const at = 23 + i * 1.6;
+    tl.fromTo(sel, { scale: 1.28, opacity: 0.2 }, { scale: 1.16, opacity: 1, duration: 1.6, ease: "power2.out" }, at);
+    tl.fromTo(`#lab${i + 1} span`, { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, at + 0.1);
+  });
+  tl.fromTo("#counter b", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 1.2, ease: "power3.out" }, 31.2);
+  tl.to("#counter b", { opacity: 0, duration: 0.8 }, 37.2);
+  tl.fromTo("#scale span", { opacity: 0 }, { opacity: 0.85, duration: 1.0 }, 31.6);
+  tl.to("#scale span", { opacity: 0, duration: 0.8 }, 37.2);
+  // White-out into the title.
+  tl.fromTo("#flash", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "power2.in" }, 46.4);
+  tl.to("#flash", { opacity: 0, duration: 1.4, ease: "power2.out" }, 47.2);
+  tl.fromTo("#word", { opacity: 0, filter: "blur(18px)" }, { opacity: 1, filter: "blur(0px)", duration: 2.4, ease: "power3.out" }, 47.2);
+  document.querySelectorAll("#word .g").forEach((g, i) => tl.fromTo(g, { x: (i - 3.5) * 70 }, { x: 0, duration: 3.6, ease: "power3.out" }, 47.2));
+  tl.fromTo("#hold", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 1.6, ease: "power2.out" }, 49.2);
+  tl.fromTo("#tag", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1.4, ease: "power2.out" }, 50.8);
+  tl.fromTo("#url", { opacity: 0 }, { opacity: 1, duration: 1.4, ease: "power2.out" }, 51.6);
+  tl.to(["#word", "#hold", "#tag", "#url"], { opacity: 0, duration: 1.6, ease: "power2.in" }, 54.2);
+  draw(0); texts(0);
+  window.__timelines["main"] = tl;
+})();
+</script>
+</body>
+</html>

@@ -32,6 +32,10 @@ func run() -> void:
 	c.enemies[1].pos=Vector2(650,350)
 	check(c.select_target(Vector2(650,350))==c.enemies[1].id,"target switch")
 	check(c.target_for_weapon().id==c.enemies[1].id,"shared priority")
+	c.fire_weapon(0,c.enemies[0])
+	c.select_target(Vector2(650,350))
+	check(int(c.shots.back().target)==c.enemies[1].id,"focus fire turns rounds already in flight")
+	c.priority_id=-1
 	c.enemies[1].reserved=1000
 	check(c.target_for_weapon().id==c.enemies[0].id,"reserved lethal damage avoids overkill")
 	c.clear_battle()
@@ -58,7 +62,7 @@ func run() -> void:
 	c.spawn_left=0
 	c.clear_battle()
 	c.advance(1.0/60)
-	check(c.mode=="intermission" and c.health==100,"wave heals fully")
+	check(c.mode=="wave" and c.wave==2 and c.health==100,"wave rolls straight into the next and heals")
 	c.wave_elapsed=200
 	c.start_boss()
 	check(c.wave_elapsed==0 and c.boss_remaining==45,"Boss receives its own full impact window")
@@ -149,6 +153,7 @@ func campaign(seed_value: int) -> void:
 	var auto_wave: int=0
 	var weapon_wave: Array[int]=[1,0,0,0,0,0]
 	var early_passes: int=0
+	var last_wave: int=1
 	for tick in range(1800000):
 		if tick%120==0:
 			autobuy(c)
@@ -172,16 +177,22 @@ func campaign(seed_value: int) -> void:
 					incumbent.start_wave()
 					for early_tick in range(30000):
 						incumbent.advance(1.0/60,false)
-						if incumbent.mode in ["intermission","failed"]:
+						if incumbent.wave>early_wave or incumbent.mode=="failed":
 							break
-					check(incumbent.mode=="intermission","existing system without new cannon handles stage %d wave %d" %[c.stage,early_wave])
+					check(incumbent.wave>early_wave and incumbent.mode!="failed","existing system without new cannon handles stage %d wave %d" %[c.stage,early_wave])
 			print("STAGE seed=",seed_value," stage=",c.stage," seconds=",snappedf(c.elapsed,.1)," levels=",c.levels," cash=",snappedf(c.money,.1))
 			previous_stage=c.stage
+		# Waves roll seamlessly: a wave counts as passed when the next one begins
+		# (or, for wave 10, when the pre-boss intermission starts).
+		if c.mode=="wave" and c.wave==last_wave+1:
+			ordinary+=1
+			if c.stage>0 and last_wave<=2:
+				early_passes+=1
+		if c.mode=="wave" or c.wave!=last_wave:
+			last_wave=c.wave
 		if c.mode!=previous_mode:
 			if c.mode=="intermission":
 				ordinary+=1
-				if c.stage>0 and c.wave<=2:
-					early_passes+=1
 			if c.mode=="transition":
 				transitions+=1
 			if c.mode=="boss":

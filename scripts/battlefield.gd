@@ -44,6 +44,9 @@ var core_outer: float = 20
 # Barrage layer: purely cosmetic rounds that show the real launcher count and
 # fire rate. Combat timing and damage stay in the simulation untouched.
 const BULLET_CAP: int = 900
+var shell_bursts: int = 0
+# Turret rounds: crisp grey needles, the ring's own signature.
+const TURRET_STYLE: int = 6
 const NUMBER_CAP: int = 80
 # Additive glow layer: light trails, flashes and halos drawn over the flat field.
 const GlowTexture = preload("res://assets/glow.svg")
@@ -78,9 +81,14 @@ var combo_shown: int = -1
 var kills_seen: int = -1
 # Celestial bodies: hover/flash state and the body under the cursor.
 var body_flash: Dictionary = {}
+const BODY_KICK_TIME: float = .28
+const BODY_BUILD_TIME: float = 1.15
+var body_build: Dictionary = {}
+var body_aim: Dictionary = {}
 var body_hover: int = -1
 # Where the sim sent rounds whose target died (old id -> new id).
 var redirects: Dictionary = {}
+var banner_wave: String = ""
 # Mouse reticle: follows with a little inertia and snaps open around threats.
 var show_reticle: bool = false
 var reticle_pos := Vector2(500, 300)
@@ -102,6 +110,7 @@ var b_style := PackedInt32Array()
 var b_crit := PackedByteArray()
 var b_value := PackedFloat32Array()
 var b_target := PackedInt32Array()
+var b_paths: Array[PackedFloat32Array] = []
 # Shaped damage-number lines are reused by text; volleys repeat the same values.
 var line_cache: Dictionary = {}
 var numbers_this_frame: int = 0
@@ -121,8 +130,9 @@ var seg_points := PackedVector2Array()
 var seg_colors := PackedColorArray()
 
 func _ready() -> void:
-	font = SystemFont.new()
-	font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC"])
+	var system_font := SystemFont.new()
+	system_font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC"])
+	font = load("res://assets/fonts/SkyguardSC.ttf") if OS.has_feature("web") else system_font
 	var quad := QuadMesh.new()
 	quad.size = Vector2(2, 2)
 	var random := RandomNumberGenerator.new()
@@ -322,10 +332,35 @@ func barrage_size(index: int) -> int:
 	var size: float = 3.0 + log(launchers) / log(2.0) * 1.6 + (ceilf(log(packets) / log(2.0)) if packets > 1.0 else 0.0)
 	return clampi(int(size), 3, 24)
 
-func flight_time(index: int, from: Vector2, to: Vector2) -> float:
-	if bool(sim.catalog.weapons[index].beam):
-		return .22
-	return maxf(.08, from.distance_to(to) / sim.PROJECTILE_SPEED)
+func flight_time(_index: int, from: Vector2, to: Vector2) -> float:
+	return maxf(.001, from.distance_to(to) / sim.PROJECTILE_SPEED)
+
+func curve_lengths(from: Vector2, control: Vector2, to: Vector2) -> PackedFloat32Array:
+	var result := PackedFloat32Array([0.0])
+	var previous: Vector2 = from
+	for j in range(1, 33):
+		var t: float = j / 32.0
+		var p: Vector2 = from.lerp(control, t).lerp(control.lerp(to, t), t)
+		result.append(result[-1] + previous.distance_to(p))
+		previous = p
+	return result
+
+func round_parameter(i: int, progress: float) -> float:
+	var lengths: PackedFloat32Array = b_paths[i]
+	var distance: float = clampf(progress, 0, 1) * lengths[-1]
+	var lo: int = 0
+	var hi: int = lengths.size() - 1
+	while hi - lo > 1:
+		var mid: int = (lo + hi) / 2
+		if lengths[mid] < distance:
+			lo = mid
+		else:
+			hi = mid
+	return (lo + (distance - lengths[lo]) / maxf(.0001, lengths[hi] - lengths[lo])) / 32.0
+
+func round_position(i: int, progress: float) -> Vector2:
+	var t: float = round_parameter(i, progress)
+	return b_from[i].lerp(b_ctrl[i], t).lerp(b_ctrl[i].lerp(b_to[i], t), t)
 
 func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: bool, override: int = -1) -> void:
 	var count: int = barrage_size(index) if override < 0 else override
@@ -347,20 +382,21 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 		if not target.is_empty():
 			velocity = (Vector2(target.end) - Vector2(target.start)) / maxf(.01, float(target.lifetime))
 	for j in range(count):
-		var from: Vector2 = point + Vector2(randf_range(-6, 6), randf_range(-6, 6))
-		var travel: float = flight_time(index, from, destination) * randf_range(.92, 1.08)
-		var delay: float = j * .014
+		var from: Vector2 = point
+		var travel: float = flight_time(index, from, destination)
+		# Tight volley: rounds leave close together, so successive volleys stay apart.
+		var delay: float = j * .006
 		var to: Vector2 = destination + velocity * (travel + delay) + Vector2(randf_range(-2, 2), randf_range(-2, 2))
 		var span: Vector2 = to - from
-		var side: Vector2 = span.orthogonal().normalized()
-		var bend: float = 0.0
-		match index:
-			0: bend = randf_range(-.45, .45)
-			2: bend = randf_range(-.15, .15)
-			5: bend = (1.0 if j % 2 else -1.0) * randf_range(.6, 1.1)
-		var ctrl: Vector2 = from.lerp(to, .5) + side * span.length() * bend
-		if index == 5:
-			ctrl = from + Vector2.from_angle(j * 2.399 + clock) * span.length() * .55
+		# The initial tangent is the gun's firing axis, including predictive lead.
+		var ctrl: Vector2 = from + (destination - point).normalized() * span.length() * .5
+		var path: PackedFloat32Array = curve_lengths(from, ctrl, to)
+		for prediction in range(3):
+			travel = maxf(.001, path[-1] / sim.PROJECTILE_SPEED)
+			to = destination + velocity * (travel + delay)
+			ctrl = from + (destination - point).normalized() * from.distance_to(to) * .5
+			path = curve_lengths(from, ctrl, to)
+		travel = maxf(.001, path[-1] / sim.PROJECTILE_SPEED)
 		b_from.append(from)
 		b_ctrl.append(ctrl)
 		b_to.append(to)
@@ -370,18 +406,24 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 		b_crit.append(1 if critical else 0)
 		b_value.append(share)
 		b_target.append(target_id)
+		b_paths.append(path)
 
 func on_turret_fired(slot: int, origin: Vector2, destination: Vector2, critical: bool) -> void:
+	ensure_turret_visuals()
 	if slot < turret_flash.size():
 		turret_flash[slot] = .12
 		turret_aim[slot] = (destination - origin).angle()
-	spawn_barrage(0, origin, destination, critical, 1)
+	var direction: Vector2 = (destination - origin).normalized()
+	var radius: float = 5.8 * (1.4 if sim.stage == 0 else 1.0) * (1.0 + core_pulse * .08 + growth_bounce * .22)
+	spawn_barrage(TURRET_STYLE, origin + direction * (radius + 3), destination, critical, 1)
 
 func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -> void:
 	last_target = destination
-	spawn_barrage(index, point, destination, critical)
 	recoil[index] = 1.0
 	aims[index] = (destination - point).angle()
+	var scale: float = .7 if sim.stage > 0 and index < sim.stage else 1.0
+	var muzzle: Vector2 = point + Vector2.from_angle(aims[index]) * ((17 + index * 1.2) * scale - (3 + index))
+	spawn_barrage(index, muzzle, destination, critical)
 	core_pulse = 1.0
 	if muzzle_limits[index] > 0:
 		return
@@ -485,9 +527,19 @@ func animate(delta: float) -> void:
 		elif sim.kills > kills_seen:
 			count_kills(sim.kills - kills_seen)
 			kills_seen = sim.kills
+	# Waves roll into each other now, so a short banner marks each new wave.
+	if sim != null and sim.mode == "wave":
+		var key: String = "%d-%d" % [sim.stage, sim.wave]
+		if key != banner_wave:
+			banner_wave = key
+			show_banner("第 %02d 波" % sim.wave, sim.stage_data().title + "  ·  " + sim.stage_data().scale_label, 1.3)
 	punch = maxf(0, punch - delta * 3.0)
 	for key in body_flash.keys():
 		body_flash[key] = maxf(0.0, float(body_flash[key]) - delta)
+	for key in body_build.keys():
+		body_build[key] = maxf(0.0, float(body_build[key]) - delta)
+		if body_build[key] <= 0.0:
+			body_build.erase(key)
 	reticle_pos = reticle_pos.lerp(hover, minf(1.0, delta * 24.0))
 	var locked: Dictionary = {}
 	if sim != null and show_reticle:
@@ -525,12 +577,10 @@ func animate(delta: float) -> void:
 			coins.remove_at(i)
 			coin_arrivals += 1
 	if sim != null and sim.mode != last_mode:
-		if sim.mode == "wave":
-			show_banner("第 %02d 波" % sim.wave, sim.stage_data().title + "  ·  " + sim.stage_data().scale_label, 1.6)
-		elif sim.mode == "boss":
+		if sim.mode == "boss":
 			show_banner(sim.stage_data().boss_title.split(" · ")[0], "巨型威胁接近  ·  " + sim.stage_data().boss_title.split(" · ")[-1], 2.4, true)
 		if sim.mode == "intermission":
-			show_banner("拦截完成", "防线恢复  ·  下一波即将来袭", 2.6)
+			show_banner("第 10 波完成", "巨型威胁即将降临", 2.6)
 			add_feedback("sweep", sim.defense_position(), 0, 900, 1.0)
 			add_wave(sim.defense_position(), 22.0, 1.6)
 		last_mode = sim.mode
@@ -564,6 +614,7 @@ func animate(delta: float) -> void:
 			b_crit[i] = b_crit[alive]
 			b_value[i] = b_value[alive]
 			b_target[i] = b_target[alive]
+			b_paths[i] = b_paths[alive]
 		else:
 			i += 1
 	if alive != b_age.size():
@@ -573,6 +624,7 @@ func animate(delta: float) -> void:
 		b_age.resize(alive)
 		b_dur.resize(alive)
 		b_style.resize(alive)
+		b_paths.resize(alive)
 		b_crit.resize(alive)
 		b_value.resize(alive)
 		b_target.resize(alive)
@@ -582,14 +634,46 @@ func on_retargeted(old_target: int, new_target: int) -> void:
 		redirects.clear()
 	redirects[old_target] = new_target
 
+func on_focused(target_id: int) -> void:
+	# Focus fire: every round on screen swerves onto the chosen threat.
+	var target: Dictionary = sim.find_enemy(target_id)
+	if target.is_empty():
+		return
+	for i in range(b_age.size()):
+		if b_target[i] != target_id and b_age[i] < b_dur[i]:
+			swerve(i, target)
+	add_feedback("focus", target.pos, 0, float(target.radius), .55)
+	add_wave(target.pos, 14.0, .9)
+	punch = maxf(punch, .35)
+
+func swerve(i: int, best: Dictionary) -> void:
+	var t: float = clampf(b_age[i] / b_dur[i], 0, 1) if b_age[i] > 0 else 0.0
+	var u: float = maxf(0, t - .03)
+	var to: Vector2 = b_to[i]
+	var f: Vector2 = b_from[i]
+	var pos: Vector2 = round_position(i, t)
+	var near: Vector2 = round_position(i, u)
+	var dir: Vector2 = (pos - near).normalized() if pos.distance_to(near) > .001 else (to - f).normalized()
+	var travel: float = maxf(.08, pos.distance_to(best.pos) / sim.PROJECTILE_SPEED)
+	var velocity: Vector2 = (Vector2(best.end) - Vector2(best.start)) / maxf(.01, float(best.lifetime))
+	var goal: Vector2 = Vector2(best.pos) + velocity * travel
+	var span: float = pos.distance_to(goal)
+	b_from[i] = pos
+	b_ctrl[i] = pos + dir * span * .5
+	b_to[i] = goal
+	b_age[i] = minf(0.0, b_age[i])
+	b_paths[i] = curve_lengths(b_from[i], b_ctrl[i], b_to[i])
+	b_dur[i] = maxf(.001, b_paths[i][-1] / sim.PROJECTILE_SPEED)
+	b_target[i] = int(best.id)
+	b_crit[i] = b_crit[i] | 2
+
 func redirect_round(i: int, living: Dictionary) -> void:
 	var t: float = clampf(b_age[i] / b_dur[i], 0, 1)
 	var u: float = maxf(0, t - .03)
-	var f: Vector2 = b_from[i]
-	var c: Vector2 = b_ctrl[i]
 	var to: Vector2 = b_to[i]
-	var pos: Vector2 = f.lerp(c, t).lerp(c.lerp(to, t), t)
-	var near: Vector2 = f.lerp(c, u).lerp(c.lerp(to, u), u)
+	var f: Vector2 = b_from[i]
+	var pos: Vector2 = round_position(i, t)
+	var near: Vector2 = round_position(i, u)
 	var dir: Vector2 = (pos - near).normalized() if pos.distance_to(near) > .001 else (to - f).normalized()
 	# Follow the sim's own choice so the round lands where the damage does.
 	var best: Dictionary = {}
@@ -615,13 +699,13 @@ func redirect_round(i: int, living: Dictionary) -> void:
 		b_target[i] = int(best.id)
 	var span: float = pos.distance_to(goal)
 	b_from[i] = pos
-	# Control point at half the span keeps the launch speed equal to the average
-	# speed, so a swerving round never visibly slows down.
+	# Preserve the incoming tangent; arc-length timing preserves travel speed.
 	b_ctrl[i] = pos + dir * span * .5
 	b_crit[i] = b_crit[i] | 2
 	b_to[i] = goal
 	b_age[i] = 0.0
-	b_dur[i] = maxf(.08, span / sim.PROJECTILE_SPEED)
+	b_paths[i] = curve_lengths(b_from[i], b_ctrl[i], b_to[i])
+	b_dur[i] = maxf(.001, b_paths[i][-1] / sim.PROJECTILE_SPEED)
 	if best.is_empty():
 		b_value[i] = 0.0
 
@@ -679,23 +763,16 @@ func draw_bullets() -> void:
 	var trails := PackedVector2Array()
 	var hot := PackedVector2Array()
 	var heads := PackedVector2Array()
+	var needles := PackedVector2Array()
 	for i in range(b_age.size()):
 		var age: float = b_age[i]
 		if age < 0:
 			continue
 		var t: float = age / b_dur[i]
 		var style: int = b_style[i]
-		var f: Vector2 = b_from[i]
-		var c: Vector2 = b_ctrl[i]
-		var to: Vector2 = b_to[i]
 		var u: float = maxf(0, t - .03)
-		var pos: Vector2 = f.lerp(c, t).lerp(c.lerp(to, t), t)
-		var near: Vector2 = f.lerp(c, u).lerp(c.lerp(to, u), u)
-		if style == 2:
-			var side: Vector2 = (to - f).orthogonal().normalized()
-			# Wobble only mid-flight so the round still lands on target.
-			pos += side * sin(t * 22 + age) * 5 * sin(t * PI)
-			near += side * sin(u * 22 + age) * 5 * sin(u * PI)
+		var pos: Vector2 = round_position(i, t)
+		var near: Vector2 = round_position(i, u)
 		var dir: Vector2 = (pos - near).normalized()
 		# Fixed-length tracer that grows out of the muzzle: a glowing pellet,
 		# not a hair-thin line spanning half the screen.
@@ -703,6 +780,14 @@ func draw_bullets() -> void:
 		var grow: float = 1.0 if b_crit[i] & 2 else minf(1.0, t * 8.0)
 		var back: Vector2 = pos - dir * (22.0 if style == 1 else 14.0) * grow
 		var crit: bool = b_crit[i] & 1 == 1
+		if style == TURRET_STYLE:
+			if crit:
+				hot.append(pos - dir * 10.0 * grow)
+				hot.append(pos)
+			else:
+				needles.append(pos - dir * 10.0 * grow)
+				needles.append(pos)
+			continue
 		if style == 4 and t > .5:
 			# Quasar rounds split into three halfway and reconverge on the target.
 			var spread: float = (t - .5) * (1 - t) * 4 * 26
@@ -737,6 +822,8 @@ func draw_bullets() -> void:
 		draw_multiline(hot, Color(ACCENT, .75), 1.6)
 	if heads.size() > 1:
 		draw_multiline(heads, INK, 3.0)
+	if needles.size() > 1:
+		draw_multiline(needles, Color(GREY, .95), 1.3)
 
 func coin_position(c: Dictionary) -> Vector2:
 	var t: float = clampf(float(c.age) / float(c.dur), 0, 1)
@@ -870,6 +957,9 @@ func draw_glow() -> void:
 				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * r * 1.6, Vector2.ONE * r * 3.2), false, col)
 			"beam":
 				glow.draw_line(p, fx.end, Color(1, 1, 1, (1 - t) * .25), r * 9, true)
+			"burst":
+				var size: float = r * (.5 + t * .7)
+				glow.draw_texture_rect(GlowTexture, Rect2(p - Vector2.ONE * size, Vector2.ONE * size * 2), false, Color(1, 1, 1, (1 - t) * (1 - t) * .35))
 			"sweep":
 				var radius: float = r * (1 - pow(1 - t, 3))
 				glow.draw_arc(p, radius, 0, TAU, 128, Color(1, 1, 1, (1 - t) * .35), 10.0 * (1 - t) + 2, true)
@@ -878,6 +968,16 @@ func draw_glow() -> void:
 			continue
 		var q: Vector2 = coin_position(c)
 		glow.draw_texture_rect(GlowTexture, Rect2(q - Vector2.ONE * 9, Vector2.ONE * 18), false, Color(1, 1, 1, .5))
+	# Converted bodies glow, brighter on each shot: they should read as trophies.
+	if sim.mode != "transition":
+		for s in range(sim.stage + 1):
+			for k in range(sim.BODIES[s].size()):
+				if not sim.body_converted_at(s, k):
+					continue
+				var at: Vector2 = sim.body_position(s, k)
+				var lit: float = pow(clampf(float(body_flash.get(s * 16 + k, 0.0)) / BODY_KICK_TIME, 0, 1), 3.0)
+				var body_halo: float = (float(sim.BODIES[s][k].size) * 3.2 + 26.0) * (1.0 if s == sim.stage else .4)
+				glow.draw_texture_rect(GlowTexture, Rect2(at - Vector2.ONE * body_halo, Vector2.ONE * body_halo * 2), false, Color(1, 1, 1, .18 + lit * .35))
 	for i in range(DUST):
 		var r: float = dust_radius[i]
 		var spot: Vector2 = core_at + Vector2.from_angle(dust_angle[i]) * r
@@ -893,6 +993,15 @@ func draw_feedback() -> void:
 		var r: float = float(fx.size)
 		var seed_value: int = int(fx.seed)
 		match str(fx.kind):
+			"burst":
+				var reach: float = r * (1 - pow(1 - t, 3))
+				var col: Color = ACCENT if int(fx.weapon) == 1 else INK
+				ring(p, reach, Color(col, fade * .85), 1.0 + 2.0 * (1 - t))
+				if t < .35:
+					draw_circle(p, r * .35 * (1 - t / .35), Color(col, .5 * (1 - t / .35)))
+				for j in range(8):
+					var a: float = j * TAU / 8 + seed_value
+					stroke(p + Vector2.from_angle(a) * reach * .8, p + Vector2.from_angle(a) * reach, Color(col, fade * .6), 1.2)
 			"pierce":
 				var destination: Vector2 = fx.end
 				for j in range(4):
@@ -913,6 +1022,16 @@ func draw_feedback() -> void:
 				else:
 					var k: float = (t - .5) / .5
 					ring(p, r + 10 + k * 120, Color(INK, (1 - k) * .8), 1.4)
+			"focus":
+				# Lock lines from the core and every gun to the focused threat.
+				var reach: float = 1 - pow(1 - minf(1.0, t * 3.0), 2)
+				var origins: Array[Vector2] = [sim.defense_position()]
+				for w in range(6):
+					if sim.owned[w]:
+						origins.append(sim.weapon_origin(w))
+				for o in origins:
+					stroke(o, o.lerp(p, reach), Color(ACCENT, fade * .55), 1.2)
+				ring(p, r + 14 + (1 - fade) * 26, Color(ACCENT, fade), 1.6)
 			"click":
 				var ease: float = 1 - pow(1 - t, 3)
 				ring(p, r * (.3 + ease), Color(INK, fade * .8), 1.4)
@@ -986,9 +1105,7 @@ func core(center: Vector2, layers: int, live: bool = false) -> void:
 	# Turrets bought with the turret upgrade: each one is a real shooter in the
 	# sim and flashes and recoils on its own staggered beat.
 	var count: int = sim.turret_count()
-	if turret_flash.size() != count:
-		turret_flash.resize(count)
-		turret_aim.resize(count)
+	ensure_turret_visuals()
 	var city: bool = sim.stage == 0
 	if count >= 3 and not city and (int(sim.levels.pierce) > 0 or int(sim.levels.targets) > 0):
 		var loop := PackedVector2Array()
@@ -1002,7 +1119,7 @@ func core(center: Vector2, layers: int, live: bool = false) -> void:
 		var lit: float = clampf(turret_flash[j] / .12, 0, 1)
 		var home: Vector2 = sim.turret_position(j)
 		far = maxf(far, home.distance_to(center))
-		var aim: float = turret_aim[j] if turret_aim[j] != 0.0 else (last_target - home).angle()
+		var aim: float = turret_aim[j]
 		var barrel := Vector2.from_angle(aim)
 		var spot: Vector2 = home - barrel * 3.0 * lit
 		var size: float = (4.6 + 1.2 * lit) * swell * (1.4 if city else 1.0)
@@ -1013,6 +1130,14 @@ func core(center: Vector2, layers: int, live: bool = false) -> void:
 	if owned_turrets > count and count > 0:
 		ink("×" + str(owned_turrets), sim.turret_position(count - 1) + Vector2(16, 6), GREY, 12)
 	core_outer = outer + 16 if city or count == 0 else far + 6
+
+func ensure_turret_visuals() -> void:
+	var previous: int = turret_aim.size()
+	var count: int = sim.turret_count()
+	turret_flash.resize(count)
+	turret_aim.resize(count)
+	for j in range(previous, count):
+		turret_aim[j] = -PI * .5
 
 func stage_scene(index: int) -> void:
 	var c := Vector2(500, 325)
@@ -1083,14 +1208,82 @@ func body_at(point: Vector2) -> int:
 	return best
 
 func on_body_fired(body_stage: int, slot: int, origin: Vector2, destination: Vector2, critical: bool) -> void:
-	body_flash[body_stage * 16 + slot] = .14
-	spawn_barrage(mini(body_stage, 5), origin, destination, critical, 4)
-	if body_stage == sim.stage:
-		add_feedback("muzzle", origin, mini(body_stage, 5), 10, .14)
+	var key: int = body_stage * 16 + slot
+	body_flash[key] = BODY_KICK_TIME
+	body_aim[key] = (destination - origin).angle()
+	var style: int = int(sim.BODIES[body_stage][slot].get("style", mini(body_stage, 5)))
+	var radius: float = (float(sim.BODIES[body_stage][slot].size) + 7.0) * 1.5 if body_stage == sim.stage else 6.0
+	var build_t: float = 1.0 - float(body_build.get(key, 0.0)) / BODY_BUILD_TIME
+	if not reduced_effects:
+		radius *= 1.0 + sin(build_t * PI * 3.0) * pow(1.0 - build_t, 2.0) * .15
+	var muzzle: Vector2 = origin + (destination - origin).normalized() * (radius + 7)
+	add_feedback("muzzle", muzzle, style, 7.0 if body_stage == sim.stage else 4.0, .18)
+
+const SHELL_SIDES: Dictionary = {"twin": 4, "pods": 3, "panels": 4, "dish": 4, "tri": 3, "penta": 5, "octa": 8, "dyson": 6, "node": 6}
+
+func draw_shells() -> void:
+	# Celestial cannons fire heavy shells shaped like their own silhouette, slow
+	# and bright, trailing ghosts — never confused with the turret or arsenal rounds.
+	for p in sim.shots:
+		if not p.has("body"):
+			continue
+		var bs: int = int(p.get("body_stage", 0))
+		var slot: int = int(p.body)
+		if bs >= sim.BODIES.size() or slot >= sim.BODIES[bs].size():
+			continue
+		var form: String = str(sim.BODIES[bs][slot].get("form", "node"))
+		var at: Vector2 = p.pos
+		var dir: Vector2 = (Vector2(p.end) - Vector2(p.from)).normalized()
+		var col: Color = ACCENT if bool(p.crit) else INK
+		var r: float = 6.5 if bs == sim.stage else 5.0
+		var spin: float = clock * 5.0 + slot
+		for g in range(4, 0, -1):
+			var ghost: Vector2 = at - dir * g * (r * 1.5)
+			shell_shape(form, ghost, r * (1.0 - g * .15), spin - g * .35, Color(col, .32 - g * .06), 1.0)
+		shell_shape(form, at, r, spin, col, 1.7)
+
+func shell_shape(form: String, at: Vector2, r: float, spin: float, col: Color, w: float) -> void:
+	var none := Color(0, 0, 0, 0)
+	if SHELL_SIDES.has(form):
+		shape(at, r, int(SHELL_SIDES[form]), spin, none, col, w)
+		if form == "dyson":
+			ring(at, r * 1.6, Color(col, col.a * .6))
+		return
+	match form:
+		"crescent":
+			draw_arc(at, r, spin, spin + TAU * .7, 12, col, w * 1.6, true)
+		"ringed":
+			draw_circle(at, r * .55, col)
+			draw_arc(at, r * 1.3, spin, spin + TAU * .8, 14, col, w * .8, true)
+		"hole":
+			for j in range(3):
+				draw_arc(at, r * (.45 + j * .3), spin * (1.0 + j * .3) + j, spin * (1.0 + j * .3) + j + 4.0, 12, Color(col, col.a * (1.0 - j * .25)), w * .9, true)
+		"spiral":
+			for j in range(3):
+				var a: float = spin + j * TAU / 3
+				draw_line(at, at + Vector2.from_angle(a) * r * 1.2, col, w, true)
+				draw_line(at + Vector2.from_angle(a) * r * 1.2, at + Vector2.from_angle(a + .7) * r * 1.6, col, w, true)
+		_:
+			if form.begins_with("star"):
+				var points: int = int(form.substr(4))
+				var outline := PackedVector2Array()
+				for j in range(points * 2 + 1):
+					outline.append(at + Vector2.from_angle(spin + j * PI / points) * (r * 1.25 if j % 2 == 0 else r * .55))
+				draw_polyline(outline, col, w, true)
+			else:
+				shape(at, r, 6, spin, none, col, w)
+
+func on_shell_burst(point: Vector2, radius: float, body_stage: int, critical: bool) -> void:
+	# Suppression made visible: a ring sweeps the whole blast area.
+	add_feedback("burst", point, 1 if critical else 0, radius, .5)
+	shell_bursts += 1
+	if shell_bursts % 3 == 0:
+		add_wave(point, 14.0, .9)
 
 func on_body_converted(body_stage: int, slot: int) -> void:
 	var at: Vector2 = sim.body_position(body_stage, slot)
 	var size: float = float(sim.BODIES[body_stage][slot].size)
+	body_build[body_stage * 16 + slot] = BODY_BUILD_TIME
 	add_feedback("convert", at, 0, size, 1.1)
 	add_wave(at, 34.0, 1.6)
 	punch = maxf(punch, .7)
@@ -1109,7 +1302,9 @@ func draw_bodies() -> void:
 				continue
 			var at: Vector2 = sim.body_position(s, k)
 			var size: float = float(sim.BODIES[s][k].size) if s == stage_now else 5.0
-			var lit: float = clampf(float(body_flash.get(s * 16 + k, 0.0)) / .14, 0, 1)
+			var key: int = s * 16 + k
+			var kick_t: float = 1.0 - clampf(float(body_flash.get(key, 0.0)) / BODY_KICK_TIME, 0, 1)
+			var lit: float = pow(1.0 - kick_t, 3.0)
 			if s == stage_now:
 				# The body itself: rooftops are blocks, everything else a flat disc.
 				if s == 0:
@@ -1117,14 +1312,21 @@ func draw_bodies() -> void:
 				elif not (s == 2 and k == 5) and s != 4 and s != 5:
 					draw_circle(at, size, Color("2c2c2c").lerp(GREY, .25 if converted else 0.0))
 			if converted:
-				var spin: float = clock * (.9 if k % 2 == 0 else -.7)
-				var ring_size: float = size + (7.0 if s == stage_now else 3.0) + lit * 3.0
-				shape(at, ring_size, 6, spin, Color(0, 0, 0, 0), INK.lerp(Color.WHITE, lit), 1.6 if s == stage_now else 1.2)
-				var aim: Vector2 = (last_target - at).normalized()
-				draw_line(at + aim * ring_size, at + aim * (ring_size + 7 + lit * 3), INK, 2.0, true)
-				if s == stage_now and (s == 2 and k == 5):
-					# Dyson sphere: a second counter-rotating lattice round the sun.
-					shape(at, size + 16, 12, -clock * .3, Color(0, 0, 0, 0), Color(ACCENT, .7), 1.4)
+				var scale: float = 1.5 if s == stage_now else .5
+				var radius: float = (size + 7.0) * scale
+				var aim := Vector2.from_angle(float(body_aim.get(key, -PI * .5)))
+				# Fast mechanical recoil, then a small damped return; no simulation movement.
+				var kick: float = sin(kick_t * PI * 2.0) * exp(-kick_t * 5.0) * 9.0
+				var build_t: float = 1.0 - float(body_build.get(key, 0.0)) / BODY_BUILD_TIME
+				var settle: float = 1.0 if reduced_effects else 1.0 + sin(build_t * PI * 3.0) * pow(1.0 - build_t, 2.0) * .15
+				var mount: Vector2 = at - aim * kick * scale * (.2 if reduced_effects else 1.0)
+				draw_form(str(sim.BODIES[s][k].get("form", "node")), mount, radius * settle, lit, k, s == stage_now, aim, build_t)
+				if build_t < 1.0:
+					draw_body_assembly(at, radius, build_t, k)
+				if lit > .01 and build_t > .35:
+					draw_body_muzzle(mount, radius, aim, lit, int(sim.BODIES[s][k].get("style", s)))
+				if s == stage_now and hover.distance_to(at) < size + 16:
+					ink(str(sim.BODIES[s][k].weapon), at + Vector2(-24, -size - 22), INK, 12)
 			elif s == stage_now:
 				var hovered: bool = k == body_hover
 				var dash_r: float = size + 9 + sin(clock * 3 + k) * 1.5
@@ -1133,6 +1335,152 @@ func draw_bodies() -> void:
 					draw_arc(at, dash_r, a0, a0 + TAU / 16, 4, Color(ACCENT if hovered else GREY, .9 if hovered else .45), 1.4, true)
 				if hovered:
 					ink("改造 " + str(sim.BODIES[s][k].name) + "  $" + sim.Catalog.number(sim.body_cost()), at + Vector2(-40, -dash_r - 10), ACCENT, 12)
+
+func draw_form(form: String, at: Vector2, r: float, lit: float, k: int, big: bool, aim: Vector2 = Vector2.UP, build: float = 1.0) -> void:
+	# All geometry shares the same local firing axis; only interior rotors spin.
+	draw_set_transform_matrix(scene_transform * Transform2D(aim.angle(), at))
+	at = Vector2.ZERO
+	aim = Vector2.RIGHT
+	# Each converted body gets its own silhouette so the player can tell them apart.
+	var col: Color = Color(INK.lerp(Color.WHITE, lit), .2 + .8 * smoothstep(.1, .65, build))
+	var w: float = 1.6 if big else 1.1
+	var spin: float = 0.0
+	var none := Color(0, 0, 0, 0)
+	match form:
+		"twin":
+			draw_rect(Rect2(at - Vector2(r * .7, r * .5), Vector2(r * 1.4, r)), none, false, w)
+			for side in [-1.0, 1.0]:
+				var base: Vector2 = at + aim.orthogonal() * side * r * .3
+				draw_line(base, base + aim * (r + 7), col, 2.0, true)
+		"pods":
+			shape(at, r, 3, -PI * .5, none, col, w)
+			for j in range(3):
+				draw_circle(at + Vector2.from_angle(-PI * .5 + j * TAU / 3) * r * .55, r * .18, col)
+		"crescent":
+			draw_arc(at, r, aim.angle() + .7, aim.angle() + TAU - .7, 24, col, w * 2.0, true)
+			draw_line(at, at + aim * (r + 7), col, 2.5, true)
+		"panels":
+			draw_rect(Rect2(at - Vector2.ONE * r * .45, Vector2.ONE * r * .9), none, false, w)
+			for side in [-1.0, 1.0]:
+				draw_rect(Rect2(at + Vector2(side * r * .6 - (r * .9 if side < 0 else 0.0), -r * .25), Vector2(r * .9, r * .5)), Color(col, .5), true)
+		"dish":
+			shape(at, r * .7, 4, 0, none, col, w)
+			draw_arc(at + aim * r * .5, r * .6, aim.angle() - 1.1, aim.angle() + 1.1, 12, col, w, true)
+		"tri":
+			shape(at, r, 3, spin, none, col, w)
+		"penta":
+			shape(at, r, 5, spin, none, col, w)
+		"star4", "star5", "star6", "star7", "star8":
+			var points: int = int(form.substr(4))
+			var outline := PackedVector2Array()
+			for j in range(points * 2 + 1):
+				var a: float = spin + j * PI / points
+				outline.append(at + Vector2.from_angle(a) * (r if j % 2 == 0 else r * .5))
+			draw_polyline(outline, col, w, true)
+		"octa":
+			shape(at, r, 8, spin * .5, none, col, w)
+			draw_line(at + Vector2(-r * .8, -r * .25), at + Vector2(r * .8, -r * .25), Color(col, .6), 1.0, true)
+			draw_line(at + Vector2(-r * .8, r * .25), at + Vector2(r * .8, r * .25), Color(col, .6), 1.0, true)
+		"ringed":
+			ring(at, r * .7, col, w)
+			ring(at, r * 1.25, Color(col, .7), w)
+		"dyson":
+			shape(at, r, 6, spin, none, col, w)
+			shape(at, r + 10, 12, -clock * .3, none, Color(ACCENT, .7), 1.4)
+		"hole":
+			for j in range(4):
+				var a0: float = clock * (1.2 - j * .2) + j
+				draw_arc(at, r * (.5 + j * .2), a0, a0 + 4.2, 24, Color(col, 1.0 - j * .18), w, true)
+		"spiral":
+			# Barred, triangular, diffuse, compact, spindle, binary and ring galaxies.
+			var arms: int = [2, 3, 4, 2, 2, 2, 5][k % 7]
+			for j in range(arms):
+				var arm := PackedVector2Array()
+				for q in range(12):
+					var a: float = spin + j * TAU / arms + q * (.16 if k == 4 else .28)
+					var offset: Vector2 = Vector2.from_angle(a) * r * (.15 + q * .075)
+					if k in [0, 4]:
+						offset.y *= .48 if k == 4 else .7
+					arm.append(at + offset)
+				draw_polyline(arm, col, w, true)
+			if k == 1:
+				shape(at, r * 1.12, 3, spin, none, col, w)
+			elif k in [3, 6]:
+				ring(at, r * (1.15 if k == 6 else .5), col, w)
+			elif k == 5:
+				for side in [-1.0, 1.0]:
+					ring(at + Vector2(side * r * .45, 0), r * .35, col, w)
+			elif k == 0:
+				draw_line(at - Vector2(r * .55, 0), at + Vector2(r * .55, 0), col, w * 2, true)
+		_:
+			var sides: int = [6, 3, 4, 5, 8, 6][k % 6]
+			shape(at, r, sides, spin, none, col, w)
+			if k == 5:
+				ring(at, r * .55, col, w * 2.0)
+			elif k == 4:
+				shape(at, r * .65, 4, -spin, none, col, w)
+			else:
+				for j in range(sides):
+					var dir := Vector2.from_angle(spin + j * TAU / sides)
+					draw_line(at + dir * r * .4, at + dir * r, Color(col, .5), 1.0, true)
+					draw_circle(at + dir * (r + 4), 2.0, col)
+	if form not in ["crescent", "twin"]:
+		# Twin sliding rails give the muzzle a readable direction at every scale.
+		for side in [-1.0, 1.0]:
+			var root_at: Vector2 = at + aim * r * .6 + aim.orthogonal() * side * (2.5 if big else 1.3)
+			draw_line(root_at, root_at + aim * (r * .4 + 7), col, w, true)
+	draw_set_transform_matrix(scene_transform)
+
+func draw_body_assembly(at: Vector2, r: float, t: float, slot: int) -> void:
+	var fade: float = 1.0 - smoothstep(.68, 1.0, t)
+	if reduced_effects:
+		ring(at, r + 5, Color(INK, fade * .5), 1.2)
+		return
+	# Six staggered engineering brackets gather, latch, then release a clean ring.
+	for j in range(6):
+		var progress: float = clampf((t - j * .025) / .58, 0, 1)
+		var distance: float = r + 5 + pow(1.0 - progress, 3.0) * 55
+		var angle: float = j * TAU / 6 + slot * .3 + (1 - progress) * .35
+		var dir := Vector2.from_angle(angle)
+		var tip: Vector2 = at + dir * distance
+		var side: Vector2 = dir.orthogonal() * 4
+		draw_polyline(PackedVector2Array([tip + dir * 7 - side, tip - side, tip + side, tip + side + dir * 7]), Color(INK, fade * smoothstep(0, .1, t)), 1.6, true)
+	if t > .55:
+		var release: float = (t - .55) / .45
+		ring(at, r + 7 + (1 - pow(1 - release, 3)) * 35, Color(INK, (1 - release) * .65), 1.4)
+
+func draw_body_muzzle(at: Vector2, r: float, aim: Vector2, light: float, style: int) -> void:
+	var p: Vector2 = at + aim * (r + 7)
+	var side: Vector2 = aim.orthogonal()
+	var reach: float = (8 + style * 1.5) * light
+	var col := Color(INK, light * .85)
+	if reduced_effects:
+		draw_circle(p, 2.0 * light, col)
+		return
+	# Directional diamond blast and expanding paired magnetic collars.
+	draw_colored_polygon(PackedVector2Array([p - aim * 2, p + side * reach * .3, p + aim * reach, p - side * reach * .3]), col)
+	for j in range(2):
+		var center: Vector2 = p + aim * (1.0 - light) * (12 + j * 7)
+		draw_line(center - side * (3 + j * 2) * light, center + side * (3 + j * 2) * light, Color(INK, light * .55), 1.4, true)
+
+func draw_transition_bodies(outgoing: Transform2D, t: float) -> void:
+	# Collected bodies visibly travel into the next chapter's legacy orbit.
+	var global_slot: int = 0
+	for s in range(sim.stage + 1):
+		for k in range(sim.BODIES[s].size()):
+			var index: int = global_slot
+			global_slot += 1
+			if not sim.body_converted_at(s, k):
+				continue
+			var angle: float = index * .71 + sim.elapsed * .25
+			var destination: Vector2 = Vector2(500, 325) + Vector2.from_angle(angle) * (150.0 + index % 3 * 14.0)
+			var from: Vector2 = outgoing * sim.body_position(s, k)
+			var gather: float = smoothstep(.35, 1.0, t)
+			var at: Vector2 = from.lerp(destination, gather)
+			var original: float = (float(sim.BODIES[s][k].size) + 7) * 1.5 if s == sim.stage else 6.0
+			var radius: float = lerpf(maxf(3, original * pow(.04, t)), 6.0, gather)
+			var aim := Vector2.from_angle(float(body_aim.get(s * 16 + k, -PI * .5)))
+			draw_form(str(sim.BODIES[s][k].get("form", "node")), at, radius, 0, k, false, aim)
 
 func weapon(index: int, point: Vector2, small: bool = false) -> void:
 	# Turret i is a (3+i)-gon, so older weapons stay recognisable at larger scales.
@@ -1313,8 +1661,10 @@ func _draw() -> void:
 		for i in range(6):
 			if sim.owned[i]:
 				weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
+		var outgoing: Transform2D = scene_transform
 		scene_transform = Transform2D.IDENTITY
 		draw_set_transform(Vector2.ZERO)
+		draw_transition_bodies(outgoing, t)
 		ink("尺度跃迁  /  " + sim.catalog.stages[idx + 1].title, Vector2(405, 100), INK, 22)
 	else:
 		stage_scene(idx)
@@ -1332,6 +1682,7 @@ func _draw() -> void:
 				draw_line(p.from, p.end, Color(INK, .06), 9 + int(p.weapon) * 1.5, true)
 				draw_line(p.from, p.end, Color(INK, .85), 1.2 + int(p.weapon) * .2, true)
 		draw_bullets()
+		draw_shells()
 		var rewards_left: int = 16
 		begin_batch()
 		for fx in sim.effects:

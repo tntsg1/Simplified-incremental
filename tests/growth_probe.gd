@@ -40,6 +40,10 @@ func _initialize() -> void:
 		if c.mode in ["wave","boss"]:
 			var k: String="%d-%s"%[c.stage,str(c.wave) if c.mode=="wave" else "B"]
 			if k!=key:
+				if key!="" and key.ends_with("B")==false and depths.size()+peak>0:
+					var avg_seam: float=0
+					for d in depths:avg_seam+=d
+					print("WAVE %-5s %4ds depth=%.2f peak=%3d $%s%s"%[key,int(c.elapsed-started),avg_seam/maxi(1,depths.size()),peak,sci(c.money),headroom])
 				key=k;started=c.elapsed;depths.clear();peak=0;last.clear()
 				var dmg: float=0
 				var cov: float=0

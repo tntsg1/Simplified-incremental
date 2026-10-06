@@ -13,14 +13,27 @@ static func launcher_count(ctx: RefCounted) -> int:
 	return int(pow(2.0, mini(int(ctx.levels.reload) / 10, 14)))
 
 
+# Volleys never come faster than this, so rounds read as distinct bursts
+# instead of merging into a solid line; beams become discrete lances.
+const VOLLEY_GAP: float = 0.2
+const BEAM_GAP: float = 0.6
+
+
+static func theoretical_interval(ctx: RefCounted, index: int) -> float:
+	return float(ctx.catalog.weapons[index].interval) / pow(1.1, int(ctx.levels.reload))
+
+
+static func volley_gap(ctx: RefCounted, index: int) -> float:
+	return BEAM_GAP if bool(ctx.catalog.weapons[index].beam) else VOLLEY_GAP
+
+
 static func shot_interval(ctx: RefCounted, index: int) -> float:
-	return maxf(1.0/30.0, float(ctx.catalog.weapons[index].interval) / pow(1.1, int(ctx.levels.reload)))
+	return maxf(volley_gap(ctx, index), theoretical_interval(ctx, index))
 
 
 static func salvo_packets(ctx: RefCounted, index: int) -> float:
-	# Pack sub-frame launches into a volley without losing the promised +10% cadence.
-	var theoretical: float = float(ctx.catalog.weapons[index].interval) / pow(1.1, int(ctx.levels.reload))
-	return maxf(1.0,(1.0/30.0)/theoretical)
+	# Pack the faster launches into each volley without losing the promised +10% cadence.
+	return maxf(1.0, volley_gap(ctx, index) / theoretical_interval(ctx, index))
 
 
 static func shot_damage(ctx: RefCounted, index: int) -> float:
@@ -32,7 +45,12 @@ static func coverage(ctx: RefCounted, index: int) -> int:
 	if ctx.stage==0:return ctx.launcher_count()
 	# Spatial overlap prevents thousands of colocated rounds from counting the
 	# same blast footprint repeatedly. Raw single-target damage stays additive.
-	var value: float = float(ctx.catalog.weapons[index].coverage) * sqrt(ctx.launcher_count()) * sqrt(ctx.salvo_packets(index))
+	# Coverage rate is tuned against the old 1/30 s packing; scale each volley by
+	# how many of those old packets it now carries so the rate is unchanged.
+	var theoretical: float = theoretical_interval(ctx, index)
+	var old_interval: float = maxf(1.0 / 30.0, theoretical)
+	var old_packets: float = maxf(1.0, (1.0 / 30.0) / theoretical)
+	var value: float = float(ctx.catalog.weapons[index].coverage) * sqrt(ctx.launcher_count()) * sqrt(old_packets) * ctx.shot_interval(index) / old_interval
 	value *= 1.0+float(int(ctx.levels.damage)/25)*.1
 	if ctx.stage >= 2:
 		value *= 1.0 + int(ctx.levels.area) * 0.18

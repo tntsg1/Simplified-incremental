@@ -27,7 +27,7 @@ var field_zoom: float=1.0
 var sim = Combat.new()
 var store = SaveStore.new()
 var field: Node2D
-var font: SystemFont
+var font: Font
 var ui: Control
 var shade: ColorRect
 var modal: PanelContainer
@@ -190,8 +190,9 @@ func stagger(container: Node, gap: float = .035) -> void:
 
 func _ready() -> void:
 	mouse_filter=Control.MOUSE_FILTER_IGNORE
-	font = SystemFont.new()
-	font.font_names = PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC"])
+	var system_font := SystemFont.new()
+	system_font.font_names = PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC"])
+	font = load("res://assets/fonts/SkyguardSC.ttf") if OS.has_feature("web") else system_font
 	var skin := Theme.new()
 	skin.default_font = font
 	skin.default_font_size = 16
@@ -230,8 +231,10 @@ func _ready() -> void:
 	sim.pierced.connect(field.on_pierced)
 	sim.turret_fired.connect(field.on_turret_fired)
 	sim.body_fired.connect(field.on_body_fired)
+	sim.shell_burst.connect(field.on_shell_burst)
 	sim.body_converted.connect(field.on_body_converted)
 	sim.retargeted.connect(field.on_retargeted)
+	sim.focused.connect(field.on_focused)
 	resized.connect(layout)
 	parse_proof()
 	audio.set_enabled(sound_on and (not proof or "--listen" in OS.get_cmdline_user_args()))
@@ -337,7 +340,7 @@ func build_hud() -> void:
 	dev_bar.add_theme_constant_override("separation",8)
 	dev_bar.visible = false
 	ui.add_child(dev_bar)
-	for pair in [["开发：资金 ×10",dev_money],["跳过本波",dev_skip_wave],["击毁 Boss",dev_kill_boss],["直达下一章",dev_next_stage]]:
+	for pair in [["开发：资金 ×10",dev_money],["上一波",dev_prev_wave],["跳过本波",dev_skip_wave],["击毁 Boss",dev_kill_boss],["上一章",dev_prev_stage],["直达下一章",dev_next_stage]]:
 		var dev_button := button(pair[0],pair[1])
 		dev_button.custom_minimum_size = Vector2(0,38)
 		dev_bar.add_child(dev_button)
@@ -849,6 +852,27 @@ func dev_skip_wave() -> void:
 	if sim.mode == "wave":
 		sim.clear_battle()
 		sim.spawn_left = 0
+
+func dev_prev_wave() -> void:
+	if sim.mode == "boss":
+		sim.wave = 10
+	elif sim.mode in ["wave","intermission","failed"] and sim.wave > 1:
+		sim.wave -= 1
+	else:
+		show_notice("已经是本章第一波")
+		return
+	sim.start_wave()
+	show_notice("回到第 %d 波" % sim.wave)
+
+func dev_prev_stage() -> void:
+	if sim.stage <= 0:
+		show_notice("已经是第一章")
+		return
+	sim.stage -= 1
+	sim.wave = 1
+	sim.start_wave()
+	field.reset_growth()
+	show_notice("回到" + sim.stage_data().title)
 
 func dev_kill_boss() -> void:
 	if sim.mode != "boss":

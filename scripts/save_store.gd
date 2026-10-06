@@ -17,6 +17,9 @@ func save_game(sim: RefCounted, settings: Dictionary) -> bool:
 func save_game_async(sim: RefCounted, settings: Dictionary) -> void:
 	if not enabled or sim.mode == "title":
 		return
+	if OS.has_feature("web"):
+		write(build(sim, settings))
+		return
 	if task_id >= 0 and not WorkerThreadPool.is_task_completed(task_id):
 		return
 	finish_pending()
