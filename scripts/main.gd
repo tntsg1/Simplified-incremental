@@ -90,6 +90,8 @@ var slowmo: float=0
 var dev_god: bool=false
 var dev_bar: HBoxContainer
 var dev_god_button: Button
+var dev_ult_button: Button
+var dev_ult_kind_button: Button
 var weapon_button: Button
 var saved: Dictionary = {}
 var proof: bool = false
@@ -365,6 +367,12 @@ func build_hud() -> void:
 	dev_god_button = button("无敌：关",dev_toggle_god)
 	dev_god_button.custom_minimum_size = Vector2(0,38)
 	dev_bar.add_child(dev_god_button)
+	dev_ult_button = button("大招冷却：正常",dev_toggle_ult)
+	dev_ult_button.custom_minimum_size = Vector2(0,38)
+	dev_bar.add_child(dev_ult_button)
+	dev_ult_kind_button = button("大招：本章",dev_cycle_ult_kind)
+	dev_ult_kind_button.custom_minimum_size = Vector2(0,38)
+	dev_bar.add_child(dev_ult_kind_button)
 	refresh_speed_button()
 	toast = label("",17,Color("dbdbdb"))
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -738,7 +746,7 @@ func update_ult_button() -> void:
 		return
 	var ready: bool = sim.ultimate_ready()
 	var name: String = sim.ultimate_name()
-	if not sim.ult.is_empty():
+	if not sim.ult.is_empty() and not sim.ult_unlimited:
 		ult_button.text = name+" · 打击中"
 	elif ready:
 		ult_button.text = name+" · 就绪  [Q]"
@@ -895,6 +903,10 @@ func toggle_dev_mode() -> void:
 	if not dev_mode:
 		dev_god = false
 		dev_god_button.text = "无敌：关"
+		sim.ult_unlimited = false
+		sim.ult_override = ""
+		dev_ult_button.text = "大招冷却：正常"
+		dev_ult_kind_button.text = "大招：本章"
 		if game_speed not in SPEEDS:
 			game_speed = 8
 			refresh_speed_button()
@@ -948,6 +960,21 @@ func dev_next_stage() -> void:
 func dev_toggle_god() -> void:
 	dev_god = not dev_god
 	dev_god_button.text = "无敌：开" if dev_god else "无敌：关"
+
+func dev_toggle_ult() -> void:
+	sim.ult_unlimited = not sim.ult_unlimited
+	if sim.ult_unlimited:
+		sim.ult_charge = 1.0
+	dev_ult_button.text = "大招冷却：0" if sim.ult_unlimited else "大招冷却：正常"
+	update_ult_button()
+
+func dev_cycle_ult_kind() -> void:
+	# 本章 → 核弹 → 光粒打击 → … → 改写 π → 本章
+	var kinds: Array[String] = sim.ULT_KINDS
+	var i: int = kinds.find(sim.ult_override)
+	sim.ult_override = kinds[i + 1] if i + 1 < kinds.size() else ""
+	dev_ult_kind_button.text = "大招：本章" if sim.ult_override == "" else "大招："+sim.ultimate_name()
+	update_ult_button()
 
 func refresh_speed_button() -> void:
 	if is_instance_valid(speed_button):

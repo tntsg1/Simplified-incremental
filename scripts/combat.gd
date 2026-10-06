@@ -102,6 +102,10 @@ var ult_charge: float = 0.0
 var ult_deaths: int = 0
 var ult: Dictionary = {}
 var spawn_hold: float = 0.0
+# Developer switches: no cooldown (always charged, re-fire mid-strike) and a
+# forced weapon so any scale's doomsday weapon can be tested anywhere.
+var ult_unlimited: bool = false
+var ult_override: String = ""
 var spawn_left: int = 0
 var wave_total: int = 0
 var wave_killed: int = 0
@@ -678,12 +682,14 @@ func update_wells(delta: float) -> void:
 
 # ---------------- Doomsday weapons ----------------
 func ultimate_kind() -> String:
-	return ULT_KINDS[mini(stage, ULT_KINDS.size() - 1)]
+	return ult_override if ult_override != "" else ULT_KINDS[mini(stage, ULT_KINDS.size() - 1)]
 
 func ultimate_name() -> String:
-	return ULT_NAMES[mini(stage, ULT_NAMES.size() - 1)]
+	return ULT_NAMES[ULT_KINDS.find(ultimate_kind())]
 
 func ultimate_ready() -> bool:
+	if ult_unlimited:
+		return mode in ["wave", "boss"] and not paused
 	return ult_charge >= 1.0 and ult.is_empty() and mode in ["wave", "boss"] and not paused
 
 func frozen() -> bool:
@@ -712,7 +718,7 @@ func fire_ultimate(point: Vector2 = Vector2.INF) -> bool:
 		point = defense_position()
 	elif point == Vector2.INF:
 		point = densest_point()
-	ult_charge = 0.0
+	ult_charge = 1.0 if ult_unlimited else 0.0
 	ult = {"kind": kind, "age": 0.0, "point": point, "step": 0, "boss_hit": false}
 	match kind:
 		"photoid":
