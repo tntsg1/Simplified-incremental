@@ -1919,7 +1919,8 @@ func draw_swarm() -> void:
 
 func on_ultimate_fired(kind: String, point: Vector2) -> void:
 	var subtitles: Dictionary = {"nuke": "半径 300 · 一切蒸发", "photoid": "一颗以光速飞行的粒子", "foil": "空间维度 3 → 2", "prime": "2 · 3 · 5 · 7 · 11 · 13 · 17 · 19 · 23 · 29", "lightspeed": "c = 299,792 km/s → 16.7 km/s", "pi": "π = 3.14159265… → 3"}
-	show_banner(sim.ultimate_name(), str(subtitles.get(kind, "")), 1.9, true)
+	# The HUD overlay carries the title card; the field keeps a quiet subtitle.
+	banner = {}
 	punch = maxf(punch, .5)
 	if kind == "prime" and ulam.is_empty():
 		# An Ulam spiral of primes: the maths the strike is drawn from.

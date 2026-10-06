@@ -17,6 +17,7 @@ class Ripple extends Control:
 
 const Combat = preload("res://scripts/combat.gd")
 const Battlefield = preload("res://scripts/battlefield.gd")
+const UiFx = preload("res://scripts/ui_fx.gd")
 const SaveStore = preload("res://scripts/save_store.gd")
 const Catalog = preload("res://scripts/catalog.gd")
 const AudioDirector=preload("res://scripts/audio_director.gd")
@@ -55,6 +56,13 @@ var boss_ghost: ProgressBar
 var boss_shown: float = 100
 var ghost_shown: float = 100
 var ghost_hold: float = 0
+var boss_fx: UiFx.BossBar
+var ult_overlay: UiFx.UltOverlay
+var cam_zoom: float = 1.0
+var cam_target: float = 1.0
+var cam_focus: Vector2 = Vector2(500,325)
+var hitstop: float = 0.0
+var boss_was_visible: bool = false
 var wave_shown: float = 0
 var health_seen: float = 100
 var health_shake: float = 0
@@ -133,14 +141,16 @@ func button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(0,46)
-	b.add_theme_stylebox_override("normal",panel_style(Color("262626") if primary else Color("1e1e1e"),Color("8a8a8a") if primary else Color("3a3a3a"),8))
-	b.add_theme_stylebox_override("hover",panel_style(Color("303030") if primary else Color("282828"),Color("ededed"),8))
-	b.add_theme_stylebox_override("pressed",panel_style(Color("3a3a3a"),Color("ffffff"),8))
-	b.add_theme_stylebox_override("disabled",panel_style(Color("1a1a1a"),Color("2a2a2a"),8))
+	b.add_theme_stylebox_override("normal",panel_style(Color("1f1f1f") if primary else Color("181818"),Color("8a8a8a") if primary else Color("3a3a3a"),2))
+	b.add_theme_stylebox_override("hover",panel_style(Color("1f1f1f") if primary else Color("181818"),Color("ededed"),2))
+	b.add_theme_stylebox_override("pressed",panel_style(Color("1f1f1f"),Color("ffffff"),2))
+	b.add_theme_stylebox_override("disabled",panel_style(Color("151515"),Color("2a2a2a"),2))
+	b.add_theme_stylebox_override("focus",StyleBoxEmpty.new())
 	b.add_theme_color_override("font_color",Color("efefef"))
 	b.add_theme_color_override("font_disabled_color",Color("6c6c6c"))
 	b.pressed.connect(callback)
 	juice(b)
+	b.set_meta("fx",UiFx.decorate(b))
 	return b
 
 # Springy hover / press / release on every button, plus a ripple on click.
@@ -242,6 +252,9 @@ func _ready() -> void:
 	sim.ultimate_impact.connect(field.on_ultimate_impact)
 	sim.prime_strike.connect(field.on_prime_strike)
 	sim.flattened.connect(field.on_flattened)
+	sim.ultimate_fired.connect(on_ult_fired)
+	sim.ultimate_impact.connect(on_ult_impact)
+	sim.prime_strike.connect(func(_p,_pts): hitstop = maxf(hitstop,.035))
 	sim.body_converted.connect(field.on_body_converted)
 	sim.retargeted.connect(field.on_retargeted)
 	sim.focused.connect(field.on_focused)
@@ -323,6 +336,13 @@ func build_hud() -> void:
 		ghost_style.content_margin_bottom=0
 	boss_box.add_child(boss_ghost)
 	boss_box.add_child(boss_bar)
+	boss_bar.visible = false
+	boss_ghost.visible = false
+	boss_title.visible = false
+	boss_timer.visible = false
+	boss_fx = UiFx.BossBar.new()
+	boss_fx.size = Vector2(640,70)
+	boss_box.add_child(boss_fx)
 	boss_bar.add_theme_stylebox_override("background",panel_style(Color(0,0,0,0),Color(0,0,0,0),2))
 	var bottom := Panel.new()
 	bottom.name = "Bottom"
@@ -378,6 +398,8 @@ func build_hud() -> void:
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(toast)
+	ult_overlay = UiFx.UltOverlay.new()
+	ui.add_child(ult_overlay)
 
 func layout() -> void:
 	if field == null:
@@ -427,6 +449,9 @@ func layout() -> void:
 	ult_button.position = Vector2(w-912,13)
 	ult_button.size = Vector2(210,46)
 	dev_bar.position = Vector2(36,h-150)
+	if is_instance_valid(ult_overlay):
+		ult_overlay.position = Vector2.ZERO
+		ult_overlay.size = Vector2(w,h)
 	toast.position = Vector2(w*.2,h-142)
 	toast.size = Vector2(w*.6,30)
 	if is_instance_valid(modal):
@@ -707,9 +732,16 @@ func update_hud() -> void:
 	health_label.modulate = Color("ffc94d") if sim.health<40 else Color.WHITE
 
 	boss_box.visible = sim.mode=="boss" and menu==""
+	if boss_box.visible and not boss_was_visible:
+		boss_fx.reset()
+	boss_was_visible = boss_box.visible
 	if sim.mode=="boss":
 		boss_title.text = sim.stage_data().boss_title
 		boss_timer.text = "撞击倒计时  %.1f s" %sim.boss_remaining
+		boss_fx.name_text = boss_title.text
+		boss_fx.timer_text = boss_timer.text
+		if not sim.enemies.is_empty() and bool(sim.enemies[0].boss):
+			boss_fx.set_hp(float(sim.enemies[0].hp)/sim.boss_max_hp())
 		if not sim.enemies.is_empty():
 			var target: float = float(sim.enemies[0].hp)/sim.boss_max_hp()*100
 			if target < boss_shown - .01:
@@ -769,6 +801,20 @@ func update_ult_button() -> void:
 		spring(ult_button,1.12,.25)
 	ult_ready_seen = ready
 
+const ULT_ENGLISH: Dictionary = {"nuke":"NUCLEAR STRIKE","photoid":"PHOTOID STRIKE","foil":"DUAL-VECTOR FOIL","prime":"PRIME STRIKE","lightspeed":"LIGHT SPEED · LOWERED","pi":"REWRITE  π  =  3"}
+
+func on_ult_fired(kind: String, point: Vector2) -> void:
+	ult_overlay.play(sim.ultimate_name(),str(ULT_ENGLISH.get(kind,"")),float(sim.ULT_DURATION.get(kind,3.0))*.8)
+	# Lean the camera toward the strike while it winds up.
+	cam_focus = point if kind in ["nuke","foil"] else sim.defense_position()
+	cam_target = 1.12
+	field.slowmo_request = true
+
+func on_ult_impact(_kind: String, _point: Vector2) -> void:
+	hitstop = .13
+	cam_target = 1.0
+	cam_zoom = 1.2
+
 func fire_ultimate_from_hud() -> void:
 	fire_ultimate_at(Vector2.INF)
 
@@ -781,6 +827,8 @@ func fire_ultimate_at(point: Vector2) -> void:
 	update_ult_button()
 
 func animate_hud(delta: float) -> void:
+	if is_instance_valid(ult_button) and ult_button.has_meta("fx"):
+		ult_button.get_meta("fx").amber = sim.ultimate_ready()
 	if is_instance_valid(ult_fill):
 		var k: float = 1.0 if sim.ultimate_ready() else sim.ult_charge
 		ult_fill.size = Vector2(ult_button.size.x*k,ult_button.size.y)
@@ -1012,15 +1060,20 @@ func _process(delta: float) -> void:
 		field.slowmo_request=false
 		slowmo=.7
 	slowmo=maxf(0,slowmo-delta)
-	var time_scale: float=game_speed*(.2 if slowmo>0 else 1.0)
+	hitstop=maxf(0,hitstop-delta)
+	if sim.ult.is_empty():
+		cam_target=1.0
+	cam_zoom=lerpf(cam_zoom,cam_target,1.0-exp(-delta*(2.4 if cam_target>cam_zoom else 4.0)))
+	var time_scale: float=0.0 if hitstop>0 else game_speed*(.2 if slowmo>0 else 1.0)
 	var speed: float=time_scale if not sim.paused else 1.0
 	field.clock += delta*speed
 	field.reduced_effects=reduced_effects
 	field.animate(delta*speed)
 	# Camera punch: a quick zoom kick around the field centre on big moments.
-	var kick: float=1.0+field.punch*field.punch*.035
+	var kick: float=(1.0+field.punch*field.punch*.035)*cam_zoom
+	var pivot: Vector2=Vector2(500,320).lerp(cam_focus,clampf((cam_zoom-1.0)/.12,0,1))
 	field.scale=Vector2.ONE*field_zoom*kick
-	field.position=field_origin+field.shake_offset()-Vector2(500,320)*field_zoom*(kick-1.0)
+	field.position=field_origin+field.shake_offset()-pivot*field_zoom*(kick-1.0)
 	audio.update(sim,delta)
 	field.hover = field.to_local(get_global_mouse_position())
 	# The reticle replaces the OS cursor only over the open battlefield.
