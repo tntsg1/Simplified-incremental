@@ -58,7 +58,11 @@ const ULT_TIME: float = 55.0
 const ULT_PER_KILL: float = 0.0016
 const ULT_KILL_RATE_CAP: float = 0.03
 const ULT_BOSS_SHARE: float = 0.2
-const ULT_DURATION: Dictionary = {"nuke": 3.0, "photoid": 2.4, "foil": 5.0, "prime": 4.4, "lightspeed": 5.2, "pi": 3.6}
+# Each weapon has a readable wind-up before it lands (impact times below).
+const ULT_DURATION: Dictionary = {"nuke": 3.8, "photoid": 3.8, "foil": 5.0, "prime": 4.4, "lightspeed": 5.2, "pi": 4.2}
+const NUKE_IMPACT: float = 1.5
+const PHOTOID_IMPACT: float = 2.2
+const PI_IMPACT: float = 2.0
 const PRIMES: Array[int] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
 const NUKE_RADIUS: float = 300.0
 const BODIES: Array = [
@@ -108,6 +112,8 @@ var spawn_rect: Rect2 = Rect2(-250, -10, 1500, 640)
 # Right after a scale jump the field is topped up one group at a time, so the
 # new scale fills in as a stream instead of a sudden ring of threats.
 var topup_clock: float = 0.0
+# Seconds since a doomsday weapon's spawn hold ended: the field refills gradually.
+var refill: float = 99.0
 const TOPUP_GAP: float = 0.14
 # Developer switches: no cooldown (always charged, re-fire mid-strike) and a
 # forced weapon so any scale's doomsday weapon can be tested anywhere.
@@ -235,9 +241,10 @@ func min_alive() -> int:
 
 func ramped_min_alive() -> int:
 	# The first wave of a scale builds up over a few seconds after the zoom-out.
+	var k: float = clampf(refill / 6.0, 0.0, 1.0)
 	if wave == 1:
-		return int(min_alive() * clampf(wave_elapsed / 6.0, 0.0, 1.0))
-	return min_alive()
+		k = minf(k, clampf(wave_elapsed / 6.0, 0.0, 1.0))
+	return int(min_alive() * k)
 
 func living_count() -> int:
 	var n: int = 0
@@ -752,7 +759,7 @@ func fire_ultimate(point: Vector2 = Vector2.INF) -> bool:
 	ult = {"kind": kind, "age": 0.0, "point": point, "step": 0, "boss_hit": false}
 	match kind:
 		"photoid":
-			spawn_hold = 5.0 + 0.9
+			spawn_hold = 5.0 + PHOTOID_IMPACT
 		"foil":
 			spawn_hold = 4.6
 		"prime":
@@ -801,11 +808,11 @@ func update_ultimate(delta: float) -> void:
 	var w: int = mini(stage, 5)
 	match kind:
 		"nuke":
-			if crossed(0.75, delta):
+			if crossed(NUKE_IMPACT, delta):
 				ult_sweep(at, NUKE_RADIUS, true)
 				ultimate_impact.emit(kind, at)
 		"photoid":
-			if crossed(0.9, delta):
+			if crossed(PHOTOID_IMPACT, delta):
 				ult_sweep(at, 5000.0, true)
 				ultimate_impact.emit(kind, at)
 		"foil":
@@ -850,7 +857,7 @@ func update_ultimate(delta: float) -> void:
 				ult_sweep(at, 5000.0, true)
 				ultimate_impact.emit(kind, at)
 		"pi":
-			if crossed(1.4, delta):
+			if crossed(PI_IMPACT, delta):
 				ult_sweep(at, 5000.0, true)
 				ultimate_impact.emit(kind, at)
 	if float(ult.age) >= float(ULT_DURATION.get(kind, 3.0)):
@@ -963,6 +970,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 	if mode not in ["wave", "boss"]:
 		return
 	wave_elapsed += delta
+	if spawn_hold > 0.0:
+		refill = 0.0
+	else:
+		refill += delta
 	spawn_hold = maxf(0.0, spawn_hold - delta)
 	update_ultimate(delta)
 	if mode not in ["wave", "boss"]:
@@ -972,7 +983,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 		var burst: int = 0
 		topup_clock -= delta
 		while spawn_left > 0 and burst < 6 and (spawn_clock <= 0.0 or (living_count() < ramped_min_alive() and topup_clock <= 0.0)):
-			if spawn_clock > 0.0 and wave == 1 and wave_elapsed < 8.0:
+			if spawn_clock > 0.0 and ((wave == 1 and wave_elapsed < 8.0) or refill < 8.0):
 				topup_clock = TOPUP_GAP
 			var members: int = mini(spawn_left, group_size())
 			if stage >= 1 and (serial + 1) % 9 == 0:

@@ -206,8 +206,8 @@ class UltOverlay extends Control:
 		font = get_theme_font("font", "Label")
 		var g := Gradient.new()
 		g.set_color(0, Color(0, 0, 0, 0))
-		g.set_color(1, Color(0, 0, 0, .78))
-		g.set_offset(0, .45)
+		g.set_color(1, Color(0, 0, 0, .5))
+		g.set_offset(0, .6)
 		vignette = GradientTexture2D.new()
 		vignette.gradient = g
 		vignette.fill = GradientTexture2D.FILL_RADIAL
@@ -235,12 +235,11 @@ class UltOverlay extends Control:
 			return
 		var w: float = size.x
 		var h: float = size.y
-		var inn: float = eo(t / .45)
+		var inn: float = eo(t / .7)
 		var out: float = eo((t - dur) / .6) if t > dur else 0.0
 		var k: float = inn * (1.0 - out)
-		draw_texture_rect(vignette, Rect2(Vector2.ZERO, size), false, Color(1, 1, 1, k))
-		# Letterbox bars slide in.
-		var bar: float = 74.0 * k
+		# Narrow letterbox bars glide in; the field itself never darkens.
+		var bar: float = 40.0 * k
 		draw_rect(Rect2(0, 0, w, bar), Color(0, 0, 0, .96))
 		draw_rect(Rect2(0, h - bar, w, bar), Color(0, 0, 0, .96))
 		draw_line(Vector2(0, bar), Vector2(w, bar), Color(1, 1, 1, .25 * k), 1.0)

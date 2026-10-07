@@ -42,7 +42,7 @@ func run() -> void:
 	print("ULT fired=", ok, " kind=", sim.ultimate_kind(), " enemies=", sim.enemies.size())
 	var started: float = sim.elapsed
 	for t in times:
-		while sim.elapsed - started < float(t) and not sim.ult.is_empty():
+		while sim.elapsed - started < float(t):
 			await process_frame
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("%s_%s.png" % [prefix, t])

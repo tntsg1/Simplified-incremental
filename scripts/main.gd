@@ -846,8 +846,7 @@ func on_ult_fired(kind: String, point: Vector2) -> void:
 	ult_overlay.play(sim.ultimate_name(),str(ULT_ENGLISH.get(kind,"")),float(sim.ULT_DURATION.get(kind,3.0))*.8)
 	# Lean the camera toward the strike while it winds up.
 	cam_focus = point if kind in ["nuke","foil"] else sim.defense_position()
-	cam_target = 1.12
-	field.slowmo_request = true
+	cam_target = 1.04 if kind == "photoid" else 1.1
 
 # Big beats get a full-screen cinematic: boss entrance, boss destroyed + scale jump.
 func stage_cinema() -> void:

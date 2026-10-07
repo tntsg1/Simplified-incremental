@@ -1597,6 +1597,12 @@ func enemy(e: Dictionary) -> void:
 				ink("×" + sim.Catalog.number(e.members), p + Vector2(-14, radius + 18), DIM, 11)
 				labels_left -= 1
 	var born: float = float(e.age)
+	if not boss and born < .55:
+		# Arrival rift: a bright tear across the flight line that seals behind it.
+		var rift: float = 1.0 - born / .55
+		var across_dir := Vector2(-trail.y, trail.x)
+		stroke(p + across_dir * radius * 2.6 * rift, p - across_dir * radius * 2.6 * rift, Color(1, 1, 1, .9 * rift * rift))
+		ring(p, radius * (1.2 + (1.0 - rift) * 3.2), Color(INK, .45 * rift))
 	if not boss and born < .3:
 		# Warp-in: a streak of light behind a threat that just dropped in.
 		var fade: float = 1.0 - born / .3
@@ -1984,6 +1990,15 @@ func on_flattened(point: Vector2) -> void:
 		imprints.append({"pos": point, "age": 0.0, "w": 14.0 + randf() * 16.0})
 
 func animate_ultimates(delta: float) -> void:
+	# The photoid bends space-time as it passes: the grid ripples along its path.
+	if sim != null and not sim.ult.is_empty() and str(sim.ult.kind) == "photoid":
+		var u: float = float(sim.ult.age)
+		if u > .6 and u < sim.PHOTOID_IMPACT:
+			photoid_ripple -= delta
+			if photoid_ripple <= 0:
+				photoid_ripple = .07
+				add_wave(photoid_head(u), 9.0, .8)
+			trauma = maxf(trauma, .25 * clampf((u - 1.4) / .8, 0, 1))
 	for i in range(strikes.size() - 1, -1, -1):
 		strikes[i].age = float(strikes[i].age) + delta
 		if float(strikes[i].age) > float(strikes[i].dur):
@@ -1996,6 +2011,14 @@ func animate_ultimates(delta: float) -> void:
 		prime_marks[i].age = float(prime_marks[i].age) + delta
 		if float(prime_marks[i].age) > .9:
 			prime_marks.remove_at(i)
+
+const PHOTOID_START := Vector2(70, 40)
+var photoid_ripple: float = 0.0
+
+func photoid_head(u: float) -> Vector2:
+	var hit_t: float = sim.PHOTOID_IMPACT
+	var p: float = clampf((u - .6) / (hit_t - .6), 0, 1)
+	return PHOTOID_START.lerp(sim.ult.get("point", Vector2(500, 325)), pow(p, 2.6))
 
 func ease_out(t: float, power: float = 3.0) -> float:
 	return 1.0 - pow(1.0 - clampf(t, 0, 1), power)
@@ -2013,22 +2036,47 @@ func draw_ultimate() -> void:
 		var p: Vector2 = im.pos
 		draw_line(p - Vector2(w, 0), p + Vector2(w, 0), Color(INK, (1.0 - q) * .8), 1.0, true)
 		draw_line(p - Vector2(w * .6, 2), p + Vector2(w * .6, 2), Color(INK, (1.0 - q) * .3), 1.0, true)
+	var spiral_at: Vector2 = sim.defense_position()
 	for pm in prime_marks:
 		var q: float = float(pm.age) / .9
 		var fade: float = 1.0 - q
+		var prime: int = int(pm.p)
 		var pts: PackedVector2Array = pm.points
 		for j in range(pts.size()):
-			var top: Vector2 = Vector2(pts[j].x, -40)
-			draw_line(top, pts[j], Color(1, 1, 1, fade * .9), 2.0 * fade + .4, true)
-			shape(pts[j], 9.0 + q * 10.0, 4, PI * .25, Color(0, 0, 0, 0), Color(1, 1, 1, fade), 1.2)
-			if j > 0:
-				draw_line(pts[j - 1], pts[j], Color(INK, fade * .25), 1.0, true)
-			if j < 6:
-				ink(str(pm.p), pts[j] + Vector2(10, -10), Color(ACCENT, fade), 13)
-		var grow: float = 1.0 + .5 * maxf(0, 1.0 - q * 5.0)
-		draw_set_transform(Vector2(500, 128), 0, Vector2.ONE * grow)
-		centered(str(pm.p), Vector2.ZERO, 56, Color(1, 1, 1, fade * .9), true)
+			# The beam leaves the spiral at a prime of its own.
+			var src: Vector2 = spiral_at + (ulam[(prime * 5 + j * 11) % ulam.size()] * 6.0 if not ulam.is_empty() else Vector2.ZERO)
+			var travel: float = ease_out(q / .18)
+			draw_line(src, src.lerp(pts[j], travel), Color(1, 1, 1, fade * .85), 1.6, true)
+			draw_circle(src, 2.5 * fade + 1, Color(ACCENT, fade))
+			# A prime-sided polygon draws itself around the target, then collapses.
+			var sides: int = mini(prime, 31)
+			var draw_on: float = clampf((q - .1) / .3, 0, 1)
+			var collapse: float = ease_out(clampf((q - .45) / .4, 0, 1))
+			var r: float = 24.0 * (1.0 - collapse) + 2.0
+			var gon: PackedVector2Array = ngon(sides, r, -PI / 2 + q * 2.0, pts[j])
+			gon.append(gon[0])
+			var shown: int = int(ceil(draw_on * sides)) + 1
+			if shown > 1:
+				draw_polyline(gon.slice(0, mini(shown, gon.size())), Color(1, 1, 1, .95 * fade), 1.4, true)
+			if collapse > .9:
+				draw_circle(pts[j], 5.0 * (1.0 - q), Color.WHITE)
+			if j < 8:
+				ink(str(prime), pts[j] + Vector2(14, -14), Color(ACCENT, fade), 12)
+		# The formula for the latest pulse only: p-subscript-n = prime, and the count erased.
+		if pm != prime_marks.back():
+			continue
+		var index: int = sim.PRIMES.find(prime) + 1
+		var subs: String = ""
+		for ch in str(index):
+			subs += "₀₁₂₃₄₅₆₇₈₉"[int(ch)]
+		var grow: float = 1.0 + .6 * maxf(0, 1.0 - q * 5.0)
+		draw_set_transform(Vector2(500, 540), 0, Vector2.ONE * grow)
+		centered("p%s = %d" % [subs, prime], Vector2.ZERO, 48, Color(1, 1, 1, fade * .95), true)
 		draw_set_transform(Vector2.ZERO)
+		var erased: int = 0
+		for k in range(index):
+			erased += sim.PRIMES[k]
+		centered("Σ  已抹除 %d" % erased, Vector2(500, 578), 14, Color(ACCENT, fade))
 	if sim.ult.is_empty():
 		if sim.spawn_hold > 0 and sim.mode in ["wave", "boss"]:
 			var k: float = clampf(sim.spawn_hold / 5.0, 0, 1)
@@ -2040,24 +2088,36 @@ func draw_ultimate() -> void:
 	var at: Vector2 = sim.ult.point
 	match kind:
 		"nuke":
-			if u < .75:
-				# Warhead arcs from the core; the target locks with converging rings.
-				var k: float = u / .75
-				var e: float = k * k
-				var ctrl: Vector2 = core_at.lerp(at, .5) + Vector2(0, -260)
+			var hit_t: float = sim.NUKE_IMPACT
+			if u < hit_t:
+				# Launch flare, then a warhead climbing an arc with a thick smoke trail
+				# while lock rings tighten round the target and the countdown runs.
+				var k: float = clampf((u - .1) / (hit_t - .1), 0, 1)
+				var e: float = k * k * (3.0 - 2.0 * k)
+				var ctrl: Vector2 = core_at.lerp(at, .5) + Vector2(0, -300)
 				var head: Vector2 = core_at.lerp(ctrl, e).lerp(ctrl.lerp(at, e), e)
-				var tail := PackedVector2Array()
-				for j in range(12):
-					var f: float = maxf(0, e - j * .025)
-					tail.append(core_at.lerp(ctrl, f).lerp(ctrl.lerp(at, f), f))
-				draw_polyline(tail, Color(INK, .7), 2.0, true)
-				draw_circle(head, 4.0, Color.WHITE)
+				if u < .4:
+					var f: float = 1.0 - u / .4
+					draw_circle(core_at, 26.0 * f + 6.0, Color(1, 1, 1, .5 * f))
+				for j in range(26):
+					var g: float = maxf(0, e - j * .018)
+					var q: Vector2 = core_at.lerp(ctrl, g).lerp(ctrl.lerp(at, g), g)
+					var spread: float = j * .9
+					q += Vector2(sin(j * 1.7 + clock * 3.0), cos(j * 1.3)) * spread
+					draw_circle(q, 2.0 + j * .35, Color(GREY, .32 * (1.0 - j / 26.0)))
+				var dir: Vector2 = (ctrl.lerp(at, e) - core_at.lerp(ctrl, e)).normalized()
+				draw_colored_polygon(PackedVector2Array([head + dir * 9.0, head - dir * 5.0 + dir.orthogonal() * 4.0, head - dir * 5.0 - dir.orthogonal() * 4.0]), Color.WHITE)
+				draw_circle(head - dir * 6.0, 3.0 + sin(clock * 40.0) * 1.2, Color(ACCENT, .9))
 				for j in range(3):
-					var r: float = lerpf(140.0 - j * 30, 18.0, ease_out(k, 2))
-					draw_arc(at, r, clock * (2 + j), clock * (2 + j) + TAU * .75, 48, Color(ACCENT, .4 + k * .5), 1.4, true)
-				centered("NUCLEAR  ·  %.2f" % (.75 - u), at + Vector2(0, -160), 13, Color(ACCENT, .9))
+					var r: float = lerpf(170.0 - j * 34, 16.0, ease_out(k, 2))
+					draw_arc(at, r, clock * (2 + j), clock * (2 + j) + TAU * .7, 48, Color(ACCENT, .35 + k * .55), 1.6, true)
+				draw_line(at + Vector2(-26, 0), at + Vector2(26, 0), Color(ACCENT, .8), 1.0, true)
+				draw_line(at + Vector2(0, -26), at + Vector2(0, 26), Color(ACCENT, .8), 1.0, true)
+				centered("NUCLEAR  ·  T-%.2f" % (hit_t - u), at + Vector2(0, -190), 14, Color(ACCENT, .95), true)
+				if hit_t - u < .18:
+					draw_circle(at, 30.0 * (1.0 - (hit_t - u) / .18), Color(1, 1, 1, .9))
 			else:
-				var n: float = u - .75
+				var n: float = u - hit_t
 				var flash: float = pow(maxf(0, 1.0 - n / .45), 2)
 				var fb: float = 300.0 * ease_out(n / .5)
 				var fade: float = clampf(1.0 - (n - .3) / 1.9, 0, 1)
@@ -2085,19 +2145,46 @@ func draw_ultimate() -> void:
 					draw_line(at + Vector2.from_angle(ang) * r0, at + Vector2.from_angle(ang) * r1, Color(INK, fade * .35), 1.0, true)
 				ult_flash = flash * .92
 		"photoid":
-			var start: Vector2 = Vector2(-160, -140)
-			if u < .9:
-				# A single photoid at near light speed: its trail is the whole sky.
-				var k: float = pow(u / .9, 3.0)
-				var head: Vector2 = start.lerp(at, k)
-				draw_line(start, head, Color(INK, .18 + k * .4), 1.0, true)
-				draw_line(start.lerp(head, .85), head, Color(1, 1, 1, .9), 1.6, true)
-				draw_circle(head, 2.6, Color.WHITE)
+			var hit_t: float = sim.PHOTOID_IMPACT
+			var origin: Vector2 = PHOTOID_START
+			if u < hit_t:
+				# 1) It materialises: a point of light with cross spikes and a label.
+				var appear: float = ease_out(u / .6)
+				var p: float = clampf((u - .6) / (hit_t - .6), 0, 1)
+				var head: Vector2 = photoid_head(u)
+				var speed: float = pow(p, 1.6)
+				# 2) The predicted path to the target, marching amber dashes.
+				var to_go: float = head.distance_to(at)
+				var dash_dir: Vector2 = (at - head).normalized()
+				var d: float = fmod(clock * 120.0, 18.0)
+				while d < to_go - 10.0:
+					draw_line(head + dash_dir * d, head + dash_dir * minf(d + 8.0, to_go), Color(ACCENT, .55 * appear), 1.2, true)
+					d += 18.0
 				for j in range(3):
-					var r: float = lerpf(220 - j * 50, 8, k)
-					draw_arc(at, r, 0, TAU, 64, Color(INK, k * .5), 1.0, true)
+					var r: float = lerpf(120.0 - j * 26, 14.0, ease_out(p, 2))
+					draw_arc(at, r, -clock * (2 + j), -clock * (2 + j) + TAU * .7, 48, Color(ACCENT, .3 + p * .6), 1.4, true)
+				centered("T-%.2f" % (hit_t - u), at + Vector2(0, -150), 14, Color(ACCENT, .9 * appear), true)
+				# 3) The trail: faint from the origin, white-hot near the head, with afterimages.
+				draw_line(origin, head, Color(INK, .18 + .3 * speed), 1.0, true)
+				draw_line(origin.lerp(head, maxf(0, 1.0 - .12 - speed * .25)), head, Color(1, 1, 1, .95), 2.2, true)
+				for j in range(1, 6):
+					var ghost: Vector2 = photoid_head(u - j * .05)
+					draw_circle(ghost, 3.0 - j * .4, Color(1, 1, 1, .45 - j * .07))
+				var spike: float = 14.0 + 70.0 * appear * (.5 + speed)
+				draw_line(head - Vector2(spike, 0), head + Vector2(spike, 0), Color(1, 1, 1, .8), 1.2, true)
+				draw_line(head - Vector2(0, spike * .7), head + Vector2(0, spike * .7), Color(1, 1, 1, .8), 1.2, true)
+				draw_line(head - Vector2(spike, spike) * .3, head + Vector2(spike, spike) * .3, Color(1, 1, 1, .4), 1.0, true)
+				draw_line(head - Vector2(spike, -spike) * .3, head + Vector2(spike, -spike) * .3, Color(1, 1, 1, .4), 1.0, true)
+				draw_circle(head, 4.0 + 2.0 * sin(clock * 30.0) * (1.0 - p), Color.WHITE)
+				for j in range(2):
+					var rr: float = fmod(u * 1.6 + j * .5, 1.0)
+					draw_arc(head, 6.0 + rr * 40.0, 0, TAU, 32, Color(1, 1, 1, (1.0 - rr) * .5 * (1.0 - p)), 1.0, true)
+				# 4) Telemetry riding next to it.
+				var c_speed: float = lerpf(.31, .999, pow(p, .8))
+				ink_outlined("光粒  PHOTOID", head + Vector2(18, -22), Color(1, 1, 1, appear), 13)
+				ink_outlined("v = %.3f c" % c_speed, head + Vector2(18, -6), Color(ACCENT, appear), 12)
 			else:
-				var n: float = u - .9
+				var n: float = u - hit_t
 				var flash: float = pow(maxf(0, 1.0 - n / .5), 2)
 				var fade: float = clampf(1.0 - n / 1.5, 0, 1)
 				for j in range(64):
@@ -2129,10 +2216,18 @@ func draw_ultimate() -> void:
 				draw_arc(at, r + 6, 0, TAU, 160, Color(1, 1, 1, .25 * fade), 1.0, true)
 				centered("3D → 2D", at + Vector2(0, -r - 18).clamp(Vector2(0, 30), Vector2(1000, 640)), 14, Color(1, 1, 1, .8 * fade))
 		"prime":
+			# The Ulam spiral of primes grows out of the core, its path traced in light.
 			var k: float = minf(1.0, u / .5) * clampf((4.4 - u) / .8, 0, 1)
-			for q in ulam:
-				draw_rect(Rect2(core_at + q * 6.0 - Vector2.ONE, Vector2(2, 2)), Color(INK, .32 * k))
-			centered("p ∈ ℙ", Vector2(500, 70), 15, Color(GREY, k))
+			var reveal: int = int(ulam.size() * clampf(u / 2.6, 0, 1))
+			var path := PackedVector2Array()
+			for i in range(reveal):
+				path.append(core_at + ulam[i] * 6.0)
+			if path.size() > 1:
+				draw_polyline(path, Color(INK, .14 * k), 1.0, true)
+			for i in range(reveal):
+				var fresh: float = clampf(1.0 - (reveal - i) / 40.0, 0, 1)
+				draw_rect(Rect2(path[i] - Vector2.ONE * (1.0 + fresh), Vector2.ONE * (2.0 + fresh * 2.0)), Color(INK.lerp(ACCENT, fresh), (.3 + fresh * .6) * k))
+			centered("p ∈ ℙ        π(x) ~ x / ln x", Vector2(500, 70), 15, Color(GREY, k))
 		"lightspeed":
 			var k: float = ease_out(u / .9)
 			var collapse: float = clampf((u - 4.0) / .45, 0, 1)
@@ -2149,20 +2244,20 @@ func draw_ultimate() -> void:
 		"pi":
 			# π loses its digits one by one; every circle becomes a hexagon.
 			var digits: String = "14159265358979323846"
-			var keep: int = int(round(lerpf(20.0, 0.0, ease_out(u / 1.2, 2))))
+			var keep: int = int(round(lerpf(20.0, 0.0, ease_out(u / 1.8, 2))))
 			var text: String = "π = 3" + ("." + digits.substr(0, keep) if keep > 0 else "")
 			if keep > 0 and keep < 20:
 				text += str(int(clock * 60.0) % 10)
-			centered(text, Vector2(500, 86), 30 if u < 1.4 else 40, Color(1, 1, 1, .95 * clampf((3.6 - u) / .6, 0, 1)), true)
-			var sides: int = int(round(lerpf(64.0, 6.0, ease_out(u / 1.3, 3))))
-			var fade: float = clampf((3.6 - u) / .9, 0, 1)
+			centered(text, Vector2(500, 86), 30 if u < 2.0 else 40, Color(1, 1, 1, .95 * clampf((4.2 - u) / .6, 0, 1)), true)
+			var sides: int = int(round(lerpf(64.0, 6.0, ease_out(u / 1.9, 3))))
+			var fade: float = clampf((4.2 - u) / .9, 0, 1)
 			for j in range(6):
-				var r: float = 70.0 + j * 75.0 + (maxf(0, u - 1.4) * 260.0)
+				var r: float = 70.0 + j * 75.0 + (maxf(0, u - 2.0) * 260.0)
 				var pts: PackedVector2Array = ngon(sides, r, PI / 6 + clock * (.05 if j % 2 == 0 else -.05), core_at)
 				pts.append(pts[0])
 				draw_polyline(pts, Color(INK, (.5 - j * .06) * fade), 1.4, true)
-			if u >= 1.4:
-				var n: float = u - 1.4
+			if u >= 2.0:
+				var n: float = u - 2.0
 				var flash: float = pow(maxf(0, 1.0 - n / .7), 2)
 				ult_flash = flash * .95
 				if flash > 0:
