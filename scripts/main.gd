@@ -63,6 +63,9 @@ var cam_target: float = 1.0
 var cam_focus: Vector2 = Vector2(500,325)
 var hitstop: float = 0.0
 var boss_was_visible: bool = false
+var cinema: UiFx.Cinema
+var cine_mode: String = ""
+var cam_hold: float = 0.0
 var wave_shown: float = 0
 var health_seen: float = 100
 var health_shake: float = 0
@@ -412,6 +415,8 @@ func build_hud() -> void:
 	ui.add_child(toast)
 	ult_overlay = UiFx.UltOverlay.new()
 	ui.add_child(ult_overlay)
+	cinema = UiFx.Cinema.new()
+	add_child(cinema)
 
 func layout() -> void:
 	if field == null:
@@ -464,6 +469,9 @@ func layout() -> void:
 	if is_instance_valid(ult_overlay):
 		ult_overlay.position = Vector2.ZERO
 		ult_overlay.size = Vector2(w,h)
+	if is_instance_valid(cinema):
+		cinema.position = Vector2.ZERO
+		cinema.size = Vector2(w,h)
 	toast.position = Vector2(w*.2,h-142)
 	toast.size = Vector2(w*.6,30)
 	if is_instance_valid(modal):
@@ -841,6 +849,33 @@ func on_ult_fired(kind: String, point: Vector2) -> void:
 	cam_target = 1.12
 	field.slowmo_request = true
 
+# Big beats get a full-screen cinematic: boss entrance, boss destroyed + scale jump.
+func stage_cinema() -> void:
+	if sim.mode == cine_mode:
+		return
+	var previous: String = cine_mode
+	cine_mode = sim.mode
+	if sim.mode == "boss":
+		var parts: PackedStringArray = sim.stage_data().boss_title.split(" · ")
+		cinema.play("boss",2.9,parts[0],parts[-1] if parts.size() > 1 else "WARNING")
+		field.banner = {}
+		for e in sim.enemies:
+			if bool(e.boss):
+				cam_focus = e.pos
+		cam_target = 1.13
+		cam_hold = 1.7
+		field.trauma = maxf(field.trauma,.5)
+	elif sim.mode == "transition" and previous == "boss":
+		hitstop = .24
+		field.punch = 1.4
+		toast_time = 0
+		var next: Resource = sim.catalog.stages[sim.stage + 1]
+		cinema.play("jump",sim.transition_length,next.title,next.subtitle,"+ $"+Catalog.number(float(sim.stage_data().boss_reward)*sim.reward_scale()),"%02d" %(sim.stage + 2),sim.stage_data().scale_label,next.scale_label)
+	elif sim.mode == "victory" and previous == "boss":
+		hitstop = .3
+		field.punch = 1.6
+		cinema.play("clear",3.6,"灾变核心已消散","ALL THREATS ELIMINATED")
+
 func on_ult_impact(_kind: String, _point: Vector2) -> void:
 	hitstop = .13
 	cam_target = 1.0
@@ -1092,7 +1127,9 @@ func _process(delta: float) -> void:
 		slowmo=.7
 	slowmo=maxf(0,slowmo-delta)
 	hitstop=maxf(0,hitstop-delta)
-	if sim.ult.is_empty():
+	cam_hold=maxf(0,cam_hold-delta)
+	stage_cinema()
+	if sim.ult.is_empty() and cam_hold<=0:
 		cam_target=1.0
 	cam_zoom=lerpf(cam_zoom,cam_target,1.0-exp(-delta*(2.4 if cam_target>cam_zoom else 4.0)))
 	var time_scale: float=0.0 if hitstop>0 else game_speed*(.2 if slowmo>0 else 1.0)

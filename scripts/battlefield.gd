@@ -578,8 +578,7 @@ func animate(delta: float) -> void:
 			coins.remove_at(i)
 			coin_arrivals += 1
 	if sim != null and sim.mode != last_mode:
-		if sim.mode == "boss":
-			show_banner(sim.stage_data().boss_title.split(" · ")[0], "巨型威胁接近  ·  " + sim.stage_data().boss_title.split(" · ")[-1], 2.4, true)
+		# The boss entrance is staged by the HUD cinematic.
 		if sim.mode == "intermission":
 			show_banner("第 10 波完成", "巨型威胁即将降临", 2.6)
 			add_feedback("sweep", sim.defense_position(), 0, 900, 1.0)
@@ -834,7 +833,7 @@ func coin_position(c: Dictionary) -> Vector2:
 	return from.lerp(ctrl, e).lerp(ctrl.lerp(money_anchor, e), e)
 
 func show_banner(title: String, subtitle: String, duration: float, cinematic: bool = false) -> void:
-	banner = {"title": banner_line(title, 46), "subtitle": banner_line(subtitle, 15), "age": 0.0, "dur": duration, "cinematic": cinematic}
+	banner = {"title": banner_line(title, 46), "subtitle": banner_line(subtitle, 15), "age": 0.0, "dur": duration, "cinematic": cinematic, "text": title}
 
 func banner_line(text: String, size: int) -> TextLine:
 	var key: String = text + "|" + str(size)
@@ -902,11 +901,21 @@ func draw_staging() -> void:
 	var center := Vector2(500, 210)
 	var grow: float = 1.12 - .12 * ease_out_back(enter)
 	var rise: float = (1 - smoothstep(0.0, 1.0, enter)) * 26 - leave * 18
-	draw_set_transform(center + Vector2(0, rise), 0, Vector2.ONE * grow)
 	var size: Vector2 = title.get_size()
-	title.draw_outline(get_canvas_item(), -size * .5, 8, Color(BG, .9 * alpha))
-	title.draw(get_canvas_item(), -size * .5, Color(INK, alpha))
-	draw_set_transform(Vector2.ZERO)
+	# Glyphs rise into place one after another, each with a slight overshoot.
+	var text: String = str(banner.get("text", ""))
+	var gx: float = center.x - size.x * .5
+	for i in range(text.length()):
+		var ch: String = text.substr(i, 1)
+		var cw: float = font.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, 46).x
+		var k: float = clampf((age - i * .045) / .4, 0, 1)
+		var e: float = ease_out_back(k)
+		var a: float = smoothstep(0.0, 1.0, k) * (1 - leave)
+		var lift: float = (1.0 - e) * 22.0 - leave * 18.0
+		var at := Vector2(gx, center.y + size.y * .3 + lift)
+		draw_string_outline(font, at, ch, HORIZONTAL_ALIGNMENT_LEFT, -1, 46, 8, Color(BG, .9 * a))
+		draw_string(font, at, ch, HORIZONTAL_ALIGNMENT_LEFT, -1, 46, Color(INK, a))
+		gx += cw
 	var span: float = 240 * smoothstep(0.0, 1.0, clampf((age - .1) / .45, 0, 1))
 	var line_y: float = center.y + rise + size.y * .5 + 10
 	draw_line(Vector2(center.x - span, line_y), Vector2(center.x - 20, line_y), Color(GREY, .7 * alpha), 1.2, true)
@@ -1668,7 +1677,6 @@ func _draw() -> void:
 		scene_transform = Transform2D.IDENTITY
 		draw_set_transform(Vector2.ZERO)
 		draw_transition_bodies(outgoing, t)
-		ink("尺度跃迁  /  " + sim.catalog.stages[idx + 1].title, Vector2(405, 100), INK, 22)
 	else:
 		stage_scene(idx)
 		for i in range(6):
