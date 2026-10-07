@@ -2066,12 +2066,18 @@ func draw_ultimate() -> void:
 		if pm != prime_marks.back():
 			continue
 		var index: int = sim.PRIMES.find(prime) + 1
-		var subs: String = ""
-		for ch in str(index):
-			subs += "₀₁₂₃₄₅₆₇₈₉"[int(ch)]
 		var grow: float = 1.0 + .6 * maxf(0, 1.0 - q * 5.0)
 		draw_set_transform(Vector2(500, 540), 0, Vector2.ONE * grow)
-		centered("p%s = %d" % [subs, prime], Vector2.ZERO, 48, Color(1, 1, 1, fade * .95), true)
+		# p with a hand-set subscript index (the web font has no subscript digits).
+		var col_f := Color(1, 1, 1, fade * .95)
+		var rest: String = " = %d" % prime
+		var w_p: float = font.get_string_size("p", HORIZONTAL_ALIGNMENT_LEFT, -1, 48).x
+		var w_i: float = font.get_string_size(str(index), HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
+		var w_r: float = font.get_string_size(rest, HORIZONTAL_ALIGNMENT_LEFT, -1, 48).x
+		var x0: float = -(w_p + w_i + w_r) * .5
+		for part in [["p", 48, Vector2(x0, 17)], [str(index), 24, Vector2(x0 + w_p, 26)], [rest, 48, Vector2(x0 + w_p + w_i, 17)]]:
+			draw_string_outline(font, part[2], part[0], HORIZONTAL_ALIGNMENT_LEFT, -1, part[1], 6, Color(BG, .85 * col_f.a))
+			draw_string(font, part[2], part[0], HORIZONTAL_ALIGNMENT_LEFT, -1, part[1], col_f)
 		draw_set_transform(Vector2.ZERO)
 		var erased: int = 0
 		for k in range(index):
@@ -2227,7 +2233,7 @@ func draw_ultimate() -> void:
 			for i in range(reveal):
 				var fresh: float = clampf(1.0 - (reveal - i) / 40.0, 0, 1)
 				draw_rect(Rect2(path[i] - Vector2.ONE * (1.0 + fresh), Vector2.ONE * (2.0 + fresh * 2.0)), Color(INK.lerp(ACCENT, fresh), (.3 + fresh * .6) * k))
-			centered("p ∈ ℙ        π(x) ~ x / ln x", Vector2(500, 70), 15, Color(GREY, k))
+			centered("p ∈ P        π(x) ~ x / ln x", Vector2(500, 70), 15, Color(GREY, k))
 		"lightspeed":
 			var k: float = ease_out(u / .9)
 			var collapse: float = clampf((u - 4.0) / .45, 0, 1)
