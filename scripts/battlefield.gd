@@ -2427,6 +2427,10 @@ func boss_shape(p: Vector2, radius: float, kind: String, flash: float, live: boo
 			shape(p, radius, 7, clock * .15, fill, INK, 3)
 			shape(p, radius * .5, 4, -clock * .5, Color(0, 0, 0, 0), GREY, 2)
 
+# How big each archetype is drawn relative to its group radius: size alone tells them apart.
+const ARCH_SIZE: Dictionary = {"swarm": .75, "dart": 1.05, "armored": 1.3, "splitter": 1.1, "shielded": 1.1, "mother": 1.6}
+# Dark body tone for the large archetypes: they read by line work, not by a flat slab.
+const DEEP := Color("161616")
 const MAT_FILL: Dictionary = {"rock": Color("b4b4b4"), "metal": Color("ededed"), "energy": Color("f6f1e6"), "exotic": Color("1a1a1a")}
 var intro_id: int = -1
 var intro_t: float = 0.0
@@ -2450,34 +2454,64 @@ func arch_body(e: Dictionary, p: Vector2, size: float, heading: float, spin: flo
 			if hollow:
 				dart.append(dart[0])
 				draw_polyline(dart, edge, 1.2, true)
-			stroke(p - dir * size * .5, p - dir * size * 4.2, Color(fill if not hollow else INK, .35 * fill.a))
-			if mat != "rock" and mat != "metal":
-				stroke(tip, p - dir * size * 2.4, Color(ACCENT, .65 * fill.a))
+			stroke(p - dir * size * .5, p - dir * size * 7.0, Color(fill if not hollow else INK, .4 * fill.a))
+			stroke(p - dir * size * .5, p - dir * size * 3.0, Color(ACCENT, .55 * fill.a))
+			draw_circle(tip, 1.8, Color(ACCENT, fill.a))
 		"armored":
+			# A faceted dark gem: crisp rim, inner facets, a pulsing amber core, and six
+			# separate armour plates with rivets that fall away as it loses health.
 			var sides: int = 6 if mat == "metal" else 7
-			if hollow:
-				shape(p, size * 1.05, sides, spin * .4, Color(BG, fill.a), edge, 1.4)
-			else:
-				shape_squash(p, size * 1.05, sides, spin * .4, fill, along, across, heading)
-			# Six armour plates fall away as the group (or the single elite) loses health.
+			var rot: float = spin * .35
+			var rim := PackedVector2Array()
+			for j in range(sides):
+				var jitter: float = 1.0 + (.09 * sin(j * 2.7 + float(e.seed)) if mat == "rock" else 0.0)
+				rim.append(p + Vector2.from_angle(rot + j * TAU / sides) * size * jitter)
+			draw_colored_polygon(rim, Color(DEEP, fill.a))
+			var outline := rim.duplicate()
+			outline.append(rim[0])
+			draw_polyline(outline, Color(edge if mat != "rock" else GREY, fill.a), 1.6, true)
+			for j in range(0, sides, 2):
+				stroke(p, rim[j], Color(edge, .28 * fill.a))
+			match mat:
+				"rock":
+					stroke(rim[1].lerp(p, .2), p + (rim[3] - p) * .35, Color(GREY, .5 * fill.a))
+				"metal":
+					shape(p, size * .62, sides, rot, Color(0, 0, 0, 0), Color(edge, .35 * fill.a), 1.0)
+				"energy":
+					ring(p, size * .62, Color(ACCENT, .45 * fill.a), 1.0)
+				_:
+					shape(p, size * .82, sides, -rot, Color(0, 0, 0, 0), Color(INK, .5 * fill.a), 1.0)
+			var pulse: float = .55 + .45 * sin(clock * 3.0 + float(e.seed))
+			draw_circle(p, size * .16 * (1.0 + flash * .5), Color(ACCENT.lerp(Color.WHITE, flash), (.5 + .5 * pulse) * fill.a))
 			var health: float = float(e.members) / maxf(1.0, float(e.initial_members)) if int(e.initial_members) > 1 else float(e.hp) / maxf(1.0, float(e.unit_hp))
 			var plates: int = ceili(6.0 * clampf(health, 0.0, 1.0))
 			for j in range(plates):
-				var a0: float = spin * .4 + j * TAU / 6 + .14
-				arc_segments(p, size * 1.45, a0, a0 + TAU / 6 - .28, Color(edge, .95))
-			shape(p, size * .45, sides, -spin * .4, Color(0, 0, 0, 0), Color(BG if not hollow else INK, .6 * fill.a), 1.0)
+				var mid: float = rot + j * TAU / 6 + TAU / 12
+				var span: float = TAU / 6 * .32
+				var r0: float = size * 1.22
+				var r1: float = size * 1.42
+				var plate := PackedVector2Array([p + Vector2.from_angle(mid - span) * r0, p + Vector2.from_angle(mid - span * .8) * r1,
+					p + Vector2.from_angle(mid + span * .8) * r1, p + Vector2.from_angle(mid + span) * r0])
+				draw_colored_polygon(plate, Color(DEEP, fill.a))
+				plate.append(plate[0])
+				draw_polyline(plate, Color(edge, .85 * fill.a), 1.1, true)
+				draw_circle(p + Vector2.from_angle(mid) * size * 1.32, 1.3, Color(ACCENT, .8 * fill.a))
 		"splitter":
-			# Three pieces held together; dark cracks show where it will break.
+			# Three dark shards held together by glowing amber seams.
+			var seam: float = .6 + .35 * sin(clock * 6.0 + float(e.seed))
 			for j in range(3):
 				var a: float = spin * .6 + j * TAU / 3
-				var piece: Vector2 = p + Vector2.from_angle(a) * size * .5
-				if hollow:
-					shape(piece, size * .55, 5, a + spin, Color(BG, fill.a), edge, 1.1)
-				else:
-					shape_squash(piece, size * .6, 4 if mat != "energy" else 6, a + spin, fill, along, across, heading)
+				var c: Vector2 = p + Vector2.from_angle(a) * size * .45
+				var shard := PackedVector2Array()
+				for k in range(5):
+					shard.append(c + Vector2.from_angle(a + spin * .2 + k * TAU / 5) * size * (.5 if k % 2 == 0 else .38))
+				draw_colored_polygon(shard, Color(DEEP, fill.a))
+				shard.append(shard[0])
+				draw_polyline(shard, Color(edge if mat != "rock" else GREY, fill.a), 1.2, true)
 			for j in range(3):
 				var a: float = spin * .6 + j * TAU / 3 + PI / 3
-				stroke(p, p + Vector2.from_angle(a) * size * .95, Color(BG if not hollow else ACCENT, .85 * fill.a))
+				stroke(p, p + Vector2.from_angle(a) * size * .9, Color(ACCENT, seam * fill.a))
+			draw_circle(p, 2.0, Color(ACCENT, seam * fill.a))
 		"shielded":
 			if hollow:
 				shape(p, size * .85, 5, spin, Color(BG, fill.a), edge, 1.2)
@@ -2485,22 +2519,43 @@ func arch_body(e: Dictionary, p: Vector2, size: float, heading: float, spin: flo
 				shape_squash(p, size * .85, 3 if mat == "metal" else 5, heading if mat == "metal" else spin, fill, along, across, heading)
 			var held: float = float(e.get("shield", 0.0)) / maxf(1.0, float(e.get("shield_max", 1.0)))
 			if held > 0.0:
-				var hex := ngon(6, size * 1.8 * (1.0 + flash * .1), spin * .3, p)
+				var hex := ngon(6, size * 1.8 * (1.0 + flash * .1), clock * .8, p)
 				hex.append(hex[0])
-				draw_polyline(hex, Color(ACCENT.lerp(Color.WHITE, flash), (.3 + .6 * held) * fill.a), 1.0 + 1.2 * held, true)
+				draw_polyline(hex, Color(ACCENT.lerp(Color.WHITE, flash), (.35 + .6 * held) * fill.a), 1.2 + 1.4 * held, true)
+				var inner := ngon(6, size * 1.45, -clock * .5, p)
+				inner.append(inner[0])
+				draw_polyline(inner, Color(ACCENT, .25 * held * fill.a), 1.0, true)
 		"mother":
-			# A long hull; its hangar mouth glows in the second before each launch.
-			var hull := PackedVector2Array([p + dir * size * 1.7, p + dir * size * .4 + nrm * size * 1.05, p - dir * size * 1.45 + nrm * size * .8,
-				p - dir * size * 1.45 - nrm * size * .8, p + dir * size * .4 - nrm * size * 1.05])
-			draw_colored_polygon(hull, Color(BG, fill.a) if hollow else fill)
-			hull.append(hull[0])
-			draw_polyline(hull, Color(edge, .9), 1.3, true)
+			# A slim dark carrier: keel, ribs, twin engines, running lights, and a hangar
+			# that only glows as it opens to launch.
+			var hull := PackedVector2Array([p + dir * size * 1.5, p + dir * size * .9 + nrm * size * .42, p + dir * size * .1 + nrm * size * .62,
+				p - dir * size * 1.1 + nrm * size * .55, p - dir * size * 1.3 + nrm * size * .25, p - dir * size * 1.3 - nrm * size * .25,
+				p - dir * size * 1.1 - nrm * size * .55, p + dir * size * .1 - nrm * size * .62, p + dir * size * .9 - nrm * size * .42])
+			draw_colored_polygon(hull, Color(DEEP, fill.a))
+			var outline := hull.duplicate()
+			outline.append(hull[0])
+			draw_polyline(outline, Color(edge, fill.a), 1.4, true)
+			stroke(p + dir * size * 1.35, p - dir * size * 1.2, Color(edge, .35 * fill.a))
+			for j in range(4):
+				var x: float = .7 - j * .45
+				stroke(p + dir * size * x + nrm * size * .45, p + dir * size * x - nrm * size * .45, Color(edge, .22 * fill.a))
 			var open: float = clampf(1.0 - float(e.get("launch_t", 3.0)), 0.0, 1.0) if int(e.get("launched", 0)) < sim.MOTHER_LAUNCHES else 0.0
-			var bay := PackedVector2Array([p - dir * size * .2 + nrm * size * .42, p - dir * size * 1.3 + nrm * size * .42,
-				p - dir * size * 1.3 - nrm * size * .42, p - dir * size * .2 - nrm * size * .42])
-			draw_colored_polygon(bay, Color(BG, fill.a).lerp(Color(ACCENT, fill.a), open))
-			for j in range(3):
-				draw_circle(p + dir * size * (.9 - j * .55), 1.6, Color(ACCENT if j == 0 else DIM, fill.a))
+			var bay := PackedVector2Array([p - dir * size * .15 + nrm * size * .26, p - dir * size * .85 + nrm * size * .26,
+				p - dir * size * .85 - nrm * size * .26, p - dir * size * .15 - nrm * size * .26])
+			if open > 0.0:
+				draw_colored_polygon(bay, Color(ACCENT, open * .55 * fill.a))
+			bay.append(bay[0])
+			draw_polyline(bay, Color(ACCENT if open > 0.0 else edge, (.5 + .5 * open) * fill.a), 1.0, true)
+			for side in [1.0, -1.0]:
+				var engine: Vector2 = p - dir * size * 1.3 + nrm * size * .16 * side
+				draw_circle(engine, 1.8, Color(ACCENT, fill.a))
+				stroke(engine, engine - dir * size * (.35 + .15 * sin(clock * 20.0 + side)), Color(ACCENT, .5 * fill.a))
+			for j in range(5):
+				var lit: bool = int(clock * 4.0) % 5 == j
+				var x: float = 1.0 - j * .48
+				var w: float = .48 if j < 2 else .58
+				draw_circle(p + dir * size * x + nrm * size * w, 1.2, Color(ACCENT if lit else DIM, fill.a))
+				draw_circle(p + dir * size * x - nrm * size * w, 1.2, Color(ACCENT if lit else DIM, fill.a))
 		_:
 			# Swarm: rock chips, metal darts, star sparks or exotic rings.
 			match mat:
@@ -2525,7 +2580,8 @@ func enemy(e: Dictionary) -> void:
 	var boss: bool = bool(e.boss)
 	var focused: bool = int(e.id) == sim.priority_id or hover.distance_to(p) < radius + 13
 	var dense: bool = sim.enemies.size() > 70
-	if dense and not boss and not focused:
+	var arch_name: String = str(e.get("arch", "swarm"))
+	if dense and not boss and not focused and arch_name == "swarm":
 		radius *= .75
 	var flash: float = clampf(float(e.get("flash", 0)) / .12, 0, 1)
 	if e.has("escort"):
@@ -2593,7 +2649,7 @@ func enemy(e: Dictionary) -> void:
 		var young: float = clampf(1.0 - float(e.age) / .4, 0, 1)
 		var along: float = 1.0 - .26 * flash + .55 * young
 		var across: float = 1.0 + .22 * flash - .2 * young
-		arch_body(e, p, size, heading, spin, fill, along, across, flash, mat, dense and not focused)
+		arch_body(e, p, size * float(ARCH_SIZE.get(arch_name, 1.0)), heading, spin, fill, along, across, flash, mat, dense and not focused)
 		if bool(e.elite):
 			shape(p, size * 1.95, 8, spin * .5, Color(0, 0, 0, 0), Color(ACCENT, .75 * fill.a), 1.5)
 		if int(e.id) == intro_id and intro_t > 0.0:
@@ -2602,7 +2658,7 @@ func enemy(e: Dictionary) -> void:
 			ring(p, size * (2.2 + k * 1.6), Color(ACCENT, (1.0 - k) * .9 * minf(1.0, intro_t)), 1.5)
 			ink(str(e.get("title", "")), p + Vector2(-20, -size * 2.6 - 6), Color(ACCENT, minf(1.0, intro_t)), 12)
 		if int(e.members) > 1:
-			var companions: int = 5 if not dense else 2 if focused or danger > .8 else 0
+			var companions: int = 0 if arch_name != "swarm" else 5 if not dense else 2 if focused or danger > .8 else 0
 			for j in range(mini(companions, int(e.members) - 1)):
 				var a: float = j * TAU / 5 + clock * .9 + int(e.seed)
 				var q: Vector2 = p + Vector2(cos(a), sin(a)) * radius * 1.45 * appear

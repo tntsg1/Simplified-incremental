@@ -196,6 +196,17 @@ func run() -> void:
 	check(ar.enemies.filter(func(x): return bool(x.get("child", false))).size() >= 2, "a mothership launches swarms on its way in")
 	var dart := {"start": Vector2(0, 0), "end": Vector2(400, 0), "arch": "dart", "swerve": 1.0}
 	check(ar.enemy_point(dart, 1.0).distance_to(Vector2(400, 0)) < .01 and absf(ar.enemy_point(dart, .25).y) > 20.0, "darts swerve off the line yet land on the core")
+	# Wave 10 cleared: nothing may be left hanging in flight during the intermission.
+	var iw = Combat.new()
+	iw.start_new()
+	iw.stage = 0
+	iw.wave = 10
+	iw.start_wave()
+	iw.spawn_left = 0
+	iw.clear_battle()
+	iw.shots.append({"target": -1, "from": Vector2.ZERO, "pos": Vector2(100, 100), "end": Vector2(200, 200), "age": 0.0, "duration": 5.0, "damage": 1.0, "effective": 1.0, "coverage": 1, "weapon": 0, "crit": false, "beam": false, "mode": "missile"})
+	iw.advance(1.0 / 60, false)
+	check(iw.mode == "intermission" and iw.shots.is_empty(), "rounds in flight are retired when the last wave ends")
 	# A round changes target at most MAX_RETARGETS times, then flies off as a stray.
 	var rt = Combat.new()
 	rt.start_new()

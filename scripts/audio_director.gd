@@ -263,6 +263,9 @@ func fourier_hit(_point: Vector2, index: int, total: int) -> void:
 func prime_strike(prime: int, _points: PackedVector2Array) -> void:
 	var step: int=maxi(0,[2,3,5,7,11,13,17,19,23,29].find(prime))
 	sfx("prime_beat",LEVEL.ult_event+(4.0 if step==9 else float(step)*.3),scale_pitch(step)*.5,true)
+	if step==9:
+		# The tenth prime crowns the run with the full chord.
+		sfx("prime_finale",LEVEL.ult,1.0,true)
 
 func boss_skill(event: String, kind: String, _point: Vector2) -> void:
 	match event:
@@ -289,6 +292,8 @@ func shell_burst(_point: Vector2, _radius: float, _stage: int, _critical: bool) 
 		sfx("body_shell",LEVEL.body)
 
 func shield_broken(_point: Vector2, _radius: float) -> void:
+	if ult_duck<-6.0:
+		return
 	if not limited("shield_break",.12):
 		sfx("shield_break",LEVEL.kill)
 

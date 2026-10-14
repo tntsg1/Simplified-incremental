@@ -20,7 +20,7 @@ import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
 from pedalboard import Compressor, Distortion, HighpassFilter, Limiter, LowpassFilter, Pedalboard, PeakFilter, Reverb
-from scipy.signal import resample_poly
+from scipy.signal import butter, resample_poly, sawtooth, sosfilt
 
 POOL = "G:/audio_library/sonniss"
 OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "audio", "sfx")
@@ -150,7 +150,88 @@ def crackle(layer):
     return out
 
 
-SYNTHS = {"kick": kick, "zap": zap, "noise": noise, "beat": beat, "crackle": crackle}
+def swell_env(n, layer):
+    # Slow attack, hold, exponential release: the shape of a choir or string swell.
+    t = np.arange(n) / SR
+    attack = max(layer.get("attack", 0.5), 1e-3)
+    hold = layer.get("hold", 0.0)
+    e = np.minimum(1.0, t / attack) ** 1.6
+    rel = np.maximum(0.0, t - attack - hold)
+    return e * np.exp(-rel / max(layer.get("decay", 1.0), 1e-3))
+
+
+def saw_stack(freq, n, voices, detune, vibrato, seed):
+    rng = np.random.default_rng(seed)
+    t = np.arange(n) / SR
+    out = np.zeros((n, 2))
+    for v in range(voices):
+        cents = (v - (voices - 1) / 2) / max(1, (voices - 1) / 2) * detune
+        f = freq * 2 ** (cents / 1200)
+        vib = 1 + vibrato * np.sin(2 * np.pi * (4.8 + rng.uniform(-.4, .4)) * t + rng.uniform(0, 6.28))
+        phase = 2 * np.pi * np.cumsum(f * vib) / SR + rng.uniform(0, 6.28)
+        w = sawtooth(phase)
+        pan = (v / max(1, voices - 1) - .5) * 1.2
+        out[:, 0] += w * (1 - pan * .5)
+        out[:, 1] += w * (1 + pan * .5)
+    return out
+
+
+def pad(layer):
+    # Glory pad: a detuned supersaw chord whose filter opens as it swells.
+    n = int(SR * layer.get("len", 2.0))
+    out = np.zeros((n, 2))
+    for i, f in enumerate(layer["notes"]):
+        out += saw_stack(f, n, layer.get("voices", 7), layer.get("detune", 18.0), .002, 11 + i)
+    c0, c1 = layer.get("from", 600.0), layer.get("to", 4000.0)
+    blocks = 32
+    res = np.zeros_like(out)
+    edges = np.linspace(0, n, blocks + 1).astype(int)
+    for b in range(blocks):
+        fc = c0 * (c1 / c0) ** (b / max(1, blocks - 1))
+        sos = butter(2, min(fc, SR / 2 - 200), "low", fs=SR, output="sos")
+        lo, hi = edges[b], edges[b + 1]
+        pre = max(0, lo - 2048)
+        res[lo:hi] = sosfilt(sos, out[pre:hi], axis=0)[lo - pre:]
+    return res * swell_env(n, layer)[:, None]
+
+
+def choir(layer):
+    # Wordless choir "aah": saw voices with vibrato through vowel formants.
+    n = int(SR * layer.get("len", 2.0))
+    src = np.zeros((n, 2))
+    for i, f in enumerate(layer["notes"]):
+        src += saw_stack(f, n, layer.get("voices", 5), layer.get("detune", 12.0), .006, 31 + i)
+    out = np.zeros_like(src)
+    for fc, bw, g in ((750, 110, 1.0), (1150, 130, .55), (2850, 220, .22)):
+        sos = butter(2, [fc - bw, fc + bw], "band", fs=SR, output="sos")
+        out += sosfilt(sos, src, axis=0) * g
+    # Keep a little body under the formants so low notes are not hollow.
+    body = sosfilt(butter(2, 500, "low", fs=SR, output="sos"), src, axis=0) * .35
+    return (out + body) * swell_env(n, layer)[:, None]
+
+
+BELL_PARTIALS = ((.56, 1.0, 1.0), (.92, .67, .9), (1.19, 1.0, .65), (1.71, 1.8, .55), (2.0, 2.67, .325),
+                 (2.74, 1.67, .35), (3.0, 1.46, .25), (3.76, 1.33, .2), (4.07, 1.33, .15))
+
+
+def bell(layer):
+    # Risset-style bell: inharmonic partials, the low ones ringing longest.
+    n = int(SR * layer.get("len", 1.5))
+    t = np.arange(n) / SR
+    f0 = layer["freq"] * 2 ** (layer.get("pitch", 0) / 12)
+    ring_time = layer.get("ring", 1.2)
+    w = np.zeros(n)
+    for ratio, amp, dur in BELL_PARTIALS:
+        f = f0 * ratio / .56
+        if f > SR / 2 - 500:
+            continue
+        w += amp * np.sin(2 * np.pi * f * t + ratio) * np.exp(-t / (ring_time * dur))
+    a = int(SR * .002)
+    w[:a] *= np.linspace(0, 1, a)
+    return np.stack([w, np.roll(w, int(SR * .0006))], 1)
+
+
+SYNTHS = {"kick": kick, "zap": zap, "noise": noise, "beat": beat, "crackle": crackle, "pad": pad, "choir": choir, "bell": bell}
 
 
 def synth(layer):

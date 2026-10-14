@@ -100,7 +100,7 @@ const ARCHES: Array[String] = ["swarm", "dart", "armored", "splitter", "shielded
 const ARCH_HP: Dictionary = {"swarm": 1.0, "dart": 0.7, "armored": 1.8, "splitter": 0.8, "shielded": 1.0, "mother": 2.0}
 # HP an archetype brings beyond its body: split children, shield, launched minions.
 const ARCH_EXTRA: Dictionary = {"swarm": 0.0, "dart": 0.0, "armored": 0.0, "splitter": 0.35, "shielded": 0.5, "mother": 0.4}
-const ARCH_LIFE: Dictionary = {"swarm": 1.0, "dart": 0.62, "armored": 1.35, "splitter": 1.0, "shielded": 1.05, "mother": 1.4}
+const ARCH_LIFE: Dictionary = {"swarm": 1.0, "dart": 0.5, "armored": 1.55, "splitter": 1.0, "shielded": 1.05, "mother": 1.5}
 const SPECIAL_SHARE: Array[float] = [0.25, 0.25, 0.25, 0.35, 0.35, 0.35, 0.45, 0.45, 0.45, 0.45]
 const CHILD_REWARD: float = 0.5
 const MOTHER_GAP: float = 3.0
@@ -446,7 +446,7 @@ func enemy_point(e: Dictionary, ratio: float) -> Vector2:
 	var p: Vector2 = Vector2(e.start).lerp(e.end, ratio)
 	if str(e.get("arch", "")) == "dart":
 		var d: Vector2 = Vector2(e.end) - Vector2(e.start)
-		var amp: float = minf(150.0, d.length() * .24) * float(e.get("swerve", 1.0))
+		var amp: float = minf(190.0, d.length() * .32) * float(e.get("swerve", 1.0))
 		p += d.orthogonal().normalized() * amp * sin(ratio * TAU) * (1.0 - ratio)
 	return p
 
@@ -2157,6 +2157,13 @@ func advance(delta: float, visuals: bool = true) -> void:
 	elif mode == "wave" and spawn_left == 0 and enemies.is_empty():
 		mode = "intermission"
 		mode_time = 0.0
+		# The field is empty and the sim stops ticking rounds until the boss: anything
+		# still in flight would hang mid-air, so retire it now.
+		for p in shots:
+			shot_pool.append(p)
+		shots.clear()
+		wells.clear()
+		sweeps.clear()
 		health = 100.0
 		manual_held = false
 		notice.emit(TranslationServer.translate("第 %d 波完成 · 防线已恢复") % wave)

@@ -244,3 +244,8 @@ _apply_designed(RECIPES)
 from sfx_batch2 import apply as _apply_batch2  # noqa: E402
 
 _apply_batch2(RECIPES)
+
+# Round 3: glorious ultimates (foil, Fourier, prime, lowered light speed).
+from sfx_glory import apply as _apply_glory  # noqa: E402
+
+_apply_glory(RECIPES)
