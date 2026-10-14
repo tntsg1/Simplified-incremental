@@ -2432,6 +2432,8 @@ const ARCH_SIZE: Dictionary = {"swarm": .75, "dart": 1.05, "armored": 1.3, "spli
 # Dark body tone for the large archetypes: they read by line work, not by a flat slab.
 const DEEP := Color("161616")
 const MAT_FILL: Dictionary = {"rock": Color("b4b4b4"), "metal": Color("ededed"), "energy": Color("f6f1e6"), "exotic": Color("1a1a1a")}
+# Capture-only: draw threats on an empty field (no scenery, weapons or bodies).
+var bare: bool = false
 var intro_id: int = -1
 var intro_t: float = 0.0
 
@@ -2768,14 +2770,16 @@ func _draw_field() -> void:
 		draw_transition_bodies(outgoing, t)
 	else:
 		var prof: int = Time.get_ticks_usec()
-		stage_scene(idx)
+		if not bare:
+			stage_scene(idx)
 		profile_add("scene", prof)
 		ultimate_art.domain_background(self)
 		prof = Time.get_ticks_usec()
-		for i in range(WEAPONS):
-			if sim.owned[i]:
-				weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
-		draw_bodies()
+		if not bare:
+			for i in range(WEAPONS):
+				if sim.owned[i]:
+					weapon(i, sim.weapon_origin(i), idx > 0 and i < idx)
+			draw_bodies()
 		profile_add("bodies", prof)
 		prof = Time.get_ticks_usec()
 		begin_batch()
