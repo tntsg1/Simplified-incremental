@@ -41,6 +41,9 @@ func run() -> void:
 	c.clear_battle()
 	c.wave=1
 	c.spawn_enemy(10)
+	# Pin a plain swarm group at 100 HP per member: this checks the group mechanics only.
+	c.enemies[0].merge({"arch":"swarm","unit_hp":100.0,"hp":100.0,"elite":false},true)
+	c.enemies[0].erase("shield")
 	c.money=0
 	c.apply_damage(c.enemies[0],350,4,0)
 	check(c.enemies[0].members==7 and is_equal_approx(c.enemies[0].hp,50) and c.money==30,"group partial damage and reward")
@@ -141,6 +144,58 @@ func run() -> void:
 	var before_hp: float = dr.health
 	dr.advance(1.0 / 60, false)
 	check(dr.health == before_hp and bool(frag.dead), "droplet fragments burn up harmlessly at the defense")
+	# Enemy archetypes: the wave budget is unchanged, and each behaviour does its one thing.
+	var ar = Combat.new()
+	ar.start_new()
+	for st in range(10):
+		var w: Dictionary = ar.arch_weights(st)
+		var norm: Array = ar.arch_norm(st)
+		var hp_total: float = 0.0
+		var life_total: float = 0.0
+		var share: float = 0.0
+		for a in w:
+			hp_total += float(w[a]) * (float(ar.ARCH_HP[a]) + float(ar.ARCH_EXTRA[a])) * float(norm[0])
+			life_total += float(w[a]) * float(ar.ARCH_LIFE[a]) * float(norm[1])
+			share += float(w[a])
+		check(is_equal_approx(hp_total, 1.0) and is_equal_approx(life_total, 1.0) and is_equal_approx(share, 1.0), "chapter %d keeps its wave HP and timing budget" % (st + 1))
+	ar.stage = 6
+	ar.wave = 3
+	ar.start_wave()
+	ar.spawn_left = 0
+	ar.grace = 9999.0
+	ar.clear_battle()
+	ar.serial = 1
+	ar.spawn_enemy(8)
+	var sp: Dictionary = ar.enemies.back()
+	sp.merge({"arch": "splitter"}, true)
+	sp.erase("shield")
+	ar.apply_damage(sp, 1e30, 999, 0)
+	ar.advance(1.0 / 60, false)
+	var pieces: Array = ar.enemies.filter(func(x): return bool(x.get("child", false)) and not bool(x.dead))
+	check(pieces.size() == 2, "a splitter breaks into two pieces")
+	for piece in pieces:
+		ar.apply_damage(piece, 1e30, 999, 0)
+	ar.advance(1.0 / 60, false)
+	check(ar.enemies.filter(func(x): return bool(x.get("child", false)) and not bool(x.dead)).is_empty(), "split pieces never split again")
+	ar.clear_battle()
+	ar.serial = 1
+	ar.spawn_enemy(6)
+	var sh: Dictionary = ar.enemies.back()
+	sh.merge({"arch": "shielded", "shield": 500.0, "shield_max": 500.0}, true)
+	var members_before: int = int(sh.members)
+	ar.apply_damage(sh, 300.0, 999, 0)
+	check(int(sh.members) == members_before and is_equal_approx(float(sh.shield), 200.0), "the shield soaks damage before any member falls")
+	ar.clear_battle()
+	ar.serial = 1
+	ar.spawn_enemy(8)
+	var mo: Dictionary = ar.enemies.back()
+	mo.merge({"arch": "mother", "launch_t": .5, "launched": 0, "lifetime": 60.0}, true)
+	mo.erase("shield")
+	for i in range(240):
+		ar.advance(1.0 / 60, false)
+	check(ar.enemies.filter(func(x): return bool(x.get("child", false))).size() >= 2, "a mothership launches swarms on its way in")
+	var dart := {"start": Vector2(0, 0), "end": Vector2(400, 0), "arch": "dart", "swerve": 1.0}
+	check(ar.enemy_point(dart, 1.0).distance_to(Vector2(400, 0)) < .01 and absf(ar.enemy_point(dart, .25).y) > 20.0, "darts swerve off the line yet land on the core")
 	# A round changes target at most MAX_RETARGETS times, then flies off as a stray.
 	var rt = Combat.new()
 	rt.start_new()

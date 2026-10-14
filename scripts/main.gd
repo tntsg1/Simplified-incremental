@@ -306,6 +306,10 @@ func _ready() -> void:
 	audio.set_enabled(false)
 	sim.fired.connect(audio.fire)
 	sim.turret_fired.connect(audio.turret)
+	sim.arch_introduced.connect(on_arch_introduced)
+	sim.shield_broken.connect(audio.shield_broken)
+	sim.enemy_split.connect(audio.enemy_split)
+	sim.minion_launched.connect(audio.minion_launched)
 	sim.ultimate_fired.connect(audio.ultimate)
 	sim.ultimate_impact.connect(audio.ultimate_impact)
 	sim.droplet_arrive.connect(audio.droplet_arrive)
@@ -1059,6 +1063,15 @@ func update_hud() -> void:
 		hint.add_theme_font_size_override("font_size",12)
 	else:
 		hint.add_theme_font_size_override("font_size",15)
+
+const ARCH_LABEL: Dictionary = {"swarm": "蜂群", "dart": "飞镖", "armored": "重甲", "splitter": "分裂者", "shielded": "护盾者", "mother": "母舰"}
+const ARCH_HINT: Dictionary = {"dart": "速度快，走弧线", "armored": "血厚、行动慢，装甲会一块块剥落", "splitter": "打碎后会裂成两块", "shielded": "先打破护盾才能伤到本体", "mother": "途中会不断放出小型敌人"}
+
+func on_arch_introduced(arch: String, title: String, id: int) -> void:
+	# A new kind of threat: a short tag, and a ring on the first one. No pause.
+	field.intro_id = id
+	field.intro_t = 3.0
+	show_notice(TranslationServer.translate("新威胁 · ") + TranslationServer.translate(title) + "（" + TranslationServer.translate(ARCH_LABEL.get(arch, arch)) + "）—— " + TranslationServer.translate(ARCH_HINT.get(arch, "")))
 
 func show_notice(message: String) -> void:
 	toast.text = message

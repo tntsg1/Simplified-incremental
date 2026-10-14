@@ -726,6 +726,7 @@ func style_boss_sparks(kind: String, radius: float, heading: float) -> void:
 
 func animate(delta: float, real_delta: float = -1.0) -> void:
 	update_boss_fx(delta)
+	intro_t = maxf(0.0, intro_t - (real_delta if real_delta >= 0.0 else delta))
 	if not skill_pop.is_empty():
 		skill_pop.age = float(skill_pop.age) + delta
 	animate_ultimates(delta)
@@ -1076,6 +1077,12 @@ func draw_bullets() -> void:
 	var hot := PackedVector2Array()
 	var heads := PackedVector2Array()
 	var needles := PackedVector2Array()
+	var round_look: int = sim.stage if sim != null else 0
+	sr_trails.clear()
+	sr_hot.clear()
+	sr_heads.clear()
+	sr_needles.clear()
+	sr_bright.clear()
 	for i in range(b_age.size()):
 		var age: float = b_age[i]
 		if age < 0:
@@ -1092,6 +1099,9 @@ func draw_bullets() -> void:
 		var grow: float = 1.0 if b_crit[i] & 2 else minf(1.0, t * 8.0)
 		var back: Vector2 = pos - dir * 14.0 * grow
 		var crit: bool = b_crit[i] & 1 == 1
+		if round_look > 0:
+			scale_round(round_look, pos, dir, grow, t, i, style == TURRET_STYLE, crit)
+			continue
 		# Only the silo and the turret ring fire cosmetic rounds; chapter weapons
 		# draw their own attacks (draw_weapon_rounds / draw_sweeps / strikes).
 		if style == TURRET_STYLE:
@@ -1110,6 +1120,12 @@ func draw_bullets() -> void:
 			trails.append(pos)
 		heads.append(pos)
 		heads.append(pos + dir * 2.5)
+	# Scale rounds were collected in `sr` (packed arrays are passed by value).
+	trails.append_array(sr_trails)
+	hot.append_array(sr_hot)
+	heads.append_array(sr_heads)
+	needles.append_array(sr_needles)
+	var bright: PackedVector2Array = sr_bright
 	glow_trails = trails
 	glow_heads = heads
 	# Rounds fly away from the core: in the slow-light domain they burn red.
@@ -1123,6 +1139,157 @@ func draw_bullets() -> void:
 		draw_multiline(heads, INK.lerp(Color(1, .72, .66), red_k), 3.0)
 	if needles.size() > 1:
 		draw_multiline(needles, Color(GREY.lerp(RED_SHIFT, red_k), .95), 1.3)
+	if bright.size() > 1:
+		draw_multiline(bright, Color(1, 1, 1, .95).lerp(RED_SHIFT, red_k), 2.0)
+
+# Scale-round segments, appended in place (members, so no copies per append).
+var sr_trails := PackedVector2Array()
+var sr_hot := PackedVector2Array()
+var sr_heads := PackedVector2Array()
+var sr_needles := PackedVector2Array()
+var sr_bright := PackedVector2Array()
+
+func seg(key: String, a: Vector2, b: Vector2) -> void:
+	match key:
+		"trails":
+			sr_trails.append(a)
+			sr_trails.append(b)
+		"hot":
+			sr_hot.append(a)
+			sr_hot.append(b)
+		"heads":
+			sr_heads.append(a)
+			sr_heads.append(b)
+		"needles":
+			sr_needles.append(a)
+			sr_needles.append(b)
+		_:
+			sr_bright.append(a)
+			sr_bright.append(b)
+
+func scale_round(look: int, pos: Vector2, dir: Vector2, grow: float, t: float, i: int, small: bool, crit: bool) -> void:
+	# One projectile per scale (chapter 1 keeps the classic tracer in draw_bullets).
+	var k: float = .7 if small else 1.0
+	var nrm: Vector2 = dir.orthogonal()
+	var lines: String = "hot" if crit else ("needles" if small else "trails")
+	var core: String = "hot" if crit else "bright"
+	match look:
+		1:
+			# Earth orbit - rail slug: a hard bright head with crackling sparks along it.
+			seg(core, pos - dir * 4.0 * k, pos)
+			var flick: float = 1.0 if (i + int(clock * 30.0)) % 2 == 0 else -1.0
+			seg("hot", pos - dir * 6.0 * k, pos - dir * 9.0 * k + nrm * 3.0 * flick * k)
+			seg(lines, pos - dir * 14.0 * grow * k, pos - dir * 5.0 * k)
+		2:
+			# Inner system - plasma: a soft ball (a cross of short strokes) with a short wake.
+			for a in [0.0, PI * .5, PI * .25, -PI * .25]:
+				var d: Vector2 = dir.rotated(a) * 2.6 * k
+				seg("hot" if crit else "heads", pos - d, pos + d)
+			seg(lines, pos - dir * 10.0 * grow * k, pos - dir * 3.0 * k)
+		3:
+			# Outer system - rail needle: long, thin, bright-tipped.
+			seg(lines, pos - dir * 28.0 * grow * k, pos)
+			seg(core, pos - dir * 3.0, pos)
+		4:
+			# Oort cloud - ice shard: a spinning diamond.
+			var spin_dir: Vector2 = dir.rotated(t * 14.0 + i)
+			var side: Vector2 = spin_dir.orthogonal()
+			var tip: Vector2 = pos + spin_dir * 5.0 * k
+			var tail: Vector2 = pos - spin_dir * 5.0 * k
+			var l: Vector2 = pos + side * 2.2 * k
+			var r: Vector2 = pos - side * 2.2 * k
+			seg(core, tip, l)
+			seg(core, l, tail)
+			seg(core, tail, r)
+			seg(core, r, tip)
+		5:
+			# Stellar neighbourhood - photon: a short, bright dash.
+			seg(core, pos - dir * 9.0 * grow * k, pos)
+			seg(lines, pos - dir * 18.0 * grow * k, pos - dir * 9.0 * k)
+		6:
+			# Milky Way - pulse: a small breathing hexagon.
+			var r: float = (2.6 + 1.4 * sin(t * 24.0 + i)) * k
+			var ring_key: String = "hot" if crit or i % 2 == 0 else "needles"
+			for j in range(6):
+				seg(ring_key, pos + Vector2.from_angle(j * TAU / 6) * r, pos + Vector2.from_angle((j + 1) * TAU / 6) * r)
+		7:
+			# Supercluster - graviton: a lensing ring around a pin-point core.
+			for j in range(6):
+				seg("hot", pos + Vector2.from_angle(j * TAU / 6 + t * 6.0) * 4.0 * k, pos + Vector2.from_angle((j + 1) * TAU / 6 + t * 6.0) * 4.0 * k)
+			seg("bright", pos - dir * 1.0, pos + dir * 1.0)
+		8:
+			# Observable universe - cosmic ray: a zig-zag streak.
+			var p0: Vector2 = pos - dir * 16.0 * grow * k
+			var pts: Array[Vector2] = []
+			for j in range(5):
+				var wiggle: float = 0.0 if j == 0 or j == 4 else (2.5 if j % 2 else -2.5)
+				pts.append(p0.lerp(pos, j / 4.0) + nrm * wiggle * k)
+			for j in range(4):
+				seg(core, pts[j], pts[j + 1])
+		9:
+			# The brane - string: a short vibrating sine segment.
+			var p0: Vector2 = pos - dir * 14.0 * grow * k
+			var phase: float = clock * 30.0 + i
+			for j in range(5):
+				seg("hot", p0.lerp(pos, j / 5.0) + nrm * sin(phase + j * 1.3) * 2.4 * k, p0.lerp(pos, (j + 1) / 5.0) + nrm * sin(phase + (j + 1) * 1.3) * 2.4 * k)
+
+func scale_spark(look: int, p: Vector2, r: float, t: float, fade: float, col: Color, seed_value: float) -> void:
+	var ease: float = 1.0 - pow(1.0 - t, 3)
+	match look:
+		1:
+			# Electric: three jagged little arcs.
+			for j in range(3):
+				var a: float = j * TAU / 3 + seed_value
+				var mid: Vector2 = p + Vector2.from_angle(a + .4) * r * .5 * ease
+				stroke(p, mid, Color(col, fade))
+				stroke(mid, p + Vector2.from_angle(a) * r * (.7 + ease * .5), Color(ACCENT, fade))
+		2:
+			# Plasma splash: a hot disc and a soft ring.
+			draw_circle(p, r * .45 * (1.0 - t), Color(col, fade * .6))
+			ring(p, r * (.5 + ease * .8), Color(col, fade), 1.2)
+		3:
+			# Pierce: one long bright line straight through the point.
+			var d: Vector2 = Vector2.from_angle(seed_value)
+			stroke(p - d * r * (.4 + ease * 1.4), p + d * r * (.4 + ease * 1.4), Color(col, fade))
+		4:
+			# Ice: little diamonds flung out.
+			for j in range(5):
+				var a: float = j * TAU / 5 + seed_value
+				shape(p + Vector2.from_angle(a) * r * (.3 + ease * 1.1), 2.2 * (1.0 - t) + .5, 4, a, Color(col, fade))
+		5:
+			# Photon: a clean expanding halo.
+			ring(p, r * (.3 + ease * 1.5), Color(col, fade), 1.6)
+		6:
+			# Pulse: two ripples.
+			ring(p, r * (.3 + ease), Color(col, fade), 1.2)
+			ring(p, r * (.1 + ease * .6), Color(ACCENT, fade * .7), 1.0)
+		7:
+			# Graviton: space pinching in - a ring that contracts.
+			ring(p, r * (1.4 - ease * 1.1), Color(ACCENT, fade), 1.4)
+			ring(p, r * .25, Color(col, fade), 1.0)
+		8:
+			# Cosmic ray: forked lightning.
+			for j in range(3):
+				var a: float = seed_value + j * 2.1
+				var mid: Vector2 = p + Vector2.from_angle(a) * r * .6 * ease
+				stroke(p, mid, Color(col, fade))
+				stroke(mid, mid + Vector2.from_angle(a + .7) * r * .5 * ease, Color(col, fade * .8))
+				stroke(mid, mid + Vector2.from_angle(a - .7) * r * .5 * ease, Color(col, fade * .8))
+		9:
+			# String: a wavy ring still ringing.
+			var last: Vector2 = Vector2.ZERO
+			for j in range(25):
+				var a: float = j * TAU / 24
+				var q: Vector2 = p + Vector2.from_angle(a) * r * (.5 + ease * .8) * (1.0 + .12 * sin(a * 6.0 + t * 20.0) * (1.0 - t))
+				if j > 0:
+					stroke(last, q, Color(ACCENT, fade))
+				last = q
+		_:
+			ring(p, r * (.4 + t), Color(col, fade), 1.5)
+			for j in range(4):
+				var a: float = j * TAU / 4 + seed_value
+				var dir := Vector2(cos(a), sin(a))
+				stroke(p + dir * r * t, p + dir * r * (t + .35), Color(col, fade))
 
 func coin_position(c: Dictionary, age_offset: float = 0.0) -> Vector2:
 	var t: float = clampf((float(c.age) + age_offset) / float(c.dur), 0, 1)
@@ -1409,11 +1576,7 @@ func draw_feedback() -> void:
 					stroke(p + dir * r * (.4 + ease * .7), p + dir * r * (.6 + ease * .9), Color(INK, fade))
 			"spark", "critical":
 				var col: Color = ACCENT if fx.kind == "critical" else INK
-				ring(p, r * (.4 + t), Color(col, fade), 1.5)
-				for j in range(4):
-					var a: float = j * TAU / 4 + seed_value
-					var dir := Vector2(cos(a), sin(a))
-					stroke(p + dir * r * t, p + dir * r * (t + .35), Color(col, fade))
+				scale_spark(sim.stage if sim != null else 0, p, r, t, fade, col, seed_value)
 				if fx.kind == "critical":
 					ink(TranslationServer.translate("暴击"), p + Vector2(14, -16 - t * 12), Color(ACCENT, fade), 12)
 			"shards", "boss_death":
@@ -2264,9 +2427,100 @@ func boss_shape(p: Vector2, radius: float, kind: String, flash: float, live: boo
 			shape(p, radius, 7, clock * .15, fill, INK, 3)
 			shape(p, radius * .5, 4, -clock * .5, Color(0, 0, 0, 0), GREY, 2)
 
+const MAT_FILL: Dictionary = {"rock": Color("b4b4b4"), "metal": Color("ededed"), "energy": Color("f6f1e6"), "exotic": Color("1a1a1a")}
+var intro_id: int = -1
+var intro_t: float = 0.0
+
+func arch_body(e: Dictionary, p: Vector2, size: float, heading: float, spin: float, fill: Color, along: float, across: float, flash: float, mat: String, quiet: bool) -> void:
+	# One silhouette family per archetype, dressed in the chapter's material.
+	var arch: String = str(e.get("arch", "swarm"))
+	var edge := Color(INK, fill.a)
+	var dir := Vector2.from_angle(heading)
+	var nrm: Vector2 = dir.orthogonal()
+	if mat == "energy" and not quiet and arch != "swarm":
+		# Stars, plasma and galaxies burn: a thin amber corona around the body.
+		ring(p, size * 1.55, Color(ACCENT, .35 * fill.a), 1.0)
+	var hollow: bool = mat == "exotic"
+	match arch:
+		"dart":
+			# A thin chevron down its curving path, trailing a long speed line.
+			var tip: Vector2 = p + dir * size * 1.7
+			var dart := PackedVector2Array([tip, p - dir * size * .8 + nrm * size * .72, p - dir * size * .3, p - dir * size * .8 - nrm * size * .72])
+			draw_colored_polygon(dart, Color(BG, fill.a) if hollow else fill)
+			if hollow:
+				dart.append(dart[0])
+				draw_polyline(dart, edge, 1.2, true)
+			stroke(p - dir * size * .5, p - dir * size * 4.2, Color(fill if not hollow else INK, .35 * fill.a))
+			if mat != "rock" and mat != "metal":
+				stroke(tip, p - dir * size * 2.4, Color(ACCENT, .65 * fill.a))
+		"armored":
+			var sides: int = 6 if mat == "metal" else 7
+			if hollow:
+				shape(p, size * 1.05, sides, spin * .4, Color(BG, fill.a), edge, 1.4)
+			else:
+				shape_squash(p, size * 1.05, sides, spin * .4, fill, along, across, heading)
+			# Six armour plates fall away as the group (or the single elite) loses health.
+			var health: float = float(e.members) / maxf(1.0, float(e.initial_members)) if int(e.initial_members) > 1 else float(e.hp) / maxf(1.0, float(e.unit_hp))
+			var plates: int = ceili(6.0 * clampf(health, 0.0, 1.0))
+			for j in range(plates):
+				var a0: float = spin * .4 + j * TAU / 6 + .14
+				arc_segments(p, size * 1.45, a0, a0 + TAU / 6 - .28, Color(edge, .95))
+			shape(p, size * .45, sides, -spin * .4, Color(0, 0, 0, 0), Color(BG if not hollow else INK, .6 * fill.a), 1.0)
+		"splitter":
+			# Three pieces held together; dark cracks show where it will break.
+			for j in range(3):
+				var a: float = spin * .6 + j * TAU / 3
+				var piece: Vector2 = p + Vector2.from_angle(a) * size * .5
+				if hollow:
+					shape(piece, size * .55, 5, a + spin, Color(BG, fill.a), edge, 1.1)
+				else:
+					shape_squash(piece, size * .6, 4 if mat != "energy" else 6, a + spin, fill, along, across, heading)
+			for j in range(3):
+				var a: float = spin * .6 + j * TAU / 3 + PI / 3
+				stroke(p, p + Vector2.from_angle(a) * size * .95, Color(BG if not hollow else ACCENT, .85 * fill.a))
+		"shielded":
+			if hollow:
+				shape(p, size * .85, 5, spin, Color(BG, fill.a), edge, 1.2)
+			else:
+				shape_squash(p, size * .85, 3 if mat == "metal" else 5, heading if mat == "metal" else spin, fill, along, across, heading)
+			var held: float = float(e.get("shield", 0.0)) / maxf(1.0, float(e.get("shield_max", 1.0)))
+			if held > 0.0:
+				var hex := ngon(6, size * 1.8 * (1.0 + flash * .1), spin * .3, p)
+				hex.append(hex[0])
+				draw_polyline(hex, Color(ACCENT.lerp(Color.WHITE, flash), (.3 + .6 * held) * fill.a), 1.0 + 1.2 * held, true)
+		"mother":
+			# A long hull; its hangar mouth glows in the second before each launch.
+			var hull := PackedVector2Array([p + dir * size * 1.7, p + dir * size * .4 + nrm * size * 1.05, p - dir * size * 1.45 + nrm * size * .8,
+				p - dir * size * 1.45 - nrm * size * .8, p + dir * size * .4 - nrm * size * 1.05])
+			draw_colored_polygon(hull, Color(BG, fill.a) if hollow else fill)
+			hull.append(hull[0])
+			draw_polyline(hull, Color(edge, .9), 1.3, true)
+			var open: float = clampf(1.0 - float(e.get("launch_t", 3.0)), 0.0, 1.0) if int(e.get("launched", 0)) < sim.MOTHER_LAUNCHES else 0.0
+			var bay := PackedVector2Array([p - dir * size * .2 + nrm * size * .42, p - dir * size * 1.3 + nrm * size * .42,
+				p - dir * size * 1.3 - nrm * size * .42, p - dir * size * .2 - nrm * size * .42])
+			draw_colored_polygon(bay, Color(BG, fill.a).lerp(Color(ACCENT, fill.a), open))
+			for j in range(3):
+				draw_circle(p + dir * size * (.9 - j * .55), 1.6, Color(ACCENT if j == 0 else DIM, fill.a))
+		_:
+			# Swarm: rock chips, metal darts, star sparks or exotic rings.
+			match mat:
+				"metal":
+					shape_squash(p, size, 3, heading, fill, along, across, heading)
+				"energy":
+					shape_squash(p, size * .75, 4, spin, fill, along, across, heading)
+					if not quiet:
+						for j in range(4):
+							var a: float = spin + j * PI * .5 + PI * .25
+							stroke(p + Vector2.from_angle(a) * size * .6, p + Vector2.from_angle(a) * size * 1.35, Color(ACCENT, .7 * fill.a))
+				"exotic":
+					ring(p, size * .95, Color(INK, .9 * fill.a), 1.2)
+					draw_circle(p, size * .3, Color(ACCENT, fill.a))
+				_:
+					shape_squash(p, size, 4 if int(e.seed) % 2 == 0 else 5, spin, fill, along, across, heading)
+
 func enemy(e: Dictionary) -> void:
 	var lead_ratio: float = clampf((float(e.age) + render_lead * sim.enemy_time_rate()) / float(e.lifetime), 0.0, 1.0)
-	var p: Vector2 = Vector2(e.start).lerp(e.end, lead_ratio) if not sim.paused else Vector2(e.pos)
+	var p: Vector2 = sim.enemy_point(e, lead_ratio) if not sim.paused else Vector2(e.pos)
 	var radius: float = float(e.radius)
 	var boss: bool = bool(e.boss)
 	var focused: bool = int(e.id) == sim.priority_id or hover.distance_to(p) < radius + 13
@@ -2280,6 +2534,9 @@ func enemy(e: Dictionary) -> void:
 	var appear: float = pop(float(e.age)) if not boss else 1.0
 	var danger: float = float(e.age) / float(e.lifetime)
 	var heading: float = (Vector2(e.end) - Vector2(e.start)).angle()
+	if str(e.get("arch", "")) == "dart" and lead_ratio < .995:
+		# Darts face along their curve, not the straight line.
+		heading = (sim.enemy_point(e, minf(1.0, lead_ratio + .01)) - p).angle()
 	var trail: Vector2 = -Vector2(cos(heading), sin(heading))
 	if not boss:
 		if batching:
@@ -2316,7 +2573,8 @@ func enemy(e: Dictionary) -> void:
 		var size: float = radius * .78 * appear * (1 + flash * .18)
 		var spin: float = clock * (.6 + float(int(e.seed) % 7) * .15) + int(e.seed)
 		var ship: bool = str(e.kind).contains("ship")
-		var fill: Color = (INK if ship else GREY).lerp(Color.WHITE, flash)
+		var mat: String = str(e.get("mat", "metal" if ship else "rock"))
+		var fill: Color = MAT_FILL.get(mat, GREY).lerp(Color.WHITE, flash)
 		var dk: float = doppler_k()
 		var motion: Vector2 = Vector2(e.end) - Vector2(e.start)
 		if dk > 0.01:
@@ -2335,13 +2593,14 @@ func enemy(e: Dictionary) -> void:
 		var young: float = clampf(1.0 - float(e.age) / .4, 0, 1)
 		var along: float = 1.0 - .26 * flash + .55 * young
 		var across: float = 1.0 + .22 * flash - .2 * young
+		arch_body(e, p, size, heading, spin, fill, along, across, flash, mat, dense and not focused)
 		if bool(e.elite):
-			shape(p, size * 1.15, 6 if ship else 8, spin * .5, Color(0, 0, 0, 0), INK, 1.5)
-			shape_squash(p, size * .7, 3 if ship else 4, heading if ship else spin, fill, along, across, heading)
-		elif ship:
-			shape_squash(p, size, 3, heading, fill, along, across, heading)
-		else:
-			shape_squash(p, size, 4, spin, fill, along, across, heading)
+			shape(p, size * 1.95, 8, spin * .5, Color(0, 0, 0, 0), Color(ACCENT, .75 * fill.a), 1.5)
+		if int(e.id) == intro_id and intro_t > 0.0:
+			# First of a new archetype: a pulsing ring and its name.
+			var k: float = fposmod(clock * 1.6, 1.0)
+			ring(p, size * (2.2 + k * 1.6), Color(ACCENT, (1.0 - k) * .9 * minf(1.0, intro_t)), 1.5)
+			ink(str(e.get("title", "")), p + Vector2(-20, -size * 2.6 - 6), Color(ACCENT, minf(1.0, intro_t)), 12)
 		if int(e.members) > 1:
 			var companions: int = 5 if not dense else 2 if focused or danger > .8 else 0
 			for j in range(mini(companions, int(e.members) - 1)):
@@ -2394,7 +2653,7 @@ func inspector() -> void:
 	draw_rect(Rect2(p, Vector2(250, 190)), DARK, false, 1)
 	var kind: String = selected.kind
 	var boss: bool = selected.boss
-	var title: String = TranslationServer.translate(sim.stage_data().boss_title).split(" · ")[0] if boss else TranslationServer.translate("精英舰船") if kind == "elite_ship" else TranslationServer.translate("外星舰群") if kind == "ship" else TranslationServer.translate("精英天体") if selected.elite else TranslationServer.translate("自然威胁群") if int(selected.members) > 1 else TranslationServer.translate("来袭天体")
+	var title: String = TranslationServer.translate(sim.stage_data().boss_title).split(" · ")[0] if boss else TranslationServer.translate("精英 · ") + TranslationServer.translate(str(selected.get("title", "重甲"))) if selected.elite else TranslationServer.translate(str(selected.title)) if selected.has("title") else TranslationServer.translate("外星舰群") if kind == "ship" else TranslationServer.translate("自然威胁群") if int(selected.members) > 1 else TranslationServer.translate("来袭天体")
 	ink(title, p + Vector2(14, 26), INK, 15)
 	var icon: Vector2 = p + Vector2(55, 92)
 	if boss:

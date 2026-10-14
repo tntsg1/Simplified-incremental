@@ -32,6 +32,10 @@ signal retargeted(old_target: int, new_target: int)
 signal focused(target_id: int)
 signal hit(point: Vector2, weapon: int, amount: float, critical: bool, boss: bool, kind: String)
 signal destroyed(point: Vector2, weapon: int, members: int, boss: bool, kind: String)
+signal shield_broken(point: Vector2, radius: float)
+signal enemy_split(point: Vector2, pieces: int)
+signal minion_launched(point: Vector2)
+signal arch_introduced(arch: String, title: String, id: int)
 
 const Growth = preload("res://scripts/growth.gd")
 const Campaign = preload("res://scripts/campaign.gd")
@@ -91,6 +95,31 @@ const DROPLET_CASCADE: float = 0.35
 const DROPLET_SHATTER: float = 1.6
 const DROPLET_FRAGMENT_CAP: int = 150
 const FRAGMENT_REWARD: float = 0.3
+# Enemy archetypes: one behaviour each, re-skinned per scale (ROSTER).
+const ARCHES: Array[String] = ["swarm", "dart", "armored", "splitter", "shielded", "mother"]
+const ARCH_HP: Dictionary = {"swarm": 1.0, "dart": 0.7, "armored": 1.8, "splitter": 0.8, "shielded": 1.0, "mother": 2.0}
+# HP an archetype brings beyond its body: split children, shield, launched minions.
+const ARCH_EXTRA: Dictionary = {"swarm": 0.0, "dart": 0.0, "armored": 0.0, "splitter": 0.35, "shielded": 0.5, "mother": 0.4}
+const ARCH_LIFE: Dictionary = {"swarm": 1.0, "dart": 0.62, "armored": 1.35, "splitter": 1.0, "shielded": 1.05, "mother": 1.4}
+const SPECIAL_SHARE: Array[float] = [0.25, 0.25, 0.25, 0.35, 0.35, 0.35, 0.45, 0.45, 0.45, 0.45]
+const CHILD_REWARD: float = 0.5
+const MOTHER_GAP: float = 3.0
+const MOTHER_LAUNCHES: int = 4
+# Per chapter: archetype -> [name, material]. Materials pick the sound and the kind.
+const ROSTER: Array = [
+	{"swarm": ["陨石碎屑", "rock"], "armored": ["铁陨石", "rock"]},
+	{"swarm": ["太空垃圾", "metal"], "dart": ["侦察无人机", "metal"], "armored": ["废弃卫星", "metal"]},
+	{"swarm": ["小行星碎块", "rock"], "dart": ["外星截击机", "metal"], "armored": ["金属小行星", "rock"], "splitter": ["碎石堆小行星", "rock"]},
+	{"swarm": ["环带冰砾", "rock"], "dart": ["截击机编队", "metal"], "armored": ["外星装甲舰", "metal"], "splitter": ["双核彗星", "rock"], "shielded": ["等离子护盾舰", "metal"]},
+	{"swarm": ["冰彗核群", "rock"], "dart": ["长尾彗星", "rock"], "armored": ["巨型冰核", "rock"], "splitter": ["冰晶团", "rock"], "shielded": ["冰壳舰", "metal"], "mother": ["彗星母巢", "rock"]},
+	{"swarm": ["等离子团", "energy"], "dart": ["耀斑弹", "energy"], "armored": ["褐矮星", "energy"], "splitter": ["双星", "energy"], "shielded": ["日冕护罩舰", "metal"], "mother": ["星际方舟", "metal"]},
+	{"swarm": ["星团流", "energy"], "dart": ["脉冲星碎片", "energy"], "armored": ["中子星", "energy"], "splitter": ["球状星团", "energy"], "shielded": ["磁层舰", "metal"], "mother": ["星系母舰", "metal"]},
+	{"swarm": ["矮星系", "energy"], "dart": ["相对论喷流团", "energy"], "armored": ["椭圆星系", "energy"], "splitter": ["并合星系", "energy"], "shielded": ["暗物质晕", "exotic"], "mother": ["星系团核心", "energy"]},
+	{"swarm": ["类星体光点", "exotic"], "dart": ["伽马暴", "exotic"], "armored": ["宇宙长城段", "exotic"], "splitter": ["宇宙网节点", "exotic"], "shielded": ["暗能量泡", "exotic"], "mother": ["原初黑洞", "exotic"]},
+	{"swarm": ["量子泡沫", "exotic"], "dart": ["快子", "exotic"], "armored": ["宇宙弦结", "exotic"], "splitter": ["婴儿宇宙", "exotic"], "shielded": ["膜泡", "exotic"], "mother": ["另一宇宙的裂口", "exotic"]},
+]
+# The archetype each chapter introduces (shown once with a HUD tag).
+const NEW_ARCH: Array[String] = ["armored", "dart", "splitter", "shielded", "mother", "", "", "", "", ""]
 # Fourier: the swarm freezes into a signal; a chain of epicycles draws one closed
 # curve through every threat, and each one bursts as the tip passes through it.
 const FOURIER_SAMPLE: float = 0.55
@@ -136,6 +165,13 @@ var wave: int = 1
 var money: float = 0.0
 var health: float = 100.0
 var landing_source: String = "main"
+# Material of the threat behind the latest hit/destroyed signal (rock, metal, energy, exotic).
+var event_mat: String = "rock"
+# Archetypes already introduced to the player (saved), and work queued during the enemy pass.
+var introduced: Array = []
+var pending_splits: Array[Dictionary] = []
+var pending_minions: Array[Dictionary] = []
+var arch_norm_cache: Dictionary = {}
 var levels: Dictionary = {"damage": 0, "speed": 0, "reload": 0, "crit": 0, "area": 0, "pierce": 0, "targets": 0, "turrets": 0}
 var owned: Array[bool] = [true, false, false, false, false, false, false, false, false, false]
 var automation: bool = false
@@ -298,6 +334,8 @@ func buy_weapon() -> bool:
 	return Growth.buy_weapon(self)
 
 func clear_battle() -> void:
+	pending_splits.clear()
+	pending_minions.clear()
 	enemies_by_id.clear()
 	for e in enemies:
 		enemy_pool.append(e)
@@ -367,16 +405,98 @@ func wave_density() -> int:
 func spawn_interval(members: int) -> float:
 	return wave_seconds() * members / maxf(1.0, float(wave_total))
 
+func arch_weights(view_stage: int) -> Dictionary:
+	# Swarm is the backbone; specials share SPECIAL_SHARE, the chapter's new one doubled.
+	var roster: Dictionary = ROSTER[clampi(view_stage, 0, LAST_STAGE)]
+	var specials: Dictionary = {}
+	var total: float = 0.0
+	for a in ARCHES:
+		if a != "swarm" and roster.has(a):
+			specials[a] = 2.0 if a == NEW_ARCH[clampi(view_stage, 0, LAST_STAGE)] else 1.0
+			total += float(specials[a])
+	var share: float = SPECIAL_SHARE[clampi(view_stage, 0, LAST_STAGE)] if total > 0.0 else 0.0
+	var out: Dictionary = {"swarm": 1.0 - share}
+	for a in specials:
+		out[a] = share * float(specials[a]) / total
+	return out
+
+func arch_norm(view_stage: int) -> Array:
+	# [hp, lifetime] multipliers that keep a wave's expected HP and arrival time unchanged.
+	if not arch_norm_cache.has(view_stage):
+		var w: Dictionary = arch_weights(view_stage)
+		var hp: float = 0.0
+		var life: float = 0.0
+		for a in w:
+			hp += float(w[a]) * (float(ARCH_HP[a]) + float(ARCH_EXTRA[a]))
+			life += float(w[a]) * float(ARCH_LIFE[a])
+		arch_norm_cache[view_stage] = [1.0 / hp, 1.0 / life]
+	return arch_norm_cache[view_stage]
+
+func pick_arch() -> String:
+	var w: Dictionary = arch_weights(stage)
+	var roll: float = rng.randf()
+	for a in w:
+		roll -= float(w[a])
+		if roll <= 0.0:
+			return a
+	return "swarm"
+
+func enemy_point(e: Dictionary, ratio: float) -> Vector2:
+	# Every threat flies start -> end; darts swing out in an S that settles onto the core.
+	var p: Vector2 = Vector2(e.start).lerp(e.end, ratio)
+	if str(e.get("arch", "")) == "dart":
+		var d: Vector2 = Vector2(e.end) - Vector2(e.start)
+		var amp: float = minf(150.0, d.length() * .24) * float(e.get("swerve", 1.0))
+		p += d.orthogonal().normalized() * amp * sin(ratio * TAU) * (1.0 - ratio)
+	return p
+
+func child_seed(e: Dictionary) -> Dictionary:
+	# The few parent values a split piece or minion inherits, copied (never a live reference).
+	return {"left": float(e.lifetime) - float(e.age), "base_hp": float(e.get("base_hp", e.unit_hp)), "mat": str(e.get("mat", "rock"))}
+
+func spawn_child(parent: Dictionary, at: Vector2, members: int, hp_share: float, offset: Vector2) -> void:
+	# Split pieces and launched minions: swarm-like, never split again, pay half.
+	serial += 1
+	var e: Dictionary = enemy_pool.pop_back() if not enemy_pool.is_empty() else {}
+	e.clear()
+	var core: Vector2 = defense_position()
+	var origin: Vector2 = (at + offset).clamp(spawn_rect.position, spawn_rect.end)
+	var end: Vector2 = core + (origin - core).normalized() * 68.0
+	var left: float = maxf(2.5, float(parent.left) * .85)
+	var unit_hp: float = float(parent.base_hp) * hp_share
+	var roster: Dictionary = ROSTER[clampi(stage, 0, LAST_STAGE)]
+	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": left, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": "ship" if str(parent.get("mat", "")) == "metal" else "rock", "elite": false, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 9.0 + (minf(14.0, log(float(members)) * 2.5) if members > 1 else 0.0), "boss": false, "dead": false})
+	e.merge({"arch": "swarm", "mat": str(parent.get("mat", "rock")), "title": str(roster.swarm[0]), "child": true, "base_hp": unit_hp})
+	enemies.append(e)
+	enemies_by_id[int(e.id)] = e
+
+func process_offspring() -> void:
+	for split in pending_splits:
+		var members: int = maxi(1, int(split.members) / 2)
+		for j in range(2):
+			var side: Vector2 = Vector2.from_angle(float(split.heading) + PI * .5 + j * PI) * 14.0
+			spawn_child(split.parent, split.pos, members, float(ARCH_EXTRA.splitter), side)
+		enemy_split.emit(split.pos, 2)
+	pending_splits.clear()
+	for mother in pending_minions:
+		if bool(mother.dead):
+			continue
+		var members: int = maxi(1, int(mother.members) / MOTHER_LAUNCHES)
+		spawn_child(child_seed(mother), mother.pos, members, float(ARCH_EXTRA.mother), Vector2.from_angle(rng.randf() * TAU) * 10.0)
+		minion_launched.emit(mother.pos)
+	pending_minions.clear()
+
 func spawn_enemy(members: int) -> void:
 	var e: Dictionary = enemy_pool.pop_back() if not enemy_pool.is_empty() else {}
 	e.clear()
 	serial += 1
-	var alien: bool = stage >= 2 and rng.randf() < 0.5
-	if stage == 1:
-		alien = rng.randf() < 0.2
 	var elite: bool = stage >= 1 and serial % 9 == 0
 	if elite:
 		members=1
+	var arch: String = "armored" if elite else pick_arch()
+	var roster: Dictionary = ROSTER[clampi(stage, 0, LAST_STAGE)]
+	var entry: Array = roster.get(arch, roster.swarm)
+	var alien: bool = str(entry[1]) == "metal"
 	var kind: String = "ship" if alien else "rock"
 	if elite:
 		kind = "elite_ship" if alien else "heavy"
@@ -394,10 +514,31 @@ func spawn_enemy(members: int) -> void:
 		lifetime *= clampf(sqrt(origin.distance_to(defense_position()) / 480.0), 0.85, 1.6)
 	if elite:
 		lifetime *= 0.74
+	var norm: Array = arch_norm(stage)
+	if not elite:
+		lifetime *= float(ARCH_LIFE[arch]) * float(norm[1])
 	# Flood waves split the same total HP across WAVE_SCALE times the threats.
-	var unit_hp: float = (300.0 if elite else 100.0) * hp_scale() / (WAVE_SCALE if stage > 0 else 1)
+	var base_hp: float = (300.0 if elite else 100.0) * hp_scale() / (WAVE_SCALE if stage > 0 else 1)
+	var unit_hp: float = base_hp if elite else base_hp * float(ARCH_HP[arch]) * float(norm[0])
 	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": lifetime, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": kind, "elite": elite, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 12.0 + (8.0 if elite else 0.0) + (minf(22.0, log(float(members)) * 3.0) if members > 1 else 0.0), "boss": false, "dead": false})
+	e.merge({"arch": arch, "mat": str(entry[1]), "title": str(entry[0]), "base_hp": base_hp * float(norm[0])})
+	match arch:
+		"dart":
+			e.radius = float(e.radius) - 2.0
+			e["swerve"] = 1.0 if rng.randf() < .5 else -1.0
+		"armored":
+			e.radius = float(e.radius) + 5.0
+		"shielded":
+			e["shield"] = float(members) * unit_hp * float(ARCH_EXTRA.shielded) / float(ARCH_HP.shielded)
+			e["shield_max"] = e.shield
+		"mother":
+			e.radius = float(e.radius) + 9.0
+			e["launch_t"] = 2.0
+			e["launched"] = 0
 	enemies.append(e)
+	if not elite and arch == NEW_ARCH[clampi(stage, 0, LAST_STAGE)] and not introduced.has(arch):
+		introduced.append(arch)
+		arch_introduced.emit(arch, str(entry[0]), int(e.id))
 	enemies_by_id[int(e.id)] = e
 
 func edge_point(u: float) -> Vector2:
@@ -1691,6 +1832,19 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 			destroyed.emit(e.pos,weapon_index,1,true,str(e.kind))
 			deferred_kill = false
 		return used
+	event_mat = str(e.get("mat", "metal" if str(e.kind).contains("ship") else "rock"))
+	var shield: float = float(e.get("shield", 0.0))
+	if shield > 0.0:
+		var absorbed: float = minf(shield, amount)
+		e.shield = shield - absorbed
+		amount -= absorbed
+		e["flash"] = .12
+		weapon_damage[weapon_index] += absorbed
+		if float(e.shield) <= 0.0:
+			shield_broken.emit(e.pos, float(e.radius))
+		if amount <= 0.0:
+			hit.emit(e.pos, weapon_index, absorbed, critical, false, str(e.kind))
+			return absorbed
 	var budget: float = minf(amount, float(cap) * float(e.unit_hp))
 	var initial_budget: float = budget
 	var old_count: int = int(e.members)
@@ -1716,7 +1870,7 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 		e.hp = 0.0
 		e.dead = true
 		ult_deaths += 1
-	var reward: float = removed * member_reward() * (2.0 if bool(e.elite) else 1.0) * (FRAGMENT_REWARD if bool(e.get("fragment", false)) else 1.0)
+	var reward: float = removed * member_reward() * (2.0 if bool(e.elite) else 1.0) * (FRAGMENT_REWARD if bool(e.get("fragment", false)) else 1.0) * (CHILD_REWARD if bool(e.get("child", false)) else 1.0)
 	if bool(e.get("flood", false)):
 		# Flood groups pay until they have matched the wave's own budget once.
 		reward = minf(reward, maxf(0.0, wave_total * member_reward() - flood_paid))
@@ -1731,6 +1885,9 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 	wave_killed += removed
 	weapon_damage[weapon_index] += minf(initial_budget, consumed)
 	if bool(e.dead):
+		if str(e.get("arch", "")) == "splitter" and not defer_reward and not bool(e.get("child", false)):
+			# Copy what the pieces need: the dead entity is recycled before they spawn.
+			pending_splits.append({"parent": child_seed(e), "pos": e.pos, "members": int(e.initial_members), "heading": (Vector2(e.end) - Vector2(e.start)).angle()})
 		deferred_kill = defer_reward
 		destroyed.emit(e.pos,weapon_index,int(e.initial_members),false,str(e.kind))
 		deferred_kill = false
@@ -1818,7 +1975,15 @@ func advance(delta: float, visuals: bool = true) -> void:
 		e["flash"]=maxf(0,float(e.get("flash",0))-delta)
 		e.age = float(e.age) + delta * enemy_time_rate()
 		var ratio: float = clampf(float(e.age) / float(e.lifetime), 0.0, 1.0)
-		e.pos = Vector2(e.start).lerp(e.end, ratio)
+		e.pos = enemy_point(e, ratio)
+		if str(e.get("arch", "")) == "mother" and int(e.get("launched", 0)) < MOTHER_LAUNCHES and ratio < .85:
+			e.launch_t = float(e.launch_t) - delta * enemy_time_rate()
+			if float(e.launch_t) <= 0.0:
+				e.launch_t = MOTHER_GAP
+				e.launched = int(e.launched) + 1
+				pending_minions.append(e)
+	if not pending_splits.is_empty() or not pending_minions.is_empty():
+		process_offspring()
 	# Ready heavy weapons reserve group damage first; fast legacy launchers fill gaps.
 	for i in range(LAST_STAGE, -1, -1):
 		cooldowns[i] -= delta
@@ -2037,7 +2202,7 @@ func snapshot() -> Dictionary:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"reward_batches": loot, "boss_reward_queued": boss_reward_queued, "game": "skyguard", "version": SAVE_VERSION, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "boss_penalty": boss_penalty, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "flood_paid": flood_paid, "enemies": actors, "shots": projectiles}
+	return {"reward_batches": loot, "boss_reward_queued": boss_reward_queued, "game": "skyguard", "version": SAVE_VERSION, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "boss_penalty": boss_penalty, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "flood_paid": flood_paid, "introduced": introduced.duplicate(), "enemies": actors, "shots": projectiles}
 
 # Version 2: ten chapters. Version 1 saves (six chapters) are migrated on load.
 const SAVE_VERSION: int = 2
@@ -2209,6 +2374,7 @@ func restore(data: Dictionary) -> bool:
 	stage_bosses = int(data.stage_bosses)
 	boss_spawned = int(data.get("boss_spawned", 0))
 	flood_paid = maxf(0.0, float(data.get("flood_paid", 0.0)))
+	introduced = Array(data.get("introduced", []))
 	serial = int(data.serial)
 	boss_remaining = float(data.boss_remaining)
 	boss_penalty = float(data.get("boss_penalty", 0.0))

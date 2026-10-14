@@ -196,5 +196,36 @@ BATCH2 = {
 }
 
 
+# Enemy materials (rock / metal / energy / exotic) and archetype events.
+K_ = "kill"
+ENEMY = {
+    "hit_energy": S("受击 · 能量类目标（恒星、等离子、星系）", K_, .16, [
+        N(3500, 1200, .05, .14, 0, q=.7, lp=6000), Z(1400, 700, .04, .12, -6, glide=.02, harm=2, lp=4000), K(170, 75, .03, .08, -6, sweep=.01)],
+        variants=4, pitches=(0, 2, -2, 3)),
+    "hit_exotic": S("受击 · 奇异物质（宇宙尺度、宇宙膜）", K_, .18, [
+        T(740, .06, .14, 0, fm=1.4, ratio=1.41), N(2000, 600, .04, .12, -8, reverse=True), K(150, 70, .03, .08, -7, sweep=.01)],
+        variants=4, pitches=(0, 2, -2, 3)),
+    "kill_metal": S("击毁 · 金属类目标（舰船、无人机、卫星）", K_, .5, [
+        K(120, 42, .12, .35, 0, drive=2.0), L("Hit Impact Hard Metal Scrap Debris_UC 01", .3, -4),
+        L("explosion_large_no_tail_03", .45, -6, pitch=2)], variants=4, pitches=(0, 1, -1, 2), swap={"1": [{"slice": 0}, {"slice": 1}, {"slice": 2}, {"slice": 3}]}),
+    "kill_energy": S("击毁 · 能量类目标", K_, .5, [
+        N(2600, 300, .14, .4, 0, q=1.0, lp=5000), Z(900, 120, .12, .3, -6, glide=.08, voices=3, harm=3, lp=2500),
+        K(110, 40, .12, .35, -2, drive=2.0)], variants=4, pitches=(0, 1, -1, 2)),
+    "kill_exotic": S("击毁 · 奇异物质", K_, .55, [
+        N(4000, 300, .15, .28, -3, reverse=True), K(90, 30, .18, .4, 0, drive=2.2, delay=.27),
+        T(587, .2, .3, -10, .27, fm=1.0, ratio=1.5)], variants=3, pitches=(0, 1, -1)),
+    "shield_break": S("护盾者 · 护盾被打破", K_, .6, [
+        L("glass_impact_break_small_014", .45, 0, lp=7000), Z(1600, 300, .15, .4, -6, glide=.1, voices=3, harm=3, lp=4000),
+        K(130, 55, .06, .2, -6, sweep=.02)], variants=2, pitches=(0, 2)),
+    "enemy_split": S("分裂者 · 裂开", K_, .4, [
+        N(5000, 1500, .03, .1, 0, q=.6, lp=7000), K(140, 60, .05, .15, -4, sweep=.02),
+        K(160, 70, .04, .12, -6, sweep=.02, delay=.07)], variants=2, pitches=(0, 2)),
+    "minion_launch": S("母舰 · 放出小型敌人", K_, .45, [
+        N(500, 2600, .15, .4, -2, attack=.12, lp=4500), K(120, 55, .06, .18, -6, sweep=.02), T(392, .1, .2, -12)],
+        variants=2, pitches=(0, 2)),
+}
+
+
 def apply(recipes):
     recipes.update(BATCH2)
+    recipes.update(ENEMY)

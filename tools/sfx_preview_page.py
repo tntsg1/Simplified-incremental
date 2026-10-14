@@ -8,6 +8,50 @@ import os
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "build", "sfx_preview")
 manifest = json.load(open(os.path.join(ROOT, "manifest.json"), encoding="utf-8"))
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
+from sfx_recipes import RECIPES  # noqa: E402
+from sfx_specs import SPECS  # noqa: E402
+
+SLICES = json.load(open("G:/audio_library/sonniss/slices.json", encoding="utf-8"))
+SYNTH_NAMES = {"kick": "次低频冲击", "noise": "气流/噪声", "zap": "能量音", "beat": "驻波拍频", "crackle": "电弧噼啪"}
+
+
+def describe(spec):
+    # Plain-language summary of how a recipe builds its sound, layer by layer.
+    synth, recorded = [], []
+    for layer in spec["layers"]:
+        extra = []
+        if layer.get("delay"):
+            extra.append(f"{layer['delay']:.2f}s 起")
+        if layer.get("reverse"):
+            extra.append("倒放")
+        tail = f"（{'，'.join(extra)}）" if extra else ""
+        if "synth" in layer:
+            kind = layer["synth"]
+            if kind in ("kick", "noise", "zap"):
+                synth.append(f"{SYNTH_NAMES[kind]} {int(layer['from'])}→{int(layer['to'])}Hz{tail}")
+            elif kind == "beat":
+                synth.append(f"驻波拍频 {int(layer['freq'])}Hz{tail}")
+            else:
+                synth.append(f"电弧噼啪{tail}")
+        elif "tone" in layer:
+            synth.append(f"纯音 {int(layer['tone'])}Hz{'（滑音）' if layer.get('glide') else ''}{tail}")
+        else:
+            hit = next((x["file"] for x in SLICES if layer["src"].lower() in x["file"].lower()), layer["src"])
+            parts = hit.split("/")
+            library = parts[-2] if len(parts) > 1 else ""
+            # A few archive folder names carry broken characters (e.g. Fern�ndez).
+            library = library.replace("Fern�ndez", "Fernández").replace("�", "-")
+            name = parts[-1].rsplit(".", 1)[0]
+            recorded.append(f"{name[:48]} · {library[:40]}{tail}")
+    out = []
+    if synth:
+        out.append("合成：" + "；".join(synth))
+    if recorded:
+        out.append("录音：" + "；".join(recorded))
+    return chr(10).join(out)
+
 # Game cadence for the "burst" button: seconds between repeats, like the in-game limiter.
 CADENCE = {"turret": .12, "hit_rock": .14, "hit_ship": .14, "kill": .12, "coin": .06, "ui_hover": .08}
 GROUPS = [("ult", "大招", "每个大招分「蓄力/发射」和「命中」两段，游戏里由真实的命中事件衔接，任何加速倍率下都和画面同步。另有大招过程中的逐个事件音：水滴碎裂、一向箔压平、傅里叶音符（游戏里沿五声音阶逐个升高）、质数节拍。"),
@@ -21,7 +65,8 @@ GROUPS = [("ult", "大招", "每个大招分「蓄力/发射」和「命中」�
 items = []
 for key, info in manifest.items():
     cadence = CADENCE.get(key, .11 if key.startswith("w6") else .34 if key.endswith("_fire") or key.endswith("_hit") else .5)
-    items.append({"key": key, "title": info["title"], "group": info["group"], "files": info["files"], "cadence": cadence})
+    items.append({"key": key, "title": info["title"], "group": info["group"], "files": info["files"], "cadence": cadence,
+                  "spec": SPECS.get(key, ""), "now": describe(RECIPES[key]) if key in RECIPES else ""})
 items.sort(key=lambda x: x["key"])
 cand_path = os.path.join(ROOT, "candidates.json")
 cands = []
@@ -58,6 +103,10 @@ h2 small{font-weight:400;font-size:13px;color:var(--dim)}
 .row .name{min-width:0;display:grid;gap:2px}
 .row .name b{font-weight:500}
 .row .name code{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.row .info{grid-column:1/-1;display:grid;gap:6px;font-size:13px;line-height:1.55}
+.row .info p{margin:0;max-width:78ch}
+.row .info .tag{font:600 11px var(--mono);letter-spacing:.08em;color:var(--amber);margin-right:8px}
+.row .info .now{color:var(--dim);white-space:pre-line}
 .pads{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 button{font:600 12px var(--mono);color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:3px;padding:7px 11px;cursor:pointer;min-width:40px}
 button:hover{border-color:var(--dim)}
@@ -75,8 +124,8 @@ button.on{background:var(--amber);color:var(--bg);border-color:var(--amber)}
 </style>
 <main>
 <header>
-  <div class="eyebrow">Skyguard · SFX complete</div>
-  <h1>天穹防线 · 天穹防线 · 全部音效</h1>
+  <div class="eyebrow">Skyguard · SFX list</div>
+  <h1>天穹防线 · 天穹防线 · 音效清单</h1>
   <p class="lede">武器、击毁和核弹改为自主设计：核心层（次低频冲击、每把武器的标志性能量音色、空气与气压）由程序合成，统一音色风格；只叠一层专业录音提供真实质感。数字按钮是同一个声音的不同变体；「连发」按游戏里的实际节奏、带随机音高重复播放，用来听重复久了烦不烦。</p>
   <div class="bar">
     <div class="vol"><label for="vol">音量</label><input id="vol" type="range" min="0" max="100" value="70"></div>
@@ -173,7 +222,14 @@ for(const [gid, gname, gnote] of GROUPS){
     });
     const bb = document.createElement('button'); bb.type='button'; bb.className='burst'; bb.textContent='连发'; bb.dataset.burst=item.key;
     bb.addEventListener('click', ()=>burst(item, bb)); pads.appendChild(bb);
-    row.append(name, pads); sec.appendChild(row);
+    row.append(name, pads);
+    if(item.spec || item.now){
+      const info = document.createElement('div'); info.className='info';
+      if(item.spec){ const p=document.createElement('p'); p.innerHTML='<span class="tag">应有效果</span>'; p.append(item.spec); info.appendChild(p); }
+      if(item.now){ const p=document.createElement('p'); p.className='now'; p.innerHTML='<span class="tag">当前做法</span>'; p.append(item.now); info.appendChild(p); }
+      row.appendChild(info);
+    }
+    sec.appendChild(row);
   }
   list.appendChild(sec);
 }

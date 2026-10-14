@@ -188,7 +188,8 @@ func impact(_point: Vector2, index: int, _amount: float, critical: bool, boss: b
 		if material_limit>0:
 			return
 		material_limit=.14
-		key="hit_ship" if kind.contains("ship") else "hit_rock"
+		var mat: String=str(sim_ref.event_mat) if sim_ref!=null else ("metal" if kind.contains("ship") else "rock")
+		key={"metal":"hit_ship","energy":"hit_energy","exotic":"hit_exotic"}.get(mat,"hit_rock")
 	hit_limit=.035
 	sfx(key,LEVEL.hit+(2.0 if critical or boss else 0.0),.94 if critical else 1.0)
 
@@ -206,7 +207,8 @@ func destruction(_point: Vector2, _index: int, members: int, boss: bool, kind: S
 		return
 	elif destruction_limit<=0:
 		destruction_limit=.05
-		sfx("kill",LEVEL.kill)
+		var mat: String=str(sim_ref.event_mat) if sim_ref!=null else "rock"
+		sfx({"metal":"kill_metal","energy":"kill_energy","exotic":"kill_exotic"}.get(mat,"kill"),LEVEL.kill)
 
 func coins(count: int) -> void:
 	# Loot landing in the wallet: a run of coins climbs in pitch, then resets.
@@ -285,6 +287,18 @@ func body_strike(kind: String, _stage: int, _slot: int, _origin: Vector2, _end: 
 func shell_burst(_point: Vector2, _radius: float, _stage: int, _critical: bool) -> void:
 	if not limited("body_shell",.14):
 		sfx("body_shell",LEVEL.body)
+
+func shield_broken(_point: Vector2, _radius: float) -> void:
+	if not limited("shield_break",.12):
+		sfx("shield_break",LEVEL.kill)
+
+func enemy_split(_point: Vector2, _pieces: int) -> void:
+	if not limited("enemy_split",.1):
+		sfx("enemy_split",LEVEL.kill)
+
+func minion_launched(_point: Vector2) -> void:
+	if not limited("minion_launch",.25):
+		sfx("minion_launch",LEVEL.kill-3.0)
 
 func ui(key: String) -> void:
 	sfx(key,LEVEL.ui,1.0,true)
