@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/weapon_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="脉冲星灯塔"
+role="高频脉冲 / 节拍连射"
+interval=1.4
+damage_multiplier=2.0
+coverage=16
+color=Color(0.8,0.7,1,1)
+beam=true

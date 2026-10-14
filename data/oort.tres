@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="奥尔特云"
+subtitle="OORT CLOUD / COMET SHELL"
+scale_label="彗星云防线 · 1.6 ly"
+accent=Color(0.72,0.9,1,1)
+count_multiplier=16384
+reward_multiplier=0.42
+boss_hp=184800000000.0
+hp_base_scale=34710000000000.0
+hp_growth=3.0
+boss_window=57.0
+boss_title="星际来客 · 'OUMUAMUA"
+boss_kind="cigar"
+weapon_price=150000000000.0
+boss_reward=2600000.0
+briefing="冰冷的彗核从太阳系的最外壳层涌入。彗核投射器把冰核撒成一片弹雨。"

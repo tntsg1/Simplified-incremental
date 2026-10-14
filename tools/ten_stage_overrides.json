@@ -1,0 +1,56 @@
+{
+  "1": {
+    "boss_hp": 37520000.0,
+    "hp_base_scale": 54.93,
+    "hp_growth": 3.0,
+    "weapon_price": 400.0
+  },
+  "2": {
+    "boss_hp": 2225000000.0,
+    "hp_base_scale": 809100000.0,
+    "hp_growth": 3.0,
+    "weapon_price": 570000.0
+  },
+  "3": {
+    "boss_hp": 3073000000.0,
+    "hp_base_scale": 3067000000000.0,
+    "hp_growth": 3.0,
+    "weapon_price": 10000000000.0
+  },
+  "4": {
+    "boss_hp": 184800000000.0,
+    "hp_base_scale": 34710000000000.0,
+    "hp_growth": 3.0,
+    "weapon_price": 150000000000.0
+  },
+  "5": {
+    "boss_hp": 728800000000.0,
+    "hp_base_scale": 433900000000000.0,
+    "hp_growth": 3.0,
+    "weapon_price": 1500000000000.0
+  },
+  "6": {
+    "boss_hp": 2329000000000.0,
+    "hp_base_scale": 4634000000000000.0,
+    "hp_growth": 3.0,
+    "weapon_price": 8200000000000.0
+  },
+  "7": {
+    "boss_hp": 925700000000.0,
+    "hp_base_scale": 2.633e+19,
+    "hp_growth": 3.0,
+    "weapon_price": 140000000000000.0
+  },
+  "8": {
+    "boss_hp": 709600000000000.0,
+    "hp_base_scale": 1.213e+19,
+    "hp_growth": 3.0,
+    "weapon_price": 2.5e+16
+  },
+  "9": {
+    "boss_hp": 1631000000000000.0,
+    "hp_base_scale": 4.752e+19,
+    "hp_growth": 3.0,
+    "weapon_price": 2.1e+17
+  }
+}

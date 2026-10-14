@@ -1,0 +1,7 @@
+{
+  "version": "4.23.1",
+  "source": "https://codeberg.org/godotsteam/godotsteam/releases/tag/v4.23.1",
+  "archive_sha256": "37d53ede5eda11d2247d70c1af91f95a4777ad2a419fc8a24de1cc816d21cc0a",
+  "platform": "Windows x86_64",
+  "configuration": "Upstream descriptor restricted to existing supported Windows x64 platform; web preset excludes addon."
+}

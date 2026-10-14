@@ -37,6 +37,8 @@ func run() -> void:
 		await process_frame
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("%s_pre.png" % prefix)
+	if args.size() > 3:
+		sim.ult_override = args[3]
 	sim.ult_charge = 1.0
 	var ok: bool = game.sim.fire_ultimate(Vector2.INF)
 	print("ULT fired=", ok, " kind=", sim.ultimate_kind(), " enemies=", sim.enemies.size())

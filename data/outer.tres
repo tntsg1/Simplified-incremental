@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="外太阳系"
+subtitle="OUTER SOL / GIANT'S REACH"
+scale_label="巨行星防线 · 50 AU"
+accent=Color(0.93,0.82,0.55,1)
+count_multiplier=4096
+reward_multiplier=0.55
+boss_hp=3073000000.0
+hp_base_scale=3067000000000.0
+hp_growth=3.0
+boss_window=54.0
+boss_title="外星攻城母舰 · LEVIATHAN"
+boss_kind="mothership"
+weapon_price=10000000000.0
+boss_reward=1200000.0
+briefing="外星舰队从木星背后现身。引力炮借巨行星之力投出重弹。"

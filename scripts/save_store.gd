@@ -1,6 +1,8 @@
 extends RefCounted
 
 const PATH: String = "user://skyguard_save_v1.json"
+var legacy_path: String = PATH
+var profile_root := "user://steam"
 var path: String = PATH
 var enabled: bool = true
 
@@ -58,3 +60,29 @@ func read_game() -> Dictionary:
 				if validator.restore(parsed):
 					return parsed
 	return {}
+
+# Per-account Auto-Cloud path. Never replace a cloud-downloaded save with legacy data.
+func select_steam_profile(steam_id: String) -> bool:
+	if not enabled or path != legacy_path: return true
+	if not steam_id.is_valid_int() or steam_id.length() != 17: return false
+	var folder := profile_root+"/"+steam_id
+	if DirAccess.make_dir_recursive_absolute(folder) != OK: return false
+	var target := folder+"/skyguard_save_v1.json"
+	var marker := profile_root+"/legacy_owner.txt"
+	var owner := FileAccess.get_file_as_string(marker) if FileAccess.file_exists(marker) else ""
+	if owner == "":
+		var file := FileAccess.open(marker,FileAccess.WRITE)
+		if file == null: return false
+		file.store_string(steam_id)
+		file.close()
+		owner = steam_id
+	if owner == steam_id and not FileAccess.file_exists(target) and not FileAccess.file_exists(target+".bak"):
+		var legacy := read_game()
+		if not legacy.is_empty():
+			path = target
+			if not write(legacy): path = legacy_path; return false
+			var old_achievements := "user://skyguard_achievements_v1.json"
+			var new_achievements := folder+"/skyguard_achievements_v1.json"
+			if legacy_path == PATH and FileAccess.file_exists(old_achievements) and not FileAccess.file_exists(new_achievements): DirAccess.copy_absolute(old_achievements,new_achievements)
+	path = target
+	return true

@@ -1,11 +1,11 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
 [ext_resource type="Script" path="res://data/weapon_spec.gd" id="1"]
 [resource]
 script=ExtResource("1")
-title="类星体炮"
-role="多域覆盖 / 类星体网络"
-interval=6.0
-damage_multiplier=10.25
-coverage=24
-color=Color(0.95,0.48,0.7,1)
-beam=true
+title="彗核投射器"
+role="冰核散射 / 长尾弹雨"
+interval=2.4
+damage_multiplier=2.4
+coverage=9
+color=Color(0.72,0.9,1,1)
+beam=false

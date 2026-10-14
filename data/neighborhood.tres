@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="恒星邻域"
+subtitle="STELLAR NEIGHBORHOOD / NEAR STARS"
+scale_label="近邻恒星防线 · 50 ly"
+accent=Color(0.85,0.75,1,1)
+count_multiplier=65536
+reward_multiplier=0.34
+boss_hp=728800000000.0
+hp_base_scale=433900000000000.0
+hp_growth=3.0
+boss_window=60.0
+boss_title="失控恒星 · VESPER"
+boss_kind="star"
+weapon_price=1500000000000.0
+boss_reward=5000000.0
+briefing="近邻恒星之间的空间开始沸腾。恒星炮的光矛可以穿透长列。"

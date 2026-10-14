@@ -1,0 +1,362 @@
+[
+  {
+    "id": "FIRST_INTERCEPT",
+    "name_zh": "第一道光",
+    "name_en": "First Light",
+    "description_zh": "击毁第一个来袭目标。",
+    "description_en": "Destroy your first incoming target.",
+    "hidden": false
+  },
+  {
+    "id": "THOUSAND_INTERCEPTS",
+    "name_zh": "千次拦截",
+    "name_en": "A Thousand Intercepts",
+    "description_zh": "在一场战役中累计击毁 1000 个目标。",
+    "description_en": "Destroy 1,000 targets in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "FIRST_UPGRADE",
+    "name_zh": "防线进化",
+    "name_en": "Evolving Defense",
+    "description_zh": "购买第一次防线升级。",
+    "description_en": "Purchase your first defense upgrade.",
+    "hidden": false
+  },
+  {
+    "id": "AUTOMATED_DEFENSE",
+    "name_zh": "自主防御",
+    "name_en": "Autonomous Defense",
+    "description_zh": "购买自动防御。",
+    "description_en": "Purchase automated defense.",
+    "hidden": false
+  },
+  {
+    "id": "FIRST_ORBITAL",
+    "name_zh": "天体为盾",
+    "name_en": "Celestial Shield",
+    "description_zh": "首次将天体转化为防御武器。",
+    "description_en": "Convert a celestial body into a defense weapon.",
+    "hidden": false
+  },
+  {
+    "id": "FIRST_ULTIMATE",
+    "name_zh": "终极打击",
+    "name_en": "Ultimate Strike",
+    "description_zh": "首次释放已充能的大招。",
+    "description_en": "Fire your first charged ultimate ability.",
+    "hidden": false
+  },
+  {
+    "id": "CITY_SAFE",
+    "name_zh": "守住城市",
+    "name_en": "City Secured",
+    "description_zh": "完成城市防线，进入地球阶段。",
+    "description_en": "Complete the city defense and reach Earth.",
+    "hidden": false
+  },
+  {
+    "id": "EARTH_SAFE",
+    "name_zh": "蓝色星球",
+    "name_en": "The Blue Planet",
+    "description_zh": "完成地球防线，进入内太阳系阶段。",
+    "description_en": "Complete the Earth defense and reach the inner Solar System.",
+    "hidden": false
+  },
+  {
+    "id": "SOLAR_SAFE",
+    "name_zh": "类地行星卫士",
+    "name_en": "Terrestrial Sentinel",
+    "description_zh": "完成内太阳系防线，进入外太阳系阶段。",
+    "description_en": "Complete the inner Solar System defense and reach the outer Solar System.",
+    "hidden": false
+  },
+  {
+    "id": "OUTER_SAFE",
+    "name_zh": "巨行星之外",
+    "name_en": "Beyond the Giants",
+    "description_zh": "完成外太阳系防线，进入奥尔特云阶段。",
+    "description_en": "Complete the outer Solar System defense and reach the Oort Cloud.",
+    "hidden": false
+  },
+  {
+    "id": "OORT_SAFE",
+    "name_zh": "冰壳彼岸",
+    "name_en": "Past the Ice Shell",
+    "description_zh": "完成奥尔特云防线，进入恒星邻域阶段。",
+    "description_en": "Complete the Oort Cloud defense and reach the Stellar Neighbourhood.",
+    "hidden": false
+  },
+  {
+    "id": "NEIGHBOR_SAFE",
+    "name_zh": "比邻",
+    "name_en": "Next Door",
+    "description_zh": "完成恒星邻域防线，进入银河阶段。",
+    "description_en": "Complete the Stellar Neighbourhood defense and reach the Milky Way.",
+    "hidden": false
+  },
+  {
+    "id": "GALAXY_SAFE",
+    "name_zh": "银河守望",
+    "name_en": "Galactic Watch",
+    "description_zh": "完成银河防线，进入超星系团阶段。",
+    "description_en": "Complete the Milky Way defense and reach the Supercluster.",
+    "hidden": false
+  },
+  {
+    "id": "CLUSTER_SAFE",
+    "name_zh": "跨越星海",
+    "name_en": "Beyond the Starfields",
+    "description_zh": "完成超星系团防线，进入可观测宇宙阶段。",
+    "description_en": "Complete the Supercluster defense and reach the Observable Universe.",
+    "hidden": false
+  },
+  {
+    "id": "COSMOS_SAFE",
+    "name_zh": "视界之外",
+    "name_en": "Beyond the Horizon",
+    "description_zh": "完成可观测宇宙防线，进入宇宙膜阶段。",
+    "description_en": "Complete the Observable Universe defense and reach the Brane.",
+    "hidden": false
+  },
+  {
+    "id": "LAST_LIGHT",
+    "name_zh": "最后的光",
+    "name_en": "The Last Light",
+    "description_zh": "守住全部十道防线，直到宇宙之外。",
+    "description_en": "Hold all ten lines of defense, beyond the universe itself.",
+    "hidden": false
+  },
+  {
+    "id": "HUNDRED_INTERCEPTS",
+    "name_zh": "百发守望",
+    "name_en": "A Hundred Defenses",
+    "description_zh": "在一场战役中累计击毁 100 个目标。",
+    "description_en": "Destroy 100 targets in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "TEN_THOUSAND_INTERCEPTS",
+    "name_zh": "万点星火",
+    "name_en": "Ten Thousand Sparks",
+    "description_zh": "在一场战役中累计击毁 10000 个目标。",
+    "description_en": "Destroy 10,000 targets in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "WARHEAD_TEN",
+    "name_zh": "弹头突破",
+    "name_en": "Warhead Breakthrough",
+    "description_zh": "将弹头伤害升级至 Lv.10。",
+    "description_en": "Upgrade warhead damage to level 10.",
+    "hidden": false
+  },
+  {
+    "id": "WARHEAD_FIFTY",
+    "name_zh": "极限火力",
+    "name_en": "Extreme Firepower",
+    "description_zh": "将弹头伤害升级至 Lv.50。",
+    "description_en": "Upgrade warhead damage to level 50.",
+    "hidden": false
+  },
+  {
+    "id": "TURRET_RING",
+    "name_zh": "第一道炮环",
+    "name_en": "First Turret Ring",
+    "description_zh": "在一场战役中部署至少 12 座炮台。",
+    "description_en": "Deploy at least 12 turrets in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "TURRET_FORTRESS",
+    "name_zh": "四十八重防线",
+    "name_en": "Forty-Eight Defenses",
+    "description_zh": "在一场战役中部署全部 48 座炮台。",
+    "description_en": "Deploy all 48 turrets in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "FULL_ARSENAL",
+    "name_zh": "文明武库",
+    "name_en": "Civilization Arsenal",
+    "description_zh": "在一场战役中拥有全部十种主武器。",
+    "description_en": "Own all ten main weapons in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "ROOFTOP_NETWORK",
+    "name_zh": "城市即武器",
+    "name_en": "The City Is a Weapon",
+    "description_zh": "改造城市阶段的全部三座建筑。",
+    "description_en": "Convert all three city buildings in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "LUNAR_CANNON",
+    "name_zh": "月亮为我开火",
+    "name_en": "The Moon Fires for Us",
+    "description_zh": "将月球改造为月轨主炮。",
+    "description_en": "Convert the Moon into its orbital cannon.",
+    "hidden": false
+  },
+  {
+    "id": "DYSON_WEAPON",
+    "name_zh": "恒星之握",
+    "name_en": "A Star in Our Grasp",
+    "description_zh": "将太阳改造为戴森球武器。",
+    "description_en": "Convert the Sun into a Dyson weapon.",
+    "hidden": false
+  },
+  {
+    "id": "BLACK_HOLE_ENGINE",
+    "name_zh": "驯服深渊",
+    "name_en": "Taming the Abyss",
+    "description_zh": "将银心黑洞改造为黑洞引擎。",
+    "description_en": "Convert the galactic central black hole into an engine.",
+    "hidden": false
+  },
+  {
+    "id": "CLUSTER_NETWORK",
+    "name_zh": "群星联防",
+    "name_en": "United Galaxies",
+    "description_zh": "在一场战役中改造超星系团阶段的全部六个天体。",
+    "description_en": "Convert all six bodies of the Supercluster stage in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "COSMIC_NETWORK",
+    "name_zh": "宇宙神经网",
+    "name_en": "Cosmic Neural Network",
+    "description_zh": "在一场战役中改造可观测宇宙阶段的全部六个天体。",
+    "description_en": "Convert all six bodies of the Observable Universe stage in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "BRANE_NETWORK",
+    "name_zh": "卷曲维度",
+    "name_en": "Curled Dimensions",
+    "description_zh": "在一场战役中改造宇宙膜阶段的全部六个卷曲维度。",
+    "description_en": "Convert all six curled dimensions of the Brane stage in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "ALL_CONVERSIONS",
+    "name_zh": "万物皆防线",
+    "name_en": "Everything Is a Defense",
+    "description_zh": "在一场战役中改造全部十个阶段的 50 个可改造天体。",
+    "description_en": "Convert all 50 bodies across the ten stages in one campaign.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_NUKE",
+    "name_zh": "核火初现",
+    "name_en": "Nuclear Dawn",
+    "description_zh": "实际释放一次核弹大招。",
+    "description_en": "Fire the nuclear ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_PHOTOID",
+    "name_zh": "一束光的重量",
+    "name_en": "The Weight of Light",
+    "description_zh": "实际释放一次光粒打击。",
+    "description_en": "Fire the photoid ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_FOIL",
+    "name_zh": "维度折叠",
+    "name_en": "Folding Dimensions",
+    "description_zh": "实际释放一次一向箔。",
+    "description_en": "Fire the dimensional foil ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_PRIME",
+    "name_zh": "质数裁决",
+    "name_en": "Prime Judgment",
+    "description_zh": "实际释放一次质数打击。",
+    "description_en": "Fire the prime-number ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_LIGHTSPEED",
+    "name_zh": "光速由我定义",
+    "name_en": "Light Speed Is Mine",
+    "description_zh": "实际释放一次降低光速大招。",
+    "description_en": "Fire the light-speed reduction ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_PI",
+    "name_zh": "重写圆周",
+    "name_en": "Rewriting the Circle",
+    "description_zh": "实际释放一次改写 π 大招。",
+    "description_en": "Fire the pi-rewriting ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_DROPLET",
+    "name_zh": "一瞬间",
+    "name_en": "In a Single Instant",
+    "description_zh": "实际释放一次水滴大招。",
+    "description_en": "Fire the Droplet ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_FOURIER",
+    "name_zh": "频谱归零",
+    "name_en": "Spectrum Zeroed",
+    "description_zh": "实际释放一次傅里叶分解大招。",
+    "description_en": "Fire the Fourier Decomposition ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_MANDELBROT",
+    "name_zh": "无穷细节",
+    "name_en": "Infinite Detail",
+    "description_zh": "实际释放一次曼德博分形大招。",
+    "description_en": "Fire the Mandelbrot ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_STRINGS",
+    "name_zh": "十一维",
+    "name_en": "Eleven Dimensions",
+    "description_zh": "实际释放一次维度震荡大招。",
+    "description_en": "Fire the Dimensional Resonance ultimate.",
+    "hidden": false
+  },
+  {
+    "id": "ULT_MASTER",
+    "name_zh": "末日武器学家",
+    "name_en": "Doomsday Specialist",
+    "description_zh": "累计实际释放全部十种大招，可跨战役完成。",
+    "description_en": "Fire all ten ultimates at least once, across any campaigns.",
+    "hidden": false
+  },
+  {
+    "id": "BOSS_BREAK",
+    "name_zh": "打断施法",
+    "name_en": "Interrupted",
+    "description_zh": "在蓄力期间打断一次可打断的 Boss 技能。",
+    "description_en": "Interrupt a breakable boss skill during its wind-up.",
+    "hidden": false
+  },
+  {
+    "id": "SIEGE_BREAK",
+    "name_zh": "炮口沉默",
+    "name_en": "Silencing the Cannon",
+    "description_zh": "在蓄力期间打断攻城主炮。",
+    "description_en": "Interrupt the siege beam during its wind-up.",
+    "hidden": false
+  },
+  {
+    "id": "DEVOUR_BREAK",
+    "name_zh": "拒绝吞噬",
+    "name_en": "Refusing the Void",
+    "description_zh": "在蓄力期间打断吞噬。",
+    "description_en": "Interrupt devour during its wind-up.",
+    "hidden": false
+  }
+]

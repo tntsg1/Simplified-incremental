@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/weapon_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="膜共振炮"
+role="弦振动 / 高维共振"
+interval=9.0
+damage_multiplier=38.0
+coverage=120
+color=Color(1,0.79,0.3,1)
+beam=true

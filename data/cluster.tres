@@ -1,20 +1,19 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
 [ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
 [resource]
 script=ExtResource("1")
-title="星系团"
-subtitle="CLUSTER / QUASAR NETWORK"
-scale_label="星系团防线 · 100 Mly"
+title="超星系团"
+subtitle="SUPERCLUSTER / LANIAKEA"
+scale_label="超星系团防线 · 520 Mly"
 accent=Color(0.95,0.48,0.73,1)
 count_multiplier=4194304
 reward_multiplier=0.10546875
-regular_seconds=2400.0
-boss_hp=78585000000000.0
-hp_base_scale=90000000000000.0
-hp_growth=2.5
-boss_window=65.0
+boss_hp=925700000000.0
+hp_base_scale=2.633000e+19
+hp_growth=3.0
+boss_window=66.0
 boss_title="外星巨构战舰 · CATHEDRAL"
-boss_kind="mothership"
-weapon_price=120000000000.0
+boss_kind="cathedral"
+weapon_price=140000000000000.0
 boss_reward=176947200.0
-briefing="类星体炮同时覆盖多支舰队。独立精英仍需优先处理。"
+briefing="星系沿着拉尼亚凯亚的引力流奔向巨引源。类星体炮覆盖多个星系群。"

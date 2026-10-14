@@ -69,9 +69,10 @@ func run() -> void:
 	c.clear_battle()
 	c.money=123
 	c.levels.damage=14
+	var wave_before: int = c.wave
 	c.fail_stage()
 	c.retry()
-	check(c.wave==1 and c.money==123 and c.levels.damage==14 and c.automation,"failure inherits growth")
+	check(c.wave==wave_before and c.money==123 and c.levels.damage==14 and c.automation,"failure retries the same wave and inherits growth")
 	c.spawn_enemy(15)
 	c.fire_weapon(0,c.enemies[0])
 	c.advance(.1)
@@ -81,6 +82,118 @@ func run() -> void:
 	check(d.enemies[0].members==c.enemies[0].members and d.shots.size()==c.shots.size(),"restore members and in-flight shots")
 	check(is_equal_approx(d.elapsed,c.elapsed) and is_equal_approx(d.money,c.money),"no offline settlement")
 	check(not d.restore({"game":"colony","version":1}),"old saves rejected")
+	# A six-chapter (version 1) save resumes in the matching ten-chapter stage.
+	var legacy: Dictionary = JSON.parse_string(JSON.stringify(c.snapshot()))
+	legacy.version = 1
+	legacy.stage = 3
+	legacy.mode = "boss"
+	legacy.owned = [true, true, true, true, false, false]
+	legacy.cooldowns = [0, 0, 0, 0, 0, 0]
+	legacy.weapon_damage = [1, 2, 3, 4, 0, 0]
+	legacy.bodies = [7, 1, 32, 16, 0, 0]
+	legacy.enemies = []
+	legacy.shots = []
+	legacy.reward_batches = [{"age": 0.2, "released": false, "kind": "nuke", "reward": 50.0, "drops": []}]
+	var migrated = Combat.new()
+	check(migrated.restore(legacy), "version 1 save migrates")
+	check(migrated.stage == 6 and migrated.mode == "intermission" and migrated.wave == 10, "old galaxy boss resumes before the new galaxy boss")
+	check(migrated.owned[5] and migrated.owned[3] and migrated.owned[4] and not migrated.owned[6], "old stellar cannon maps forward; passed chapters' weapons granted")
+	check(migrated.bodies[2] == 16 and migrated.bodies[6] == 32, "old Sun and galactic black hole keep their conversions")
+	check(is_equal_approx(migrated.money, c.money + 50.0), "pending loot paid out on migration")
+	check(migrated.saved_stage(legacy) == 6, "title screen shows the migrated chapter")
+	# Droplet fragments break only once; a second droplet erases them without new ones.
+	var dr = Combat.new()
+	dr.start_new()
+	dr.stage = 2
+	dr.wave = 3
+	dr.start_wave()
+	dr.spawn_left = 0
+	dr.grace = 9999.0
+	for i in range(8):
+		dr.spawn_enemy(3)
+	dr.ult_override = "droplet"
+	dr.ult_charge = 1.0
+	dr.fire_ultimate()
+	for i in range(200):
+		dr.advance(1.0 / 60, false)
+	var first_fragments: int = 0
+	for e in dr.enemies:
+		if bool(e.get("fragment", false)) and not bool(e.dead):
+			first_fragments += 1
+	check(first_fragments > 0, "droplet shatters threats into fragments")
+	dr.ult = {}
+	dr.ult_charge = 1.0
+	dr.fire_ultimate()
+	for i in range(200):
+		dr.advance(1.0 / 60, false)
+	var second_fragments: int = 0
+	for e in dr.enemies:
+		if bool(e.get("fragment", false)) and not bool(e.dead):
+			second_fragments += 1
+	check(second_fragments == 0, "fragments never shatter into more fragments")
+	# Fragments that reach the defense do no damage.
+	dr.ult = {}
+	dr.enemies.clear()
+	dr.enemies_by_id.clear()
+	dr.spawn_fragment(Vector2(500, 120), 20.0, 0.0)
+	var frag: Dictionary = dr.enemies.back()
+	frag.age = float(frag.lifetime)
+	var before_hp: float = dr.health
+	dr.advance(1.0 / 60, false)
+	check(dr.health == before_hp and bool(frag.dead), "droplet fragments burn up harmlessly at the defense")
+	# A round changes target at most MAX_RETARGETS times, then flies off as a stray.
+	var rt = Combat.new()
+	rt.start_new()
+	rt.stage = 1
+	rt.wave = 2
+	rt.start_wave()
+	rt.spawn_left = 0
+	for i in range(6):
+		rt.spawn_enemy(1)
+	rt.fire_weapon(0, rt.enemies[0])
+	var round: Dictionary = rt.shots.back()
+	for i in range(5):
+		for e in rt.enemies:
+			if int(e.id) == int(round.target):
+				e.dead = true
+		rt.advance(1.0 / 60, false)
+	check(int(round.get("turns", 0)) <= rt.MAX_RETARGETS and bool(round.get("stray", false)), "rounds retarget at most three times, then fly off-screen")
+	# Magnetar's field bends incoming rounds away; instant attacks still land.
+	var mg = Combat.new()
+	mg.start_new()
+	mg.stage = 6
+	mg.wave = 10
+	mg.start_wave()
+	mg.start_boss()
+	var magnetar: Dictionary = mg.boss_actor()
+	mg.skill = {"kind": "magnetic_field", "phase": "active", "age": 0.0, "hp": float(magnetar.hp)}
+	var bent: Array = [0]
+	mg.shot_deflected.connect(func(_p, _h, _t): bent[0] += 1)
+	for i in range(40):
+		mg.fire_weapon(0, magnetar)
+	for i in range(120):
+		mg.skill.age = 0.0
+		mg.advance(1.0 / 60, false)
+	check(mg.magnet_field_radius() > 0.0 and int(bent[0]) >= 10, "magnetar field deflects incoming rounds (%d of 40)" % int(bent[0]))
+	# Every chapter weapon has its own attack geometry and still lands its volley.
+	for w in range(c.STAGE_COUNT):
+		var m = Combat.new()
+		m.start_new()
+		m.stage = 1
+		m.wave = 3
+		m.start_wave()
+		for i in range(12):
+			m.spawn_enemy(3)
+		var target: Dictionary = m.enemies[0]
+		var hp_before: float = m.pending_hp(target) + float(target.reserved)
+		m.fire_weapon(w, target)
+		for i in range(90):
+			m.advance(1.0 / 60, false)
+			if m.find_enemy(int(target.id)).is_empty():
+				break
+		var after: Dictionary = m.find_enemy(int(target.id))
+		var hp_after: float = 0.0 if after.is_empty() else float(after.hp) + (int(after.members) - 1) * float(after.unit_hp)
+		check(hp_after < hp_before, "chapter weapon %d (%s) damages its target" % [w, m.WEAPON_MODES[w]])
 	for i in range(60):
 		c.advance(1.0/60,false)
 		d.advance(1.0/60,false)
@@ -151,7 +264,7 @@ func campaign(seed_value: int) -> void:
 	var ordinary: int=0
 	var transitions: int=0
 	var auto_wave: int=0
-	var weapon_wave: Array[int]=[1,0,0,0,0,0]
+	var weapon_wave: Array[int]=[1,0,0,0,0,0,0,0,0,0]
 	var early_passes: int=0
 	var last_wave: int=1
 	for tick in range(1800000):
@@ -172,7 +285,8 @@ func campaign(seed_value: int) -> void:
 				var old_snapshot: Dictionary=JSON.parse_string(JSON.stringify(c.snapshot()))
 				incumbent.restore(old_snapshot)
 				incumbent.owned[c.stage]=false
-				for early_wave in [1,2]:
+				# The new chapter weapon is part of the opening now; old guns must hold wave 1.
+				for early_wave in [1]:
 					incumbent.wave=early_wave
 					incumbent.start_wave()
 					for early_tick in range(30000):
@@ -207,12 +321,12 @@ func campaign(seed_value: int) -> void:
 			break
 		c.advance(1.0/60,false)
 	check(c.mode=="victory","six bosses seed "+str(seed_value))
-	check(ordinary>=60 and transitions==5 and c.stage_bosses==6,"60 waves 6 bosses 5 transitions")
+	check(ordinary>=100 and transitions==c.LAST_STAGE and c.stage_bosses==c.STAGE_COUNT,"100 waves 10 bosses 9 transitions")
 	check(auto_wave>=6 and auto_wave<=8,"city automation wave6-8")
 	# Short dense waves: the length comes from upgrade/push loops, not slow spawns.
 	check(c.elapsed>=2880 and c.elapsed<=9000,"active time 0.8-2.5 hours")
 	check(early_passes>=10,"first two waves survived")
-	for stage in range(6):
+	for stage in range(c.STAGE_COUNT):
 		check(c.owned[stage] and c.weapon_damage[stage]>0,"old weapon contributes "+str(stage))
 		if stage>0:
 			check(weapon_wave[stage]<=2 and weapon_wave[stage]>0,"new weapon affordable by wave2 "+str(stage))

@@ -1,20 +1,19 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
 [ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
 [resource]
 script=ExtResource("1")
-title="宇宙"
-subtitle="COSMOS / LAST HORIZON"
+title="可观测宇宙"
+subtitle="OBSERVABLE UNIVERSE / LAST HORIZON"
 scale_label="宇宙防线 · 93 Gly"
 accent=Color(0.65,0.87,1,1)
 count_multiplier=1073741824
 reward_multiplier=0.0098876953125
-regular_seconds=2880.0
-boss_hp=4901000000000000.0
-hp_base_scale=7.8e+18
-hp_growth=1.2
+boss_hp=709600000000000.0
+hp_base_scale=1.213000e+19
+hp_growth=3.0
 boss_window=70.0
 boss_title="宇宙灾变核心 · THE SILENCE"
 boss_kind="rift"
-weapon_price=60000000000000.0
+weapon_price=2.500000e+16
 boss_reward=4246732800.0
-briefing="六层火力汇聚在最后的边界。击毁灾变核心，让所有防线迎来黎明。"
+briefing="整个宇宙网正在燃烧。宇宙炮扫过全部纤维。"

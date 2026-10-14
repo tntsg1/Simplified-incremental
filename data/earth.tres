@@ -1,21 +1,20 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
 [ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
 [resource]
 script=ExtResource("1")
-wave_density=PackedInt32Array(1,1,1,2,2,3,3,4,4,6)
 title="地球"
 subtitle="EARTH / ORBITAL WATCH"
 scale_label="行星防线 · 12,742 km"
 accent=Color(0.35,0.72,1,1)
 count_multiplier=32
 reward_multiplier=1.0
-regular_seconds=1320.0
-boss_hp=24927500.0
-hp_base_scale=19.5
-hp_growth=1.56
-boss_window=50.0
+boss_hp=37520000.0
+hp_base_scale=54.93
+hp_growth=3.0
+boss_window=48.0
 boss_title="流浪天体 · NOMAD"
 boss_kind="planet"
-weapon_price=700.0
+weapon_price=400.0
 boss_reward=12800.0
-briefing="城市缩成地球上的一个亮点。购买轨道炮，迎击来自各方向的威胁。"
+wave_density=PackedInt32Array(1,1,1,2,2,3,3,4,4,6)
+briefing="来袭天体从四面八方逼近。部署轨道炮，点击月球与卫星改造成武器。"

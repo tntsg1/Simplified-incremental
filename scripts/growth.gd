@@ -72,7 +72,7 @@ static func crit_multiplier(ctx: RefCounted) -> float:
 
 static func nominal_dps(ctx: RefCounted) -> float:
 	var total: float = 0.0
-	for i in range(6):
+	for i in range(ctx.STAGE_COUNT):
 		if ctx.owned[i]:
 			total += ctx.shot_damage(i) / ctx.shot_interval(i)
 	# Turrets together add 5% of the arsenal per turret bought.
@@ -103,11 +103,11 @@ static func buy_upgrade(ctx: RefCounted, index: int, requested: int = 1) -> int:
 		bought += 1
 	if bought > 0:
 		if u.key == "reload" and int(ctx.levels.reload) / 10 > (int(ctx.levels.reload) - bought) / 10:
-			ctx.notice.emit("发射器进化 · 齐射规模翻倍")
+			ctx.notice.emit(TranslationServer.translate("发射器进化 · 齐射规模翻倍"))
 		elif u.key == "damage":
 			for threshold in [150,125,100,75,50,25,10]:
 				if int(ctx.levels.damage)>=threshold and int(ctx.levels.damage)-bought<threshold:
-					ctx.notice.emit("弹头突破 · Lv.%d 全体系伤害翻倍"%threshold)
+					ctx.notice.emit(TranslationServer.translate("弹头突破 · Lv.%d 全体系伤害翻倍")%threshold)
 					break
 		ctx.checkpoint.emit()
 	return bought
@@ -124,7 +124,7 @@ static func buy_automation(ctx: RefCounted) -> bool:
 	ctx.automation = true
 	ctx.manual_held = false
 	ctx.manual_queued = false
-	ctx.notice.emit("自动防御已上线 · 点击目标即可指定集火")
+	ctx.notice.emit(TranslationServer.translate("自动防御已上线 · 点击目标即可指定集火"))
 	ctx.checkpoint.emit()
 	return true
 
@@ -136,7 +136,7 @@ static func buy_weapon(ctx: RefCounted) -> bool:
 	ctx.money -= price
 	ctx.owned[ctx.stage] = true
 	ctx.cooldowns[ctx.stage] = 0.0
-	ctx.notice.emit(ctx.catalog.weapons[ctx.stage].title + "上线 · 全局升级已继承")
+	ctx.notice.emit(TranslationServer.translate(ctx.catalog.weapons[ctx.stage].title) + TranslationServer.translate("上线 · 全局升级已继承"))
 	ctx.checkpoint.emit()
 	return true
 

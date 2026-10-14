@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
+[resource]
+script=ExtResource("1")
+title="宇宙膜"
+subtitle="THE BRANE / BEYOND THE HORIZON"
+scale_label="膜宇宙防线 · 第 11 维"
+accent=Color(1,0.79,0.3,1)
+count_multiplier=8589934592
+reward_multiplier=0.004
+boss_hp=1.631000e+15
+hp_base_scale=4.752000e+19
+hp_growth=3.0
+boss_window=75.0
+boss_title="对撞之膜 · THE OTHER BRANE"
+boss_kind="brane"
+weapon_price=2.100000e+17
+boss_reward=120000000000.0
+briefing="我们的宇宙只是高维空间中的一张膜。另一张膜正在靠近。"

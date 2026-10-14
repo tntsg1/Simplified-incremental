@@ -22,7 +22,15 @@ const SaveStore = preload("res://scripts/save_store.gd")
 const Catalog = preload("res://scripts/catalog.gd")
 const AudioDirector=preload("res://scripts/audio_director.gd")
 var audio: Node
+var steam_features: Node
+var camera_comfort: bool=false
 var reduced_effects: bool=false
+var ui_motion: bool=true
+var language: String = "zh"
+var preferences_path := "user://skyguard_preferences.cfg"
+var title_screen: Control
+var language_button: Button
+var pointer_frame: UiFx.PointerFrame
 var field_origin:=Vector2.ZERO
 var field_zoom: float=1.0
 var sim = Combat.new()
@@ -64,8 +72,14 @@ var cam_focus: Vector2 = Vector2(500,325)
 var hitstop: float = 0.0
 var boss_was_visible: bool = false
 var cinema: UiFx.Cinema
+var ending_skip: Button
 var cine_mode: String = ""
 var cam_hold: float = 0.0
+var shatter: ColorRect
+var resume_fx: UiFx.Resume
+var lens: ColorRect
+var mandel: ColorRect
+var shatter_seeds: PackedVector2Array = PackedVector2Array()
 var wave_shown: float = 0
 var health_seen: float = 100
 var health_shake: float = 0
@@ -74,6 +88,10 @@ var wave_bar: ProgressBar
 var toast: Label
 var toast_time: float = 0
 var accumulator: float = 0
+const SIM_STEP: float = 1.0 / 60.0
+const MAX_SIM_STEPS: int = 16
+const SIM_BUDGET_USEC: int = 8000
+var sim_steps_this_frame: int = 0
 var save_timer: float = 0
 var ui_timer: float = 0
 var purchase_count: int = 1
@@ -87,6 +105,7 @@ var ult_ready_seen: bool = false
 # Fast-forward: the fixed 60 Hz sim simply takes more steps per frame, so a run
 # plays out identically at any speed; field animation scales with it.
 const SPEEDS: Array[int]=[1,2,4,8]
+const RELEASE_SPEEDS: Array[int]=[1,2]
 var game_speed: int=1
 var speed_button: Button
 # Developer mode (` key): test shortcuts and extra fast-forward steps.
@@ -134,7 +153,7 @@ func panel_style(color: Color, edge: Color = Color("373737"), radius: int = 12) 
 
 func label(text: String, size: int = 18, color: Color = Color("eeeeee")) -> Label:
 	var l := Label.new()
-	l.text = text
+	l.text = TranslationServer.translate(text)
 	l.add_theme_font_size_override("font_size",size)
 	l.add_theme_color_override("font_color",color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -142,29 +161,29 @@ func label(text: String, size: int = 18, color: Color = Color("eeeeee")) -> Labe
 
 func button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var b := Button.new()
-	b.text = text
+	b.text = TranslationServer.translate(text)
 	b.custom_minimum_size = Vector2(0,46)
 	b.add_theme_stylebox_override("normal",panel_style(Color("1f1f1f") if primary else Color("181818"),Color("8a8a8a") if primary else Color("3a3a3a"),2))
 	b.add_theme_stylebox_override("hover",panel_style(Color("1f1f1f") if primary else Color("181818"),Color("ededed"),2))
 	b.add_theme_stylebox_override("pressed",panel_style(Color("1f1f1f"),Color("ffffff"),2))
 	b.add_theme_stylebox_override("disabled",panel_style(Color("151515"),Color("2a2a2a"),2))
-	b.add_theme_stylebox_override("focus",StyleBoxEmpty.new())
+	var focus := StyleBoxFlat.new()
+	focus.bg_color = Color.TRANSPARENT
+	focus.border_color = Color("ededed")
+	focus.set_border_width_all(2)
+	b.add_theme_stylebox_override("focus",focus)
 	b.add_theme_color_override("font_color",Color("efefef"))
 	b.add_theme_color_override("font_disabled_color",Color("6c6c6c"))
 	b.pressed.connect(callback)
 	juice(b)
-	b.set_meta("fx",UiFx.decorate(b))
+	b.set_meta("fx",UiFx.decorate(b, func(): return ui_motion))
 	return b
 
-# Springy hover / press / release on every button, plus a ripple on click.
+# Click feedback; the shared FxLayer owns continuous hover/press motion.
 func juice(b: Button) -> void:
 	b.resized.connect(func(): b.pivot_offset = b.size * .5)
-	b.mouse_entered.connect(func(): spring(b, 1.035, .2))
-	b.mouse_exited.connect(func(): spring(b, 1.0, .2))
-	b.button_down.connect(func(): spring(b, .93, .07))
 	b.button_up.connect(func():
-		spring(b, 1.035 if b.is_hovered() else 1.0, .34)
-		if b.is_hovered() and not b.disabled:
+		if ui_motion and b.is_hovered() and not b.disabled:
 			burst(b, false, false))
 
 func burst(anchor: Control, amber: bool, large: bool) -> void:
@@ -219,6 +238,10 @@ func stagger(container: Node, gap: float = .035) -> void:
 			i += 1
 
 func _ready() -> void:
+	var preferences := ConfigFile.new()
+	if not OS.has_feature("web") and preferences.load(preferences_path) == OK:
+		language = str(preferences.get_value("ui", "language", "zh"))
+	apply_language(language, false)
 	mouse_filter=Control.MOUSE_FILTER_IGNORE
 	var system_font := SystemFont.new()
 	system_font.font_names = PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC"])
@@ -235,6 +258,36 @@ func _ready() -> void:
 	field = Battlefield.new()
 	field.sim = sim
 	add_child(field)
+	# Rewritten pi: the rendered battlefield shatters (shader over a fresh frame copy).
+	var shatter_copy := BackBufferCopy.new()
+	shatter_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(shatter_copy)
+	shatter = ColorRect.new()
+	shatter.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shatter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shatter_mat := ShaderMaterial.new()
+	shatter_mat.shader = preload("res://assets/shatter.gdshader")
+	shatter.material = shatter_mat
+	shatter.visible = false
+	add_child(shatter)
+	# Photoid: a gravitational lens follows the particle in.
+	lens = ColorRect.new()
+	lens.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lens.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lens_mat := ShaderMaterial.new()
+	lens_mat.shader = preload("res://assets/lens.gdshader")
+	lens.material = lens_mat
+	lens.visible = false
+	add_child(lens)
+	# Mandelbrot: the real set blooms over the battlefield (no screen copy needed).
+	mandel = ColorRect.new()
+	mandel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mandel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mandel_mat := ShaderMaterial.new()
+	mandel_mat.shader = preload("res://assets/mandelbrot.gdshader")
+	mandel.material = mandel_mat
+	mandel.visible = false
+	add_child(mandel)
 	ui = Control.new()
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -267,6 +320,20 @@ func _ready() -> void:
 	sim.ultimate_impact.connect(field.on_ultimate_impact)
 	sim.prime_strike.connect(field.on_prime_strike)
 	sim.flattened.connect(field.on_flattened)
+	sim.droplet_pass.connect(field.on_droplet_pass)
+	sim.droplet_shatter.connect(field.on_droplet_shatter)
+	sim.fourier_tour.connect(field.on_fourier_tour)
+	sim.fourier_hit.connect(field.on_fourier_hit)
+	sim.string_snap.connect(field.on_string_snap)
+	sim.weapon_strike.connect(field.on_weapon_strike)
+	sim.shot_deflected.connect(field.on_shot_deflected)
+	sim.droplet_pass.connect(func(_pts): hitstop = maxf(hitstop, .05))
+	sim.droplet_arrive.connect(field.on_droplet_arrive)
+	sim.droplet_arrive.connect(func(_p): hitstop = maxf(hitstop, .18))
+	sim.fourier_hit.connect(func(_p,_i,_n): hitstop = maxf(hitstop,.012))
+	sim.boss_launched.connect(field.on_boss_launched)
+	sim.boss_skill.connect(field.on_boss_skill)
+	sim.ultimate_loot.connect(field.on_ultimate_loot)
 	sim.ultimate_fired.connect(on_ult_fired)
 	sim.ultimate_impact.connect(on_ult_impact)
 	sim.prime_strike.connect(func(_p,_pts): hitstop = maxf(hitstop,.035))
@@ -275,16 +342,30 @@ func _ready() -> void:
 	sim.focused.connect(field.on_focused)
 	resized.connect(layout)
 	parse_proof()
+	steam_features = preload("res://scripts/steam_features.gd").new()
+	add_child(steam_features)
+	steam_features.setup(self)
 	audio.set_enabled(sound_on and (not proof or "--listen" in OS.get_cmdline_user_args()))
 	if not proof:
 		saved = store.read_game()
+		if not OS.has_feature("web") and not preferences.has_section_key("ui", "language"):
+			apply_language(str(saved.get("settings", {}).get("language", language)), false)
 		sound_on = bool(saved.get("settings",{}).get("sound",true))
+		camera_comfort=bool(saved.get("settings",{}).get("camera_comfort",false))
 		reduced_effects=bool(saved.get("settings",{}).get("reduced_effects",false))
+		ui_motion=bool(saved.get("settings",{}).get("ui_motion",true))
 		audio.music_level=clampf(float(saved.get("settings",{}).get("music_level",.55)),0,1)
 		audio.effects_level=clampf(float(saved.get("settings",{}).get("effects_level",.65)),0,1)
 		game_speed=int(saved.get("settings",{}).get("game_speed",1))
-		if game_speed not in SPEEDS:
+		if game_speed not in allowed_speeds():
 			game_speed=1
+		if not OS.has_feature("web") and preferences.has_section("ui"):
+			sound_on = bool(preferences.get_value("ui","sound",sound_on))
+			camera_comfort = bool(preferences.get_value("ui","camera_comfort",camera_comfort))
+			reduced_effects = bool(preferences.get_value("ui","reduced_effects",reduced_effects))
+			ui_motion = bool(preferences.get_value("ui","ui_motion",ui_motion))
+			audio.music_level = clampf(float(preferences.get_value("ui","music_level",audio.music_level)),0,1)
+			audio.effects_level = clampf(float(preferences.get_value("ui","effects_level",audio.effects_level)),0,1)
 		refresh_speed_button()
 		audio.set_enabled(sound_on)
 		show_title()
@@ -292,6 +373,34 @@ func _ready() -> void:
 	if "--silent-output" in OS.get_cmdline_user_args():AudioServer.set_bus_volume_db(0,-80)
 	layout()
 	update_hud()
+	pointer_frame = UiFx.PointerFrame.new()
+	pointer_frame.motion_enabled = func(): return ui_motion
+	pointer_frame.target_rect = cursor_target_rect
+	pointer_frame.over_button = func(): return cursor_button() != null
+	pointer_frame.normal_style = func():
+		var lock: float = smoothstep(0.0,1.0,field.reticle_lock) if field.show_reticle else 0.0
+		return {"spin":field.clock*1.4*(1.0-lock),"lock":lock,"ink":(UiFx.ACCENT if field.lock_priority else UiFx.INK).lerp(UiFx.INK,1.0-lock)}
+	add_child(pointer_frame)
+	field.unified_cursor = true
+	Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+
+func cursor_button() -> Button:
+	var b: Button = UiFx.hovered_button(get_viewport())
+	if b != null and b.has_meta("fx") and not b.disabled and b.is_visible_in_tree():
+		return b
+	return null
+
+func cursor_target_rect(mouse: Vector2) -> Rect2:
+	var b: Button = cursor_button()
+	if b != null:
+		return b.get_global_rect().grow(7.0)
+	var center: Vector2 = mouse
+	var radius: float = 13.0
+	if field.show_reticle and field.reticle_lock > 0.0:
+		var lock: float = smoothstep(0.0,1.0,field.reticle_lock)
+		center = mouse.lerp(field.to_global(field.lock_pos),lock)
+		radius = lerpf(radius,(field.lock_radius+12.0)*field.global_scale.x,lock)
+	return Rect2(center-Vector2.ONE*radius,Vector2.ONE*radius*2.0)
 
 func build_hud() -> void:
 	var line := ColorRect.new()
@@ -300,7 +409,7 @@ func build_hud() -> void:
 	line.size = Vector2(1528,1)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(line)
-	stage_label = label("城市",30)
+	stage_label = label(TranslationServer.translate("城市"),30)
 	ui.add_child(stage_label)
 	scale_label = label("",13,Color("8a8a8a"))
 	ui.add_child(scale_label)
@@ -308,9 +417,9 @@ func build_hud() -> void:
 	ui.add_child(money_label)
 	rate_label = label("",13,Color("8a8a8a"))
 	ui.add_child(rate_label)
-	wave_label = label("第 01 / 10 波",19)
+	wave_label = label(TranslationServer.translate("第 01 / 10 波"),19)
 	ui.add_child(wave_label)
-	health_label = label("防线 100%",18,Color("b4b4b4"))
+	health_label = label(TranslationServer.translate("防线 100%"),18,Color("b4b4b4"))
 	ui.add_child(health_label)
 	wave_bar = ProgressBar.new()
 	wave_bar.show_percentage = false
@@ -324,7 +433,7 @@ func build_hud() -> void:
 	boss_box = Control.new()
 	boss_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(boss_box)
-	boss_title = label("巨型威胁",16,Color("ededed"))
+	boss_title = label(TranslationServer.translate("巨型威胁"),16,Color("ededed"))
 	boss_box.add_child(boss_title)
 	boss_timer = label("",16,Color("ffc94d"))
 	boss_box.add_child(boss_timer)
@@ -367,19 +476,19 @@ func build_hud() -> void:
 	hint = label("",15,Color("a6a6a6"))
 	bottom.add_child(hint)
 	hint.position = Vector2(24,23)
-	hud_auto_button = button("开启自动防御 · $200",buy_automation_from_hud,true)
+	hud_auto_button = button(TranslationServer.translate("开启自动防御 · $200"),buy_automation_from_hud,true)
 	hud_auto_button.name = "AutomationButton"
 	hud_auto_button.visible = false
 	bottom.add_child(hud_auto_button)
-	var shop := button("升级防线  [U]",func():open_shop(),true)
+	var shop := button(TranslationServer.translate("升级防线  [U]"),func():open_shop(),true)
 	shop.name = "ShopButton"
 	bottom.add_child(shop)
-	var pause := button("暂停  [Esc]",func():open_pause())
+	var pause := button(TranslationServer.translate("暂停  [Esc]"),func():open_pause())
 	pause.name = "PauseButton"
 	bottom.add_child(pause)
 	ult_button = button("",fire_ultimate_from_hud,true)
 	ult_button.name = "UltButton"
-	ult_button.tooltip_text = "毁灭性打击：战斗时间与击毁共同充能  [Q]"
+	ult_button.tooltip_text = TranslationServer.translate("毁灭性打击：战斗时间与击毁共同充能  [Q]")
 	ult_button.clip_contents = true
 	ult_fill = ColorRect.new()
 	ult_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -389,23 +498,23 @@ func build_hud() -> void:
 	bottom.add_child(ult_button)
 	speed_button = button("",cycle_speed)
 	speed_button.name = "SpeedButton"
-	speed_button.tooltip_text = "加速游戏：×1 / ×2 / ×4 / ×8"
+	speed_button.tooltip_text = TranslationServer.translate("加速游戏：×1 / ×2 / ×4 / ×8" if OS.is_debug_build() else "加速游戏：×1 / ×2")
 	bottom.add_child(speed_button)
 	dev_bar = HBoxContainer.new()
 	dev_bar.add_theme_constant_override("separation",8)
 	dev_bar.visible = false
 	ui.add_child(dev_bar)
-	for pair in [["开发：资金 ×10",dev_money],["上一波",dev_prev_wave],["跳过本波",dev_skip_wave],["击毁 Boss",dev_kill_boss],["上一章",dev_prev_stage],["直达下一章",dev_next_stage]]:
+	for pair in [[TranslationServer.translate("开发：资金 ×10"),dev_money],[TranslationServer.translate("上一波"),dev_prev_wave],[TranslationServer.translate("跳过本波"),dev_skip_wave],[TranslationServer.translate("击毁 Boss"),dev_kill_boss],[TranslationServer.translate("上一章"),dev_prev_stage],[TranslationServer.translate("直达下一章"),dev_next_stage]]:
 		var dev_button := button(pair[0],pair[1])
 		dev_button.custom_minimum_size = Vector2(0,38)
 		dev_bar.add_child(dev_button)
-	dev_god_button = button("无敌：关",dev_toggle_god)
+	dev_god_button = button(TranslationServer.translate("无敌：关"),dev_toggle_god)
 	dev_god_button.custom_minimum_size = Vector2(0,38)
 	dev_bar.add_child(dev_god_button)
-	dev_ult_button = button("大招冷却：正常",dev_toggle_ult)
+	dev_ult_button = button(TranslationServer.translate("大招冷却：正常"),dev_toggle_ult)
 	dev_ult_button.custom_minimum_size = Vector2(0,38)
 	dev_bar.add_child(dev_ult_button)
-	dev_ult_kind_button = button("大招：本章",dev_cycle_ult_kind)
+	dev_ult_kind_button = button(TranslationServer.translate("大招：本章"),dev_cycle_ult_kind)
 	dev_ult_kind_button.custom_minimum_size = Vector2(0,38)
 	dev_bar.add_child(dev_ult_kind_button)
 	refresh_speed_button()
@@ -417,6 +526,13 @@ func build_hud() -> void:
 	ui.add_child(ult_overlay)
 	cinema = UiFx.Cinema.new()
 	add_child(cinema)
+	resume_fx = UiFx.Resume.new()
+	resume_fx.hide()
+	add_child(resume_fx)
+	ending_skip = button(TranslationServer.translate("跳过结局  Esc"),func():cinema.skip_ending())
+	ending_skip.custom_minimum_size = Vector2(154,36)
+	ending_skip.visible = false
+	cinema.add_child(ending_skip)
 
 func layout() -> void:
 	if field == null:
@@ -472,6 +588,8 @@ func layout() -> void:
 	if is_instance_valid(cinema):
 		cinema.position = Vector2.ZERO
 		cinema.size = Vector2(w,h)
+		ending_skip.position = Vector2(w-180,12)
+		ending_skip.size = Vector2(154,36)
 	toast.position = Vector2(w*.2,h-142)
 	toast.size = Vector2(w*.6,30)
 	if is_instance_valid(modal):
@@ -484,6 +602,9 @@ func new_modal(width: float, title: String, subtitle: String) -> VBoxContainer:
 		var fade := shade.create_tween()
 		fade.tween_property(shade,"modulate:a",1.0,.3)
 	shade.show()
+	if is_instance_valid(title_screen) and title_screen.visible:
+		move_child(shade,get_child_count()-1)
+		title_screen.set_menu_focus(false)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal = PanelContainer.new()
 	modal.add_theme_stylebox_override("panel",panel_style(Color("161616"),Color("454545"),3))
@@ -492,8 +613,14 @@ func new_modal(width: float, title: String, subtitle: String) -> VBoxContainer:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation",16)
 	modal.add_child(v)
-	v.add_child(label(title,30))
-	v.add_child(label(subtitle,14,Color("a2a2a2")))
+	var heading := label(title,30)
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	heading.custom_minimum_size.x = width - 40
+	v.add_child(heading)
+	var explanation := label(subtitle,14,Color("a2a2a2"))
+	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	explanation.custom_minimum_size.x = width - 40
+	v.add_child(explanation)
 	call_deferred("center_modal")
 	return v
 
@@ -501,6 +628,13 @@ func current_menu_staggers() -> bool:
 	return menu in ["title","pause","result"]
 
 func center_modal() -> void:
+	# Wrapped labels settle their minimum height after container layout.
+	# Measuring immediately can clamp the panel to its initial unwrapped height.
+	var panel := modal
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(panel) or panel != modal:
+		return
 	if is_instance_valid(modal):
 		modal.size = modal.get_combined_minimum_size()
 		modal.position = (size-modal.size)*.5
@@ -518,49 +652,127 @@ func center_modal() -> void:
 			stagger(body,.03 if current_menu_staggers() else .012)
 
 func show_title() -> void:
+	if OS.has_feature("web"):
+		show_classic_title()
+		return
+	if is_instance_valid(cinema):
+		cinema.skip_ending()
+		ending_skip.hide()
+	if is_instance_valid(modal):
+		modal.queue_free()
+		modal = null
+	shade.hide()
+	ui.hide()
+	menu = "title"
+	sim.paused = true
+	sim.manual_held = false
+	sim.manual_queued = false
+	if not is_instance_valid(title_screen):
+		title_screen = preload("res://scripts/title_screen.gd").new()
+		add_child(title_screen)
+		title_screen.setup(self)
+	else:
+		title_screen.refresh()
+	title_screen.show()
+
+func persist_preferences() -> void:
+	if OS.has_feature("web") or not store.enabled: return
+	var config := ConfigFile.new()
+	for key in settings_payload(): config.set_value("ui",key,settings_payload()[key])
+	config.save(preferences_path)
+
+func export_campaign() -> void:
+	if saved.is_empty(): return
+	var picker := FileDialog.new()
+	picker.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	picker.access = FileDialog.ACCESS_FILESYSTEM
+	picker.filters = PackedStringArray(["*.json ; SKYGUARD campaign"])
+	picker.current_file = "skyguard-campaign.json"
+	picker.title = "导出存档" if language == "zh" else "Export campaign"
+	add_child(picker)
+	picker.file_selected.connect(func(path: String):
+		var file := FileAccess.open(path,FileAccess.WRITE)
+		if file != null:
+			file.store_string(JSON.stringify(saved,"\t"))
+			file.close()
+		else:
+			var alert := AcceptDialog.new()
+			alert.dialog_text = "无法写入文件，请选择其他位置。" if language == "zh" else "Could not write the file. Choose another location."
+			add_child(alert)
+			alert.popup_centered()
+		picker.queue_free())
+	picker.canceled.connect(picker.queue_free)
+	picker.popup_centered(Vector2i(900,600))
+
+func show_classic_title() -> void:
+	if is_instance_valid(cinema):
+		cinema.skip_ending()
+		ending_skip.hide()
+	if is_instance_valid(pointer_frame):
+		pointer_frame.suppressed = false
+		pointer_frame.show()
 	menu = "title"
 	ui.hide()
-	var v: VBoxContainer = new_modal(610,"天穹防线","SKYGUARD  /  从第一枚导弹，到宇宙最后的光")
+	var v: VBoxContainer = new_modal(610,TranslationServer.translate("天穹防线"),TranslationServer.translate("SKYGUARD  /  从第一枚导弹，到宇宙最后的光"))
 	var emblem := TextureRect.new()
 	emblem.texture = preload("res://assets/emblem.svg")
 	emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	emblem.custom_minimum_size = Vector2(0,96)
 	v.add_child(emblem)
-	v.add_child(label("城市  →  地球  →  太阳系  →  银河  →  星系团  →  宇宙",15,Color("c3c3c3")))
-	var intro := label("击毁威胁赚取资金，让防御体系不断进化。\n早期点击目标发射；购买自动化后，点击指定集火。\n六道防线，六个巨型威胁，一场完整的太空战役。",16,Color("bababa"))
+	v.add_child(label(TranslationServer.translate("城市  →  地球  →  太阳系  →  银河  →  星系团  →  宇宙"),15,Color("c3c3c3")))
+	var intro := label(TranslationServer.translate("击毁威胁赚取资金，让防御体系不断进化。\n早期点击目标发射；购买自动化后，点击指定集火。\n十道防线，十个巨型威胁，从城市一直打到宇宙之外。"),16,Color("bababa"))
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.custom_minimum_size.y = 87
 	v.add_child(intro)
 	if not saved.is_empty():
-		v.add_child(button("继续战役 · "+sim.catalog.stages[int(saved.get("stage",0))].title,continue_game,true))
-	v.add_child(button("开始新战役",func():
+		v.add_child(button(TranslationServer.translate("继续战役 · ")+TranslationServer.translate(sim.catalog.stages[sim.saved_stage(saved)].title),continue_game,true))
+	v.add_child(button(TranslationServer.translate("开始新战役"),func():
 		if saved.is_empty():
 			start_game()
 		else:
 			confirm_new(),saved.is_empty()))
-	v.add_child(button("退出",func():get_tree().quit()))
-	v.add_child(label("鼠标优先  ·  U 升级  ·  Esc 暂停  ·  F11 全屏",13,Color("7f7f7f")))
+	v.add_child(button(TranslationServer.translate("退出"),func():get_tree().quit()))
+	language_button = button("中文 / English", toggle_language)
+	v.add_child(language_button)
+	v.add_child(label(TranslationServer.translate("鼠标优先  ·  U 升级  ·  Esc 暂停  ·  F11 全屏"),13,Color("7f7f7f")))
 
 func confirm_new() -> void:
-	var v: VBoxContainer = new_modal(540,"开始新的防线？","新战役会覆盖当前进度。")
-	v.add_child(button("开始新战役",start_game,true))
-	v.add_child(button("返回",show_title))
+	var v: VBoxContainer = new_modal(540,TranslationServer.translate("开始新的防线？"),TranslationServer.translate("新战役会覆盖当前进度。"))
+	var start: Button = button(TranslationServer.translate("开始新战役"),start_game,true)
+	v.add_child(start)
+	start.grab_focus()
+	v.add_child(button(TranslationServer.translate("返回"),show_title))
 
 func start_game() -> void:
 	close_modal()
 	sim.start_new()
 	field.reset_growth()
-	show_notice("点击或按住来袭目标发射导弹 · 升级面板暂停战斗")
+	show_notice(TranslationServer.translate("点击或按住来袭目标发射导弹 · 升级面板暂停战斗"))
+
+func play_resume() -> void:
+	# Restore sequence, then the battle opens from the core with a small settle.
+	if not ui_motion or not is_instance_valid(resume_fx):
+		return
+	resume_fx.size = size
+	var chapter: String = "%02d  %s" % [sim.stage + 1, TranslationServer.translate(sim.stage_data().title)]
+	var detail: String = (TranslationServer.translate("第 %d 波") % sim.wave) if sim.mode != "boss" else TranslationServer.translate("巨型威胁")
+	resume_fx.play(field.get_global_transform() * sim.defense_position(), chapter, detail)
+	cam_zoom = 1.12
+	cam_target = 1.0
+	cam_focus = sim.defense_position()
 
 func continue_game() -> void:
 	if sim.restore(saved):
 		field.reset_growth()
 		close_modal()
-		show_notice("战役已恢复 · 没有离线时间结算")
+		play_resume()
+		show_notice(TranslationServer.translate("战役已恢复 · 没有离线时间结算"))
 	else:
-		show_notice("存档无法读取，请开始新战役")
+		show_notice(TranslationServer.translate("存档无法读取，请开始新战役"))
 
 func close_modal() -> void:
+	if is_instance_valid(title_screen): title_screen.hide()
 	if is_instance_valid(modal):
 		# Fold back into a hairline, then go.
 		var old: PanelContainer = modal
@@ -597,7 +809,7 @@ func open_shop() -> void:
 	sim.manual_held = false
 	sim.manual_queued = false
 	cards.clear()
-	var v: VBoxContainer = new_modal(minf(1120,size.x-80),"升级防线","战斗、撞击计时与收入已暂停 · 所有已购武器共享升级")
+	var v: VBoxContainer = new_modal(minf(1120,size.x-80),TranslationServer.translate("升级防线"),TranslationServer.translate("战斗、撞击计时与收入已暂停 · 所有已购武器共享升级"))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation",12)
 	v.add_child(row)
@@ -605,17 +817,17 @@ func open_shop() -> void:
 	wallet.name = "Wallet"
 	wallet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(wallet)
-	for pair in [[1,"购买 ×1"],[10,"购买 ×10"],[1000,"购买最多"]]:
+	for pair in [[1,TranslationServer.translate("购买 ×1")],[10,TranslationServer.translate("购买 ×10")],[1000,TranslationServer.translate("购买最多")]]:
 		var count: int = pair[0]
 		row.add_child(button(pair[1],func():purchase_count=count;update_shop()))
 	if sim.automation_available():
-		auto_button = button("自动防御  $200  ·  导弹自主索敌",func():
+		auto_button = button(TranslationServer.translate("自动防御  $200  ·  导弹自主索敌"),func():
 			if sim.buy_automation():
 				play_tone("buy")
 				open_shop(),true)
 		v.add_child(auto_button)
 	if not sim.owned[sim.stage]:
-		weapon_button = button("部署"+sim.catalog.weapons[sim.stage].title+"  $"+Catalog.number(sim.stage_data().weapon_price)+"  ·  "+sim.catalog.weapons[sim.stage].role,func():
+		weapon_button = button(TranslationServer.translate("部署")+TranslationServer.translate(sim.catalog.weapons[sim.stage].title)+"  $"+Catalog.number(sim.stage_data().weapon_price)+"  ·  "+TranslationServer.translate(sim.catalog.weapons[sim.stage].role),func():
 			if sim.buy_weapon():
 				play_tone("buy")
 				open_shop(),true)
@@ -639,7 +851,7 @@ func open_shop() -> void:
 		p.add_child(card)
 		var title := label("",19)
 		card.add_child(title)
-		var detail := label(spec.description,12,Color("acacac"))
+		var detail := label(TranslationServer.translate(spec.description),12,Color("acacac"))
 		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		detail.custom_minimum_size = Vector2(card_width-40,48 if grid.columns==4 else 36)
 		card.add_child(detail)
@@ -660,7 +872,7 @@ func open_shop() -> void:
 	var power := label("",14,Color("c9c9c9"))
 	power.name="Power"
 	v.add_child(power)
-	v.add_child(button("继续防御  [U / Esc]",close_modal,true))
+	v.add_child(button(TranslationServer.translate("继续防御  [U / Esc]"),close_modal,true))
 	update_shop()
 	stagger(grid,.04)
 
@@ -677,15 +889,15 @@ func update_shop() -> void:
 			if int(sim.levels.damage)<threshold:
 				next_damage=threshold
 				break
-		var damage_text: String="弹头突破全部完成" if next_damage<0 else "弹头 Lv.%d 伤害翻倍"%next_damage
-		var reload_text: String="发射器已达最大规模" if int(sim.levels.reload)>=140 else "装填 Lv.%d 发射器翻倍"%((int(sim.levels.reload)/10+1)*10)
-		milestones.text="下一突破："+damage_text+"   ·   "+reload_text+"   ·   老武器始终在役"
+		var damage_text: String=TranslationServer.translate("弹头突破全部完成") if next_damage<0 else TranslationServer.translate("弹头 Lv.%d 伤害翻倍")%next_damage
+		var reload_text: String=TranslationServer.translate("发射器已达最大规模") if int(sim.levels.reload)>=140 else TranslationServer.translate("装填 Lv.%d 发射器翻倍")%((int(sim.levels.reload)/10+1)*10)
+		milestones.text=TranslationServer.translate("下一突破：")+damage_text+"   ·   "+reload_text+TranslationServer.translate("   ·   老武器始终在役")
 	var power: Label = modal.find_child("Power",true,false)
 	if power:
-		power.text="理论单体火力 $d / s   ·   齐射发射器 $l   ·   最大覆盖 $c 成员".replace("$d",Catalog.number(sim.nominal_dps())).replace("$l",Catalog.number(sim.launcher_count())).replace("$c",Catalog.number(sim.coverage(sim.stage) if sim.owned[sim.stage] else sim.coverage(maxi(0,sim.stage-1))))
+		power.text=TranslationServer.translate("理论单体火力 $d / s   ·   齐射发射器 $l   ·   最大覆盖 $c 成员").replace("$d",Catalog.number(sim.nominal_dps())).replace("$l",Catalog.number(sim.launcher_count())).replace("$c",Catalog.number(sim.coverage(sim.stage) if sim.owned[sim.stage] else sim.coverage(maxi(0,sim.stage-1))))
 	for c in cards:
 		var spec: Resource = sim.catalog.upgrades[int(c.index)]
-		c.title.text = spec.title+"  Lv."+str(sim.levels[spec.key])
+		c.title.text = TranslationServer.translate(spec.title)+"  Lv."+str(sim.levels[spec.key])
 		var count: int = purchase_count
 		if count==1000:
 			var first: float = sim.upgrade_cost(int(c.index))
@@ -706,10 +918,12 @@ func open_pause() -> void:
 	sim.paused = true
 	sim.manual_held = false
 	sim.manual_queued = false
-	var v: VBoxContainer = new_modal(510,"防线暂停","所有模拟与计时已停止 · 进度已保存")
-	v.add_child(button("继续防御",close_modal,true))
-	v.add_child(button("升级防线",open_shop))
-	var audio_toggle := button("声音：开启" if sound_on else "声音：关闭",func():
+	var v: VBoxContainer = new_modal(510,TranslationServer.translate("防线暂停"),TranslationServer.translate("所有模拟与计时已停止 · 进度已保存"))
+	v.add_child(button(TranslationServer.translate("继续防御"),close_modal,true))
+	v.add_child(button(TranslationServer.translate("升级防线"),open_shop))
+	language_button = button("中文 / English", toggle_language)
+	v.add_child(language_button)
+	var audio_toggle := button(TranslationServer.translate("声音：开启") if sound_on else TranslationServer.translate("声音：关闭"),func():
 		sound_on = not sound_on
 		audio.set_enabled(sound_on)
 		open_pause()
@@ -718,7 +932,7 @@ func open_pause() -> void:
 	for setting in ["music_level","effects_level"]:
 		var audio_row:=HBoxContainer.new()
 		audio_row.add_theme_constant_override("separation",14)
-		var caption:=label("音乐" if setting=="music_level" else "音效",14)
+		var caption:=label(TranslationServer.translate("音乐") if setting=="music_level" else TranslationServer.translate("音效"),14)
 		caption.custom_minimum_size=Vector2(58,30)
 		audio_row.add_child(caption)
 		var slider:=HSlider.new()
@@ -734,29 +948,36 @@ func open_pause() -> void:
 		var key: String=setting
 		slider.value_changed.connect(func(value: float):audio.set(key,value/100);audio.set_enabled(sound_on);value_label.text="%.0f%%"%value)
 		v.add_child(audio_row)
-	v.add_child(button("特效：柔和" if reduced_effects else "特效：标准",func():reduced_effects=not reduced_effects;open_pause();save_game()))
-	v.add_child(button("保存并返回主菜单",func():
+	v.add_child(button(TranslationServer.translate("特效：柔和") if reduced_effects else TranslationServer.translate("特效：标准"),func():reduced_effects=not reduced_effects;open_pause();save_game()))
+	v.add_child(button(TranslationServer.translate("UI 动态效果：开启") if ui_motion else TranslationServer.translate("UI 动态效果：关闭"),func():ui_motion=not ui_motion;open_pause();save_game()))
+	v.add_child(button(("镜头运动：关闭" if camera_comfort else "镜头运动：开启") if language == "zh" else ("Camera motion: Off" if camera_comfort else "Camera motion: On"),func():camera_comfort=not camera_comfort;open_pause();save_game()))
+	v.add_child(button(TranslationServer.translate("保存并返回主菜单"),func():
 		save_game()
 		saved = store.read_game()
 		show_title()))
-	v.add_child(label("累计防御 %.1f 分钟  ·  击毁 %s 个目标" %[sim.elapsed/60,Catalog.number(sim.kills)],14,Color("969696")))
+	v.add_child(label(TranslationServer.translate("累计防御 %.1f 分钟  ·  击毁 %s 个目标") %[sim.elapsed/60,Catalog.number(sim.kills)],14,Color("969696")))
 	save_game()
 
 func show_result() -> void:
 	if menu in ["result","shop"]:
 		return
+	ui.show()
 	menu = "result"
 	var victory: bool = sim.mode=="victory"
-	var v: VBoxContainer = new_modal(660,"最后的光，留给文明。" if victory else "防线已被突破","战役完成  /  SKYGUARD" if victory else "本阶段重启，资金、全部升级与已购武器保留")
-	var advice: String="巨型威胁未在撞击前击毁。升级伤害与暴击，缩短 Boss 战。" if sim.health>0 else "群落超出了拦截能力。装填 Lv.%d 增加发射器。"%((int(sim.levels.reload)/10+1)*10)
-	if not victory and sim.health<=0 and sim.stage>=2:advice+="\n范围与贯穿能消灭更多成员；部署本阶段的新炮。"
-	v.add_child(label("六道防线全部守住。\n你让城市的第一座发射井，一直战斗到宇宙尽头。" if victory else advice,17,Color("c1c1c1")))
-	v.add_child(label("防御时间 %.1f 分钟   ·   击毁 %s   ·   重试 %d" %[sim.elapsed/60,Catalog.number(sim.kills),sim.attempts],16,Color("d5d5d5")))
+	var v: VBoxContainer = new_modal(660,TranslationServer.translate("最后的光，留给文明。") if victory else TranslationServer.translate("防线已被突破"),TranslationServer.translate("战役完成  /  SKYGUARD") if victory else TranslationServer.translate("本波重来，资金、全部升级与已购武器保留"))
+	var advice: String=TranslationServer.translate("巨型威胁未在撞击前击毁。升级伤害与暴击，缩短 Boss 战。") if sim.health>0 else TranslationServer.translate("群落超出了拦截能力。装填 Lv.%d 增加发射器。")%((int(sim.levels.reload)/10+1)*10)
+	if not victory and sim.health<=0 and sim.stage>=2:advice+=TranslationServer.translate("\n范围与贯穿能消灭更多成员；部署本阶段的新炮。")
+	var result_text := label(TranslationServer.translate("十道防线全部守住。\n你让城市的第一座发射井，一直战斗到宇宙之外。") if victory else advice,17,Color("c1c1c1"))
+	result_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	result_text.custom_minimum_size.x = 620
+	v.add_child(result_text)
+	v.add_child(label(TranslationServer.translate("防御时间 %.1f 分钟   ·   击毁 %s   ·   重试 %d") %[sim.elapsed/60,Catalog.number(sim.kills),sim.attempts],16,Color("d5d5d5")))
 	if victory:
-		v.add_child(button("返回主菜单",func():saved=store.read_game();show_title(),true))
+		v.add_child(button(TranslationServer.translate("重播 · 宇宙的新生"),play_ending))
+		v.add_child(button(TranslationServer.translate("返回主菜单"),func():saved=store.read_game();show_title(),true))
 	else:
-		v.add_child(button("重启本阶段",func():close_modal();sim.retry(),true))
-		v.add_child(button("先升级防线",open_shop))
+		v.add_child(button(TranslationServer.translate("重打本波"),func():close_modal();sim.retry(),true))
+		v.add_child(button(TranslationServer.translate("先升级防线"),open_shop))
 
 func buy_automation_from_hud() -> void:
 	if sim.buy_automation():
@@ -764,19 +985,22 @@ func buy_automation_from_hud() -> void:
 		update_hud()
 
 func update_hud() -> void:
-	stage_label.text = "%02d   %s" %[sim.stage+1,sim.stage_data().title]
-	scale_label.text = sim.stage_data().subtitle+"     /     "+sim.stage_data().scale_label
-	wave_label.text = "巨型威胁" if sim.mode=="boss" else "第 %02d / 10 波" %sim.wave
-	health_label.text = "防线 %.0f%%" %sim.health
+	stage_label.text = "%02d   %s" %[sim.stage+1,TranslationServer.translate(sim.stage_data().title)]
+	scale_label.text = TranslationServer.translate(sim.stage_data().subtitle)+"     /     "+TranslationServer.translate(sim.stage_data().scale_label)
+	wave_label.text = TranslationServer.translate("巨型威胁") if sim.mode=="boss" else TranslationServer.translate("第 %02d / 10 波") %sim.wave
+	health_label.text = TranslationServer.translate("防线 %.0f%%") %sim.health
 	health_label.modulate = Color("ffc94d") if sim.health<40 else Color.WHITE
 
 	boss_box.visible = sim.mode=="boss" and menu==""
 	if boss_box.visible and not boss_was_visible:
-		boss_fx.reset()
+		var current_hp: float = 1.0
+		if not sim.enemies.is_empty() and bool(sim.enemies[0].boss):
+			current_hp = float(sim.enemies[0].hp) / sim.boss_max_hp()
+		boss_fx.reset(current_hp)
 	boss_was_visible = boss_box.visible
 	if sim.mode=="boss":
-		boss_title.text = sim.stage_data().boss_title
-		boss_timer.text = "撞击倒计时  %.1f s" %sim.boss_remaining
+		boss_title.text = TranslationServer.translate(sim.stage_data().boss_title)
+		boss_timer.text = TranslationServer.translate("撞击倒计时  %.1f s") %sim.boss_remaining
 		boss_fx.name_text = boss_title.text
 		boss_fx.timer_text = boss_timer.text
 		if not sim.enemies.is_empty() and bool(sim.enemies[0].boss):
@@ -788,28 +1012,28 @@ func update_hud() -> void:
 			boss_shown = target if target > boss_shown else boss_shown
 			boss_title.text += "   /   HP "+Catalog.number(sim.enemies[0].hp)
 	var parts: Array[String] = []
-	for i in range(6):
+	for i in range(sim.STAGE_COUNT):
 		if sim.owned[i]:
-			parts.append(sim.catalog.weapons[i].title.trim_suffix("阵列"))
+			parts.append(TranslationServer.translate(sim.catalog.weapons[i].title).trim_suffix(TranslationServer.translate("阵列")))
 	var auto_available: bool = sim.automation_available() and sim.mode not in ["title","victory"]
 	if auto_available and not hud_auto_button.visible:
-		show_notice("自动防御已开放 · 花 $200 购买，所有武器自主索敌")
+		show_notice(TranslationServer.translate("自动防御已开放 · 花 $200 购买，所有武器自主索敌"))
 	hud_auto_button.visible = auto_available
 	hud_auto_button.disabled = sim.money<200
-	hud_auto_button.text = "开启自动防御 · $200" if sim.money>=200 else "自动防御 · $200（还差 $%d）"%ceili(200-sim.money)
-	hud_auto_button.tooltip_text = "购买后所有武器自动索敌；点击目标可指定集火。"
+	hud_auto_button.text = TranslationServer.translate("开启自动防御 · $200") if sim.money>=200 else TranslationServer.translate("自动防御 · $200（还差 $%d）")%ceili(200-sim.money)
+	hud_auto_button.tooltip_text = TranslationServer.translate("购买后所有武器自动索敌；点击目标可指定集火。")
 	hint.position.x = 360 if auto_available else 24
 	hint.visible = sim.mode!="boss" and size.x>1500
 	update_ult_button()
 	boss_box.position.x = 36+(360 if auto_available else 24)
 	if auto_available:
-		hint.text = "已开放购买 · 开启后自动攻击"
+		hint.text = TranslationServer.translate("已开放购买 · 开启后自动攻击")
 	elif not sim.automation:
-		hint.text = "点击 / 按住目标发射 · 第六波可花 $200 购买自动防御"
+		hint.text = TranslationServer.translate("点击 / 按住目标发射 · 第六波可花 $200 购买自动防御")
 	elif not sim.owned[sim.stage]:
-		hint.text = "新武器可部署："+sim.catalog.weapons[sim.stage].title+"  ·  打开升级防线"
+		hint.text = TranslationServer.translate("新武器可部署：")+TranslationServer.translate(sim.catalog.weapons[sim.stage].title)+TranslationServer.translate("  ·  打开升级防线")
 	else:
-		hint.text = "自动拦截  ·  点击集火    /    "+" + ".join(parts)
+		hint.text = TranslationServer.translate("自动拦截  ·  点击集火    /    ")+" + ".join(parts)
 	if hint.text.length()>52:
 		hint.add_theme_font_size_override("font_size",12)
 	else:
@@ -818,7 +1042,7 @@ func update_hud() -> void:
 func show_notice(message: String) -> void:
 	toast.text = message
 	toast_time = 5.0
-	if is_instance_valid(audio) and (message.contains("突破") or message.contains("进化")):
+	if is_instance_valid(audio) and (message.to_lower().contains(TranslationServer.translate("突破").to_lower()) or message.to_lower().contains(TranslationServer.translate("进化").to_lower())):
 		audio.play("milestone",-11,1,false,true)
 
 func update_ult_button() -> void:
@@ -829,24 +1053,28 @@ func update_ult_button() -> void:
 	var ready: bool = sim.ultimate_ready()
 	var name: String = sim.ultimate_name()
 	if not sim.ult.is_empty() and not sim.ult_unlimited:
-		ult_button.text = name+" · 打击中"
+		ult_button.text = name+TranslationServer.translate(" · 打击中")
 	elif ready:
-		ult_button.text = name+" · 就绪  [Q]"
+		ult_button.text = name+TranslationServer.translate(" · 就绪  [Q]")
 	else:
 		ult_button.text = "%s  %d%%" %[name,int(sim.ult_charge*100)]
+	var px := 16
+	while px > 10 and font.get_string_size(ult_button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > 166:
+		px -= 1
+	ult_button.add_theme_font_size_override("font_size", px)
 	ult_button.disabled = not ready
 	if ready and not ult_ready_seen:
-		show_notice(name+"已就绪 · 按 Q 或点击按钮发动")
+		show_notice(name+TranslationServer.translate("已就绪 · 按 Q 或点击按钮发动"))
 		spring(ult_button,1.12,.25)
 	ult_ready_seen = ready
 
-const ULT_ENGLISH: Dictionary = {"nuke":"NUCLEAR STRIKE","photoid":"PHOTOID STRIKE","foil":"DUAL-VECTOR FOIL","prime":"PRIME STRIKE","lightspeed":"LIGHT SPEED · LOWERED","pi":"REWRITE  π  =  3"}
+const ULT_ENGLISH: Dictionary = {"nuke":"NUCLEAR STRIKE","photoid":"PHOTOID STRIKE","droplet":"DROPLET  ·  STRONG INTERACTION","foil":"ONE-VECTOR FOIL","fourier":"FOURIER DECOMPOSITION","prime":"PRIME STRIKE","mandelbrot":"MANDELBROT  z → z² + c","lightspeed":"LIGHT SPEED · LOWERED","pi":"REWRITE  π  =  3","strings":"DIMENSIONAL RESONANCE"}
 
 func on_ult_fired(kind: String, point: Vector2) -> void:
 	ult_overlay.play(sim.ultimate_name(),str(ULT_ENGLISH.get(kind,"")),float(sim.ULT_DURATION.get(kind,3.0))*.8)
 	# Lean the camera toward the strike while it winds up.
 	cam_focus = point if kind in ["nuke","foil"] else sim.defense_position()
-	cam_target = 1.04 if kind == "photoid" else 1.1
+	cam_target = 1.04 if kind in ["photoid","droplet","mandelbrot"] else 1.1
 
 # Big beats get a full-screen cinematic: boss entrance, boss destroyed + scale jump.
 func stage_cinema() -> void:
@@ -855,7 +1083,7 @@ func stage_cinema() -> void:
 	var previous: String = cine_mode
 	cine_mode = sim.mode
 	if sim.mode == "boss":
-		var parts: PackedStringArray = sim.stage_data().boss_title.split(" · ")
+		var parts: PackedStringArray = TranslationServer.translate(sim.stage_data().boss_title).split(" · ")
 		cinema.play("boss",2.9,parts[0],parts[-1] if parts.size() > 1 else "WARNING")
 		field.banner = {}
 		for e in sim.enemies:
@@ -869,11 +1097,86 @@ func stage_cinema() -> void:
 		field.punch = 1.4
 		toast_time = 0
 		var next: Resource = sim.catalog.stages[sim.stage + 1]
-		cinema.play("jump",sim.transition_length,next.title,next.subtitle,"+ $"+Catalog.number(float(sim.stage_data().boss_reward)*sim.reward_scale()),"%02d" %(sim.stage + 2),sim.stage_data().scale_label,next.scale_label)
+		audio.prepare_stage(sim.stage + 1)
+		cinema.play("jump",sim.transition_length,TranslationServer.translate(next.title),TranslationServer.translate(next.subtitle),"+ $"+Catalog.number(float(sim.stage_data().boss_reward)*sim.reward_scale()),"%02d" %(sim.stage + 2),TranslationServer.translate(sim.stage_data().scale_label),TranslationServer.translate(next.scale_label))
 	elif sim.mode == "victory" and previous == "boss":
 		hitstop = .3
 		field.punch = 1.6
-		cinema.play("clear",3.6,"灾变核心已消散","ALL THREATS ELIMINATED")
+		play_ending()
+
+func play_ending() -> void:
+	close_modal()
+	close_body_card()
+	ui.hide()
+	sim.manual_held = false
+	toast_time = 0.0
+	cinema.reduced_effects = reduced_effects or camera_comfort
+	cinema.play("ending",UiFx.Cinema.EndingArt.LENGTH,"","")
+	ending_skip.visible = true
+
+func update_lens() -> void:
+	var on: bool = not sim.ult.is_empty() and str(sim.ult.kind) == "photoid" and not reduced_effects
+	var u: float = float(sim.ult.age) if on else 0.0
+	on = on and u > .5 and u < sim.PHOTOID_IMPACT + .05
+	lens.visible = on
+	if not on:
+		return
+	var p: float = clampf((u - .6) / (sim.PHOTOID_IMPACT - .6), 0, 1)
+	var head: Vector2 = field.get_global_transform() * field.photoid_head(u)
+	var m: ShaderMaterial = lens.material
+	m.set_shader_parameter("center", Vector2(head.x / size.x, head.y / size.y))
+	m.set_shader_parameter("radius", (70.0 + 110.0 * p) / size.y)
+	m.set_shader_parameter("strength", smoothstep(.5, .9, u) * (.45 + .55 * p))
+	m.set_shader_parameter("aspect", Vector2(size.x / size.y, 1.0))
+
+func update_mandel() -> void:
+	var on: bool = not sim.ult.is_empty() and str(sim.ult.kind) == "mandelbrot"
+	var u: float = float(sim.ult.age) if on else 0.0
+	on = on and u > sim.MANDEL_START and u < float(sim.ULT_DURATION.mandelbrot)
+	mandel.visible = on
+	if not on:
+		return
+	var art = field.ultimate_art
+	var xf: Transform2D = field.get_global_transform()
+	var core: Vector2 = xf * sim.defense_position()
+	var px_scale: float = xf.get_scale().y
+	var m: ShaderMaterial = mandel.material
+	m.set_shader_parameter("core", Vector2(core.x / size.x, core.y / size.y))
+	m.set_shader_parameter("aspect", Vector2(size.x / size.y, 1.0))
+	var disc: float = sim.mandel_radius(u) * px_scale / size.y
+	m.set_shader_parameter("radius", disc)
+	m.set_shader_parameter("scale", art.mandel_scale(u, disc))
+	m.set_shader_parameter("focus", art.mandel_focus(u))
+	m.set_shader_parameter("max_iter", art.mandel_iterations(u))
+	m.set_shader_parameter("time", 0.0 if reduced_effects else u)
+	m.set_shader_parameter("fade", (1.0 - smoothstep(4.9, 5.6, u)) * (.75 if reduced_effects else 1.0))
+
+func update_shatter() -> void:
+	var on: bool = not sim.ult.is_empty() and str(sim.ult.kind) == "pi" and not reduced_effects
+	var u: float = float(sim.ult.age) if on else 0.0
+	var hit: float = sim.PI_IMPACT
+	on = on and u > hit - .7 and u < hit + 1.7
+	shatter.visible = on
+	if not on:
+		shatter_seeds.clear()
+		return
+	var core: Vector2 = field.get_global_transform() * sim.defense_position()
+	var center: Vector2 = Vector2(core.x / size.x, core.y / size.y)
+	if shatter_seeds.is_empty():
+		# Shards are smaller near the strike and larger toward the edges.
+		for i in range(20):
+			var a: float = i * 2.39996 + randf() * .3
+			var r: float = sqrt((i + .5) / 20.0) * .75
+			shatter_seeds.append(center + Vector2(cos(a) * r * size.y / size.x, sin(a) * r))
+	var m: ShaderMaterial = shatter.material
+	var crack: float = smoothstep(hit - .7, hit, u)
+	var fall: float = clampf((u - hit) / 1.0, 0, 1)
+	m.set_shader_parameter("crack", crack)
+	m.set_shader_parameter("progress", 1.0 - pow(1.0 - fall, 2.0) if u > hit else 0.0)
+	m.set_shader_parameter("settle", smoothstep(hit + 1.0, hit + 1.7, u))
+	m.set_shader_parameter("center", center)
+	m.set_shader_parameter("aspect", Vector2(size.x / size.y, 1.0))
+	m.set_shader_parameter("seeds", shatter_seeds)
 
 func on_ult_impact(_kind: String, _point: Vector2) -> void:
 	hitstop = .13
@@ -917,7 +1220,7 @@ func animate_hud(delta: float) -> void:
 		health_shake = 1.0
 	health_seen = sim.health
 	health_shake = maxf(0, health_shake-delta*3)
-	health_label.position.x = size.x-180+sin(Time.get_ticks_msec()*.07)*6*health_shake
+	health_label.position.x = size.x-180+(0.0 if camera_comfort else sin(Time.get_ticks_msec()*.07)*6*health_shake)
 	if health_shake > 0:
 		health_label.modulate = Color.WHITE.lerp(Color("ffc94d"), health_shake)
 	if wave_label.text != wave_seen:
@@ -937,17 +1240,20 @@ func open_body_card(slot: int) -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation",8)
 	body_card.add_child(v)
-	v.add_child(label("改造 " + str(spec.name),20))
-	v.add_child(label("→ " + str(spec.weapon) + "  ·  每 0.4 秒开火，相当于全体系火力 +12%",13,Color("b4b4b4")))
-	v.add_child(label("换章后缩入核心，继续开火",12,Color("7f7f7f")))
+	v.add_child(label(TranslationServer.translate("改造 ") + TranslationServer.translate(str(spec.name)),20))
+	var detail := label("→ " + TranslationServer.translate(str(spec.weapon)) + TranslationServer.translate("  ·  每 0.4 秒开火，相当于全体系火力 +12%"),13,Color("b4b4b4"))
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.custom_minimum_size.x = 260
+	v.add_child(detail)
+	v.add_child(label(TranslationServer.translate("换章后缩入核心，继续开火"),12,Color("7f7f7f")))
 	body_card_price = label("",15,Color("ffc94d"))
 	v.add_child(body_card_price)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation",8)
-	body_card_button = button("改造",confirm_body_card,true)
+	body_card_button = button(TranslationServer.translate("改造"),confirm_body_card,true)
 	body_card_button.custom_minimum_size = Vector2(150,40)
 	row.add_child(body_card_button)
-	var cancel := button("取消",close_body_card)
+	var cancel := button(TranslationServer.translate("取消"),close_body_card)
 	cancel.custom_minimum_size = Vector2(100,40)
 	row.add_child(cancel)
 	v.add_child(row)
@@ -968,9 +1274,9 @@ func refresh_body_card() -> void:
 		return
 	var price: float = sim.body_cost()
 	var missing: float = price - sim.money
-	body_card_price.text = "价格  $" + Catalog.number(price)
+	body_card_price.text = TranslationServer.translate("价格  $") + Catalog.number(price)
 	body_card_button.disabled = missing > 0
-	body_card_button.text = "改造" if missing <= 0 else "还差 $" + Catalog.number(missing)
+	body_card_button.text = TranslationServer.translate("改造") if missing <= 0 else TranslationServer.translate("还差 $") + Catalog.number(missing)
 	var anchor: Vector2 = field.to_global(sim.body_position(sim.stage,body_card_slot))
 	var card_size: Vector2 = body_card.get_combined_minimum_size()
 	var place: Vector2 = anchor + Vector2(28,-card_size.y*.5)
@@ -991,7 +1297,49 @@ func close_body_card() -> void:
 	body_card_slot = -1
 
 func settings_payload() -> Dictionary:
-	return {"sound":sound_on,"reduced_effects":reduced_effects,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed}
+	return {"sound":sound_on,"camera_comfort":camera_comfort,"reduced_effects":reduced_effects,"ui_motion":ui_motion,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed,"language":language}
+
+func toggle_language() -> void:
+	apply_language("en" if language == "zh" else "zh")
+	save_game()
+
+func apply_language(value: String, rebuild: bool = true) -> void:
+	language = "en" if value.begins_with("en") else "zh"
+	TranslationServer.set_locale(language)
+	if rebuild and store.enabled and not OS.has_feature("web"):
+		var preferences := ConfigFile.new()
+		preferences.load(preferences_path)
+		preferences.set_value("ui", "language", language)
+		preferences.save(preferences_path)
+	if not rebuild or not is_instance_valid(ui):
+		return
+	# Static HUD controls may have been constructed while English was selected.
+	# Refresh from Chinese message IDs so switching back works after a native restart too.
+	ui.get_node("Bottom/ShopButton").text = TranslationServer.translate("升级防线  [U]")
+	ui.get_node("Bottom/PauseButton").text = TranslationServer.translate("暂停  [Esc]")
+	ending_skip.text = TranslationServer.translate("跳过结局  Esc")
+	ult_button.tooltip_text = TranslationServer.translate("毁灭性打击：战斗时间与击毁共同充能  [Q]")
+	speed_button.tooltip_text = TranslationServer.translate("加速游戏：×1 / ×2 / ×4 / ×8" if OS.is_debug_build() else "加速游戏：×1 / ×2")
+	var dev_labels := ["开发：资金 ×10", "上一波", "跳过本波", "击毁 Boss", "上一章", "直达下一章"]
+	for i in range(dev_labels.size()):
+		dev_bar.get_child(i).text = TranslationServer.translate(dev_labels[i])
+	dev_god_button.text = TranslationServer.translate("无敌：开" if dev_god else "无敌：关")
+	dev_ult_button.text = TranslationServer.translate("大招冷却：0" if sim.ult_unlimited else "大招冷却：正常")
+	dev_ult_kind_button.text = TranslationServer.translate("大招：本章") if sim.ult_override == "" else TranslationServer.translate("大招：") + sim.ultimate_name()
+	# Rebuild composed strings from their templates; preserve the paused campaign.
+	toast_time = 0.0
+	field.banner = {}
+	close_body_card()
+	update_hud()
+	refresh_speed_button()
+	update_rates(.25)
+	match menu:
+		"title": show_title()
+		"pause": open_pause()
+		"shop": open_shop()
+		"result":
+			menu = ""
+			show_result()
 
 func update_rates(delta: float) -> void:
 	rate_timer += delta
@@ -1012,105 +1360,157 @@ func update_rates(delta: float) -> void:
 	last_kills = sim.kills
 	last_rate_time = sim.elapsed
 	rate_label.visible = sim.mode in ["wave","boss","intermission"]
-	rate_label.text = "每秒伤害 %s   ·   每秒击毁 %s" %[Catalog.number(rate_damage),Catalog.number(rate_kills)]
+	rate_label.text = TranslationServer.translate("每秒伤害 %s   ·   每秒击毁 %s") %[Catalog.number(rate_damage),Catalog.number(rate_kills)]
+
+func allowed_speeds() -> Array[int]:
+	return SPEEDS if OS.is_debug_build() else RELEASE_SPEEDS
 
 func cycle_speed() -> void:
-	var steps: Array[int]=SPEEDS.duplicate()
-	if dev_mode:
+	var steps: Array[int]=allowed_speeds().duplicate()
+	if OS.is_debug_build() and dev_mode:
 		steps.append_array([16,32])
 	game_speed = steps[(steps.find(game_speed)+1)%steps.size()]
 	refresh_speed_button()
 
 func toggle_dev_mode() -> void:
+	if not OS.is_debug_build():
+		return
 	dev_mode = not dev_mode
 	dev_bar.visible = dev_mode
 	if not dev_mode:
 		dev_god = false
-		dev_god_button.text = "无敌：关"
+		dev_god_button.text = TranslationServer.translate("无敌：关")
 		sim.ult_unlimited = false
 		sim.ult_override = ""
-		dev_ult_button.text = "大招冷却：正常"
-		dev_ult_kind_button.text = "大招：本章"
-		if game_speed not in SPEEDS:
-			game_speed = 8
+		dev_ult_button.text = TranslationServer.translate("大招冷却：正常")
+		dev_ult_kind_button.text = TranslationServer.translate("大招：本章")
+		if game_speed not in allowed_speeds():
+			game_speed = allowed_speeds().back()
 			refresh_speed_button()
-	show_notice("开发者模式：" + ("开启 · 加速可到 ×32" if dev_mode else "关闭"))
+	show_notice(TranslationServer.translate("开发者模式：") + (TranslationServer.translate("开启 · 加速可到 ×32") if dev_mode else TranslationServer.translate("关闭")))
 
 func dev_money() -> void:
+	if not OS.is_debug_build():
+		return
 	sim.money = sim.money * 10.0 + 1000.0
 	update_hud()
 
 func dev_skip_wave() -> void:
+	if not OS.is_debug_build():
+		return
 	if sim.mode == "wave":
 		sim.clear_battle()
 		sim.spawn_left = 0
 
 func dev_prev_wave() -> void:
+	if not OS.is_debug_build():
+		return
 	if sim.mode == "boss":
 		sim.wave = 10
 	elif sim.mode in ["wave","intermission","failed"] and sim.wave > 1:
 		sim.wave -= 1
 	else:
-		show_notice("已经是本章第一波")
+		show_notice(TranslationServer.translate("已经是本章第一波"))
 		return
 	sim.start_wave()
-	show_notice("回到第 %d 波" % sim.wave)
+	show_notice(TranslationServer.translate("回到第 %d 波") % sim.wave)
 
 func dev_prev_stage() -> void:
+	if not OS.is_debug_build():
+		return
 	if sim.stage <= 0:
-		show_notice("已经是第一章")
+		show_notice(TranslationServer.translate("已经是第一章"))
 		return
 	sim.stage -= 1
 	sim.wave = 1
 	sim.start_wave()
 	field.reset_growth()
-	show_notice("回到" + sim.stage_data().title)
+	show_notice(TranslationServer.translate("回到") + TranslationServer.translate(sim.stage_data().title))
 
 func dev_kill_boss() -> void:
+	if not OS.is_debug_build():
+		return
 	if sim.mode != "boss":
-		show_notice("当前不是 Boss 战")
+		show_notice(TranslationServer.translate("当前不是 Boss 战"))
 		return
 	for e in sim.enemies:
 		if bool(e.boss) and not bool(e.dead):
 			sim.apply_damage(e, float(e.hp) + 1.0, 1, 0)
 
 func dev_next_stage() -> void:
-	if sim.stage >= 5:
-		show_notice("已经是最后一章")
+	if not OS.is_debug_build():
+		return
+	if sim.stage >= sim.LAST_STAGE:
+		show_notice(TranslationServer.translate("已经是最后一章"))
 		return
 	if sim.mode in ["wave","intermission","boss"]:
 		sim.finish_boss()
 
 func dev_toggle_god() -> void:
+	if not OS.is_debug_build():
+		return
 	dev_god = not dev_god
-	dev_god_button.text = "无敌：开" if dev_god else "无敌：关"
+	dev_god_button.text = TranslationServer.translate("无敌：开") if dev_god else TranslationServer.translate("无敌：关")
 
 func dev_toggle_ult() -> void:
+	if not OS.is_debug_build():
+		return
 	sim.ult_unlimited = not sim.ult_unlimited
 	if sim.ult_unlimited:
 		sim.ult_charge = 1.0
-	dev_ult_button.text = "大招冷却：0" if sim.ult_unlimited else "大招冷却：正常"
+	dev_ult_button.text = TranslationServer.translate("大招冷却：0") if sim.ult_unlimited else TranslationServer.translate("大招冷却：正常")
 	update_ult_button()
 
 func dev_cycle_ult_kind() -> void:
+	if not OS.is_debug_build():
+		return
 	# 本章 → 核弹 → 光粒打击 → … → 改写 π → 本章
 	var kinds: Array[String] = sim.ULT_KINDS
 	var i: int = kinds.find(sim.ult_override)
 	sim.ult_override = kinds[i + 1] if i + 1 < kinds.size() else ""
-	dev_ult_kind_button.text = "大招：本章" if sim.ult_override == "" else "大招："+sim.ultimate_name()
+	dev_ult_kind_button.text = TranslationServer.translate("大招：本章") if sim.ult_override == "" else TranslationServer.translate("大招：")+sim.ultimate_name()
 	update_ult_button()
 
 func refresh_speed_button() -> void:
 	if is_instance_valid(speed_button):
-		speed_button.text = "加速 ×%d  [F]" %game_speed
+		speed_button.text = TranslationServer.translate("加速 ×%d  [F]") %game_speed
 
 func save_game() -> void:
+	persist_preferences()
 	store.save_game(sim,settings_payload())
 
 func play_tone(kind: String) -> void:
 	if kind=="buy":audio.play("purchase",-12)
 
+func advance_frame(delta: float, time_scale: float) -> float:
+	# Fixed ticks keep combat deterministic. Under load, yield to rendering and
+	# input instead of multiplying a slow frame into ever more catch-up work.
+	sim_steps_this_frame = 0
+	if sim.paused:
+		return 0.0
+	# Loot uses real seconds: fast-forward must not erase the collection beat.
+	sim.external_reward_clock = true
+	sim.update_rewards(delta)
+	if time_scale <= 0.0:
+		return 0.0
+	accumulator = minf(accumulator + minf(delta, .1) * time_scale, SIM_STEP * MAX_SIM_STEPS)
+	var deadline: int = Time.get_ticks_usec() + SIM_BUDGET_USEC
+	var sim_started: int = Time.get_ticks_usec()
+	while accumulator >= SIM_STEP and sim_steps_this_frame < MAX_SIM_STEPS:
+		sim.advance(SIM_STEP)
+		accumulator -= SIM_STEP
+		sim_steps_this_frame += 1
+		if Time.get_ticks_usec() >= deadline:
+			break
+	field.profile_add("sim", sim_started)
+	return sim_steps_this_frame * SIM_STEP
+
 func _process(delta: float) -> void:
+	var started: int=Time.get_ticks_usec()
+	_process_frame(delta)
+	field.profile_add("main_process", started)
+
+func _process_frame(delta: float) -> void:
 	var started: int=Time.get_ticks_usec()
 	if proof and benchmark:
 		sim.mode="wave"
@@ -1127,49 +1527,56 @@ func _process(delta: float) -> void:
 	slowmo=maxf(0,slowmo-delta)
 	hitstop=maxf(0,hitstop-delta)
 	cam_hold=maxf(0,cam_hold-delta)
+	update_shatter()
+	update_lens()
+	update_mandel()
 	stage_cinema()
 	if sim.ult.is_empty() and cam_hold<=0:
 		cam_target=1.0
 	cam_zoom=lerpf(cam_zoom,cam_target,1.0-exp(-delta*(2.4 if cam_target>cam_zoom else 4.0)))
 	var time_scale: float=0.0 if hitstop>0 else game_speed*(.2 if slowmo>0 else 1.0)
-	var speed: float=time_scale if not sim.paused else 1.0
+	if is_instance_valid(resume_fx) and resume_fx.active():
+		time_scale*=resume_fx.time_gate()
+	if dev_god:
+		sim.health = 100.0
+	var advanced: float = advance_frame(delta, time_scale)
+	# Cosmetic rounds and hit feedback follow the ticks actually processed,
+	# including when a low-end browser cannot sustain the requested speed.
+	var speed: float=advanced / maxf(delta, .000001) if not sim.paused else 1.0
 	field.clock += delta*speed
 	field.reduced_effects=reduced_effects
-	field.animate(delta*speed)
+	field.animate(delta*speed, delta)
 	# Camera punch: a quick zoom kick around the field centre on big moments.
 	var kick: float=(1.0+field.punch*field.punch*.035)*cam_zoom
 	var pivot: Vector2=Vector2(500,320).lerp(cam_focus,clampf((cam_zoom-1.0)/.12,0,1))
+	if camera_comfort: kick = 1.0
 	field.scale=Vector2.ONE*field_zoom*kick
-	field.position=field_origin+field.shake_offset()-pivot*field_zoom*(kick-1.0)
+	field.position=field_origin+(Vector2.ZERO if camera_comfort else field.shake_offset())-pivot*field_zoom*(kick-1.0)
+	audio.cinematic_cut = cinema.ending_active() and cinema.t >= 50.0
 	audio.update(sim,delta)
 	field.hover = field.to_local(get_global_mouse_position())
-	# The reticle replaces the OS cursor only over the open battlefield.
+	# Preserve combat targeting eligibility while the shared cursor covers all UI.
 	var mouse: Vector2 = get_global_mouse_position()
 	var over_field: bool = menu=="" and sim.mode in ["wave","boss","intermission"] and mouse.y > 118 and mouse.y < size.y-104
-	if over_field != field.show_reticle:
-		field.show_reticle = over_field
-		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if over_field else Input.MOUSE_MODE_VISIBLE
+	var hovered_button: Button = UiFx.hovered_button(get_viewport())
+	var over_button: bool = ui_motion and hovered_button != null and hovered_button.has_meta("fx") and not hovered_button.disabled
+	field.show_reticle = over_field and not over_button
+	if Input.mouse_mode != Input.MOUSE_MODE_HIDDEN:
+		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 	if proof and "--inspect" in OS.get_cmdline_user_args() and not sim.enemies.is_empty():field.hover=sim.enemies[mini(3,sim.enemies.size()-1)].pos
-	if not sim.paused:
-		if dev_god:
-			sim.health = 100.0
-		accumulator += minf(delta,.1)*time_scale
-		while accumulator>=1.0/60:
-			sim.advance(1.0/60)
-			accumulator -= 1.0/60
-	field.render_lead = accumulator if not sim.paused else 0.0
-	if sim.money<shown_money or shown_money<=0 or sim.money<=0:
+	field.render_lead = minf(accumulator, SIM_STEP) if not sim.paused else 0.0
+	if sim.money<shown_money or sim.money<=0:
 		shown_money=sim.money
 	elif sim.money>shown_money*1.0001+.5:
 		money_pulse=1.0
-		shown_money=exp(lerpf(log(shown_money),log(sim.money),minf(1,delta*9)))
+		shown_money=lerpf(shown_money,sim.money,minf(1,delta*9)) if shown_money<=0 else exp(lerpf(log(shown_money),log(sim.money),minf(1,delta*9)))
 	else:
 		shown_money=sim.money
 	money_pulse=maxf(0,money_pulse-delta*4)
 	money_label.text="$ "+Catalog.number(shown_money)
 	field.money_anchor=field.to_local(money_label.global_position+Vector2(36,22))
 	if field.coin_arrivals>0:
-		money_pulse=maxf(money_pulse,.7)
+		money_pulse=maxf(money_pulse,1.8 if field.coin_arrivals>=8 else .7)
 		field.coin_arrivals=0
 	update_rates(delta)
 	money_label.pivot_offset=Vector2(0,money_label.size.y*.5)
@@ -1188,7 +1595,12 @@ func _process(delta: float) -> void:
 	if save_timer>=10 and not sim.paused:
 		save_timer = 0
 		store.save_game_async(sim,settings_payload())
-	if sim.mode in ["failed","victory"] and menu=="":
+	# A boss can fall during advance_frame: start its ending before opening results.
+	stage_cinema()
+	ending_skip.visible = cinema.ending_active() and cinema.t < 50.0
+	pointer_frame.suppressed = cinema.ending_active() and cinema.t >= 50.0
+	pointer_frame.visible = not pointer_frame.suppressed
+	if sim.mode in ["failed","victory"] and menu=="" and not cinema.ending_active():
 		show_result()
 	field.queue_redraw()
 	if proof:
@@ -1201,6 +1613,10 @@ func _process(delta: float) -> void:
 			capture_frame.call_deferred()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if cinema.ending_active():
+		if event is InputEventKey and event.pressed and event.keycode==KEY_ESCAPE:
+			cinema.skip_ending()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode==KEY_F11:
 			var window_mode: int = DisplayServer.window_get_mode()
@@ -1243,6 +1659,8 @@ func _notification(what: int) -> void:
 		save_game()
 
 func parse_proof() -> void:
+	if not OS.is_debug_build():
+		return
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	for arg in args:
 		if arg.begins_with("--capture="):
@@ -1262,7 +1680,7 @@ func parse_proof() -> void:
 	var proof_mode: String = "wave"
 	for arg in args:
 		if arg.begins_with("--stage="):
-			idx = clampi(int(arg.trim_prefix("--stage=")),0,5)
+			idx = clampi(int(arg.trim_prefix("--stage=")),0,sim.LAST_STAGE)
 		if arg.begins_with("--mode="):
 			proof_mode = arg.trim_prefix("--mode=")
 	sim.stage = idx
@@ -1344,3 +1762,6 @@ func capture_frame() -> void:
 			total += ms
 		print("RENDER_BENCH frames=",performance_frames.size()," mean_ms=",total/performance_frames.size()," p95_ms=",performance_frames[int(performance_frames.size()*.95)]," fps=",Engine.get_frames_per_second()," actors=",sim.enemies.size()," shots=",sim.shots.size())
 	get_tree().quit()
+
+func _exit_tree() -> void:
+	store.finish_pending()

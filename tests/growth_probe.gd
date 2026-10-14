@@ -47,7 +47,7 @@ func _initialize() -> void:
 				key=k;started=c.elapsed;depths.clear();peak=0;last.clear()
 				var dmg: float=0
 				var cov: float=0
-				for i in range(6):
+				for i in range(c.STAGE_COUNT):
 					if c.owned[i]:
 						dmg+=c.shot_damage(i)/c.shot_interval(i)/(100.0*c.hp_scale())*(1.0+0.05*int(c.levels.get("turrets",0)))
 						cov+=c.coverage(i)/c.shot_interval(i)

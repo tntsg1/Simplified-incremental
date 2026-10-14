@@ -13,9 +13,9 @@ config_version=5
 config/name="天穹防线"
 config/description="从城市到宇宙的科幻防御增量战役"
 run/main_scene="res://scenes/main.tscn"
-run/main_scene.web="res://scenes/web.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://assets/emblem.svg"
+run/main_scene.web="res://scenes/web.tscn"
 
 [display]
 
@@ -24,6 +24,11 @@ window/size/viewport_height=900
 window/size/window_width_override=1600
 window/size/window_height_override=900
 window/stretch/mode="canvas_items"
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://locales/game.en.translation")
+locale/fallback="zh"
 
 [rendering]
 

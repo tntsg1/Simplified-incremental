@@ -1,6 +1,10 @@
 extends Node
 
-const WEAPON_SOUNDS: Array[String]=["clean_fire_0","clean_fire_1","clean_fire_2","clean_fire_3","clean_fire_4","clean_fire_5"]
+const WEAPON_SOUNDS: Array[String]=["clean_fire_0","clean_fire_1","clean_fire_2","clean_fire_1","clean_fire_2","clean_fire_3","clean_fire_0","clean_fire_4","clean_fire_5","clean_fire_5"]
+# New chapter weapons reuse the clean voices, pitched to their own character.
+const WEAPON_PITCH: Array[float]=[1.0,1.0,1.0,.78,1.18,1.0,1.32,1.0,1.0,.84]
+# Chapter -> score: the four added chapters have their own tracks (music_6..9).
+const TRACKS: Array[int]=[0,1,2,6,7,8,3,4,5,9]
 var voices: Array[AudioStreamPlayer]=[]
 var priority_voices: Array[AudioStreamPlayer]=[]
 var priority_cursor: int=0
@@ -9,7 +13,7 @@ var music: Array[AudioStreamPlayer]=[]
 var tension: AudioStreamPlayer
 var current_track: int=-1
 var streams: Dictionary={}
-var fire_limits: Array[float]=[0,0,0,0,0,0]
+var fire_limits: Array[float]=[0,0,0,0,0,0,0,0,0,0]
 var hit_limit: float=0
 var destruction_limit: float=0
 var fire_gap: float=0
@@ -21,6 +25,7 @@ var alarm_second: int=-1
 var random:=RandomNumberGenerator.new()
 var music_level: float=.55
 var effects_level: float=.65
+var cinematic_cut: bool=false
 
 func _exit_tree() -> void:
 	for player in voices+priority_voices+music:
@@ -74,6 +79,10 @@ func get_stream(key: String) -> AudioStream:
 		streams[key]=load("res://assets/audio/"+key+".ogg")
 	return streams[key]
 
+func prepare_stage(index: int) -> void:
+	if index in range(TRACKS.size()):
+		get_stream("music_"+str(TRACKS[index]))
+
 func set_enabled(value: bool) -> void:
 	enabled=value
 	for bus in ["Skyguard Music","Skyguard SFX"]:
@@ -107,7 +116,7 @@ func fire(index: int, _point: Vector2, _end: Vector2, _critical: bool) -> void:
 		return
 	fire_limits[index]=.72 if index==focus_weapon else 2.4
 	fire_gap=.22
-	play(WEAPON_SOUNDS[index],-18 if index==focus_weapon else -24,1.0,true)
+	play(WEAPON_SOUNDS[index],-18 if index==focus_weapon else -24,WEAPON_PITCH[index],true)
 
 func impact(_point: Vector2, index: int, _amount: float, critical: bool, boss: bool, kind: String) -> void:
 	if hit_limit>0:
@@ -124,20 +133,25 @@ func destruction(_point: Vector2, _index: int, members: int, boss: bool, kind: S
 
 func update(sim: RefCounted, delta: float) -> void:
 	if not enabled:return
-	for i in range(6):
+	if cinematic_cut:
+		for player in music:
+			player.volume_db = -80.0
+		tension.volume_db = -80.0
+		return
+	for i in range(fire_limits.size()):
 		fire_limits[i]=maxf(0,fire_limits[i]-delta)
 	hit_limit=maxf(0,hit_limit-delta)
 	destruction_limit=maxf(0,destruction_limit-delta)
 	fire_gap=maxf(0,fire_gap-delta)
 	stage_index=sim.stage
-	for i in range(5,-1,-1):
+	for i in range(sim.LAST_STAGE,-1,-1):
 		if sim.owned[i]:
 			focus_weapon=i
 			break
 	if current_track!=sim.stage:
 		current_track=sim.stage
 		var player: AudioStreamPlayer=music[sim.stage%2]
-		player.stream=get_stream("music_"+str(sim.stage))
+		player.stream=get_stream("music_"+str(TRACKS[sim.stage]))
 		player.stream.loop=true
 		player.volume_db=-55
 		player.play()

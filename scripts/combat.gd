@@ -16,7 +16,18 @@ signal body_strike(kind: String, body_stage: int, slot: int, origin: Vector2, de
 signal ultimate_fired(kind: String, point: Vector2)
 signal ultimate_impact(kind: String, point: Vector2)
 signal prime_strike(prime: int, points: PackedVector2Array)
-signal flattened(point: Vector2)
+signal flattened(point: Vector2, radius: float, sides: int, heading: float, members: int)
+signal ultimate_loot(point: Vector2, members: int, flight: float)
+# New doomsday weapons report their real geometry so the visuals follow the sim.
+signal droplet_pass(points: PackedVector2Array)
+signal droplet_shatter(point: Vector2, radius: float, pieces: int, boss: bool)
+signal droplet_arrive(point: Vector2)
+# Fourier: the tour through every frozen threat (core first) and each hit along it.
+signal fourier_tour(points: PackedVector2Array, fractions: PackedFloat32Array)
+signal fourier_hit(point: Vector2, index: int, total: int)
+signal string_snap(points: PackedVector2Array)
+# Chapter weapons with their own attack geometry report what they touched.
+signal weapon_strike(kind: String, index: int, origin: Vector2, destination: Vector2, points: PackedVector2Array, critical: bool)
 signal retargeted(old_target: int, new_target: int)
 signal focused(target_id: int)
 signal hit(point: Vector2, weapon: int, amount: float, critical: bool, boss: bool, kind: String)
@@ -52,26 +63,62 @@ const ATTACK_EVERY: Dictionary = {"shell": 1, "swarm": 2, "beam": 1, "rail": 2, 
 const SWARM_SPEED: float = 620.0
 const SWARM_COUNT: int = 5
 # Doomsday weapons, one per scale. Charged by time and by kills, fired by hand.
-const ULT_KINDS: Array[String] = ["nuke", "photoid", "foil", "prime", "lightspeed", "pi"]
-const ULT_NAMES: Array[String] = ["核弹", "光粒打击", "二向箔", "质数打击", "降低光速", "改写 π"]
+const ULT_KINDS: Array[String] = ["nuke", "photoid", "droplet", "foil", "fourier", "prime", "mandelbrot", "lightspeed", "pi", "strings"]
+const ULT_NAMES: Array[String] = ["核弹", "光粒打击", "水滴", "一向箔", "傅里叶分解", "质数打击", "曼德博分形", "降低光速", "改写 π", "维度震荡"]
 const ULT_TIME: float = 55.0
 const ULT_PER_KILL: float = 0.0016
 const ULT_KILL_RATE_CAP: float = 0.03
 const ULT_BOSS_SHARE: float = 0.2
 # Each weapon has a readable wind-up before it lands (impact times below).
-const ULT_DURATION: Dictionary = {"nuke": 3.8, "photoid": 3.8, "foil": 5.0, "prime": 4.4, "lightspeed": 5.2, "pi": 4.2}
+const ULT_DURATION: Dictionary = {"nuke": 3.8, "photoid": 3.8, "droplet": 5.4, "foil": 6.6, "fourier": 6.8, "prime": 4.4, "mandelbrot": 5.6, "lightspeed": 7.4, "pi": 4.2, "strings": 6.6}
 const NUKE_IMPACT: float = 1.5
 const PHOTOID_IMPACT: float = 2.2
 const PI_IMPACT: float = 2.0
+const LIGHT_DOMAIN_SEAL: float = 4.6
+const LIGHTSPEED_IMPACT: float = 6.0
+# One-vector foil: a square sheet that opens slowly once the card has settled.
+const FOIL_OPEN: float = 1.8
+const FOIL_GROW: float = 3.4
 const PRIMES: Array[int] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
 const NUKE_RADIUS: float = 300.0
+# Droplet: in a single instant it threads every threat on the field, time holds
+# for a heartbeat, then everything it passed through shatters into small bodies.
+const DROPLET_PASS: float = 1.15
+# The pass itself is visible: the drop tears through every stop in TRAVEL seconds,
+# everything hangs for DROPLET_HOLD, then the stops detonate in path order.
+const DROPLET_HOLD: float = 0.35
+const DROPLET_CASCADE: float = 0.35
+const DROPLET_SHATTER: float = 1.6
+const DROPLET_FRAGMENT_CAP: int = 150
+const FRAGMENT_REWARD: float = 0.3
+# Fourier: the swarm freezes into a signal; a chain of epicycles draws one closed
+# curve through every threat, and each one bursts as the tip passes through it.
+const FOURIER_SAMPLE: float = 0.55
+const FOURIER_TRACE: float = 1.2
+const FOURIER_TOUR_CAP: int = 220
+# Mandelbrot: the set's boundary blooms out of the core and swallows the field.
+const MANDEL_START: float = 0.9
+const MANDEL_COVER: float = 3.5
+# Dimensional resonance: threats are reduced to vibrating strings, driven to
+# resonance by the shaking extra dimensions, then all snap at once.
+const STRINGS_REVEAL: float = 1.3
+const STRINGS_IMPACT: float = 4.4
+const ULT_LOOT_DELAY: float = 1.0
+const ULT_LOOT_FLIGHT: float = 1.8
+# Campaign length: every per-stage table below has one entry per chapter.
+const STAGE_COUNT: int = 10
+const LAST_STAGE: int = STAGE_COUNT - 1
 const BODIES: Array = [
 	[{"name": "西区摩天楼", "attack": "swarm", "form": "twin", "style": 0, "weapon": "楼顶炮台", "at": Vector2(150, 470), "size": 12.0}, {"name": "中央塔", "attack": "beam", "form": "pods", "style": 0, "weapon": "塔顶导弹阵", "at": Vector2(330, 455), "size": 12.0}, {"name": "东区摩天楼", "attack": "quake", "form": "twin", "style": 1, "weapon": "楼顶炮台", "at": Vector2(860, 470), "size": 12.0}],
 	[{"name": "月球", "attack": "rail", "form": "crescent", "style": 1, "weapon": "月轨主炮", "orbit": 247.0, "angle": -0.13, "speed": 0.05, "size": 13.0}, {"name": "近地空间站", "attack": "prism", "form": "panels", "style": 1, "weapon": "轨道炮站", "orbit": 190.0, "angle": 2.1, "speed": 0.11, "size": 8.0}, {"name": "同步卫星", "attack": "chain", "form": "dish", "style": 3, "weapon": "激光卫星", "orbit": 190.0, "angle": 4.3, "speed": 0.11, "size": 8.0}],
-	[{"name": "水星", "attack": "cluster", "form": "tri", "style": 0, "weapon": "水星炮", "orbit": 70.0, "angle": 0.2, "speed": 0.03, "size": 6.0}, {"name": "金星", "attack": "wave", "form": "penta", "style": 2, "weapon": "金星炮", "orbit": 125.0, "angle": 1.92, "speed": 0.015, "size": 8.0}, {"name": "火星", "attack": "meteor", "form": "star4", "style": 4, "weapon": "火星炮", "orbit": 180.0, "angle": 3.64, "speed": 0.01, "size": 9.0}, {"name": "木星", "attack": "gravity", "form": "octa", "style": 1, "weapon": "木星巨炮", "orbit": 235.0, "angle": 5.36, "speed": 0.0075, "size": 12.0}, {"name": "土星", "attack": "ring", "form": "ringed", "style": 2, "weapon": "土星环炮", "orbit": 290.0, "angle": 0.8, "speed": 0.006, "size": 11.0}, {"name": "太阳", "attack": "beam", "form": "dyson", "style": 3, "weapon": "戴森球", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 42.0}],
-	[{"name": "天狼星", "attack": "rail", "form": "star5", "style": 3, "weapon": "天狼星炮", "orbit": 160.0, "angle": 0.1, "speed": 0.02, "size": 7.0}, {"name": "参宿四", "attack": "quake", "form": "star6", "style": 4, "weapon": "红巨星炮", "orbit": 230.0, "angle": 1.7, "speed": 0.015, "size": 9.0}, {"name": "织女星", "attack": "prism", "form": "star7", "style": 2, "weapon": "织女星炮", "orbit": 200.0, "angle": 3.3, "speed": 0.018, "size": 7.0}, {"name": "大角星", "attack": "chain", "form": "star8", "style": 5, "weapon": "大角星炮", "orbit": 260.0, "angle": 4.8, "speed": 0.012, "size": 8.0}, {"name": "银心黑洞", "attack": "gravity", "form": "hole", "style": 5, "weapon": "黑洞引擎", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 14.0}],
-	[{"name": "仙女座星系", "attack": "swarm", "form": "spiral", "style": 4, "weapon": "仙女座阵列", "orbit": 215.0, "angle": 0.0, "speed": 0.0, "size": 18.0}, {"name": "三角座星系", "attack": "wave", "form": "spiral", "style": 2, "weapon": "三角座阵列", "orbit": 215.0, "angle": 2.4, "speed": 0.0, "size": 18.0}, {"name": "大麦哲伦云", "attack": "meteor", "form": "spiral", "style": 3, "weapon": "麦哲伦阵列", "orbit": 215.0, "angle": 4.8, "speed": 0.0, "size": 18.0}, {"name": "小麦哲伦云", "attack": "cluster", "form": "spiral", "style": 0, "weapon": "麦哲伦副阵", "orbit": 215.0, "angle": 7.2, "speed": 0.0, "size": 18.0}, {"name": "人马矮星系", "attack": "ring", "form": "spiral", "style": 5, "weapon": "人马阵列", "orbit": 215.0, "angle": 9.6, "speed": 0.0, "size": 18.0}, {"name": "大熊矮星系", "attack": "beam", "form": "spiral", "style": 1, "weapon": "大熊阵列", "orbit": 215.0, "angle": 12.0, "speed": 0.0, "size": 18.0}, {"name": "天龙矮星系", "attack": "chain", "form": "spiral", "style": 4, "weapon": "天龙阵列", "orbit": 215.0, "angle": 14.4, "speed": 0.0, "size": 18.0}],
-	[{"name": "长城节点", "attack": "rail", "form": "node", "style": 5, "weapon": "长城引擎", "node": 5, "size": 8.0}, {"name": "室女座节点", "attack": "wave", "form": "node", "style": 3, "weapon": "室女座引擎", "node": 9, "size": 8.0}, {"name": "后发座节点", "attack": "prism", "form": "node", "style": 2, "weapon": "后发座引擎", "node": 14, "size": 8.0}, {"name": "巨引源", "attack": "gravity", "form": "node", "style": 4, "weapon": "巨引源引擎", "node": 20, "size": 9.0}, {"name": "拉尼亚凯亚", "attack": "quake", "form": "node", "style": 5, "weapon": "超星系团引擎", "node": 26, "size": 9.0}, {"name": "牧夫座空洞", "attack": "meteor", "form": "node", "style": 1, "weapon": "空洞引擎", "node": 31, "size": 9.0}],
+	[{"name": "水星", "attack": "cluster", "form": "tri", "style": 0, "weapon": "水星炮", "orbit": 70.0, "angle": 0.2, "speed": 0.03, "size": 6.0}, {"name": "金星", "attack": "wave", "form": "penta", "style": 2, "weapon": "金星炮", "orbit": 118.0, "angle": 1.92, "speed": 0.018, "size": 8.0}, {"name": "火星", "attack": "meteor", "form": "star4", "style": 4, "weapon": "火星炮", "orbit": 215.0, "angle": 3.64, "speed": 0.012, "size": 8.0}, {"name": "灶神星", "attack": "swarm", "form": "potato", "style": 1, "weapon": "小行星带阵列", "orbit": 272.0, "angle": 5.0, "speed": 0.008, "size": 7.0}, {"name": "太阳", "attack": "beam", "form": "dyson", "style": 3, "weapon": "戴森球", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 42.0, "disc": false}],
+	[{"name": "木星", "attack": "gravity", "form": "octa", "style": 1, "weapon": "木星巨炮", "orbit": 92.0, "angle": 5.36, "speed": 0.02, "size": 13.0}, {"name": "土星", "attack": "ring", "form": "ringed", "style": 2, "weapon": "土星环炮", "orbit": 148.0, "angle": 0.8, "speed": 0.014, "size": 11.0}, {"name": "天王星", "attack": "prism", "form": "tilted", "style": 5, "weapon": "天王星炮", "orbit": 205.0, "angle": 2.6, "speed": 0.009, "size": 9.0}, {"name": "海王星", "attack": "chain", "form": "trident", "style": 3, "weapon": "海王星炮", "orbit": 255.0, "angle": 4.1, "speed": 0.007, "size": 9.0}, {"name": "冥王星", "attack": "rail", "form": "binary", "style": 0, "weapon": "冥卫双星炮", "orbit": 296.0, "angle": 1.5, "speed": 0.005, "size": 6.0}],
+	[{"name": "旅行者一号", "note": "165 AU", "attack": "rail", "form": "probe", "style": 2, "weapon": "旅行者信标", "orbit": 150.0, "angle": -0.55, "speed": 0.004, "size": 7.0}, {"name": "塞德娜", "note": "937 AU", "attack": "quake", "form": "sedna", "style": 4, "weapon": "塞德娜冰炮", "orbit": 232.0, "angle": 3.9, "speed": 0.006, "size": 7.0}, {"name": "海尔-波普彗星", "note": "370 AU", "attack": "meteor", "form": "comet", "style": 1, "weapon": "彗尾炮", "orbit": 284.0, "angle": 0.6, "speed": 0.01, "size": 8.0}, {"name": "太阳引力透镜", "note": "550 AU", "attack": "beam", "form": "lens", "style": 3, "weapon": "引力透镜炮", "orbit": 182.0, "angle": 2.45, "speed": 0.003, "size": 9.0}, {"name": "奥尔特彗核群", "note": "~50,000 AU", "attack": "cluster", "form": "ice", "style": 5, "weapon": "彗核阵列", "orbit": 258.0, "angle": 5.3, "speed": 0.004, "size": 8.0}],
+	[{"name": "半人马座 α", "note": "4.37 ly", "attack": "chain", "form": "trinary", "style": 3, "weapon": "三体星炮", "orbit": 112.0, "angle": -0.7, "speed": 0.004, "size": 9.0}, {"name": "天狼星", "note": "8.6 ly", "attack": "rail", "form": "star5", "style": 3, "weapon": "天狼星炮", "orbit": 168.0, "angle": 2.2, "speed": 0.003, "size": 8.0}, {"name": "巴纳德星", "note": "5.96 ly", "attack": "swarm", "form": "star4", "style": 0, "weapon": "巴纳德星炮", "orbit": 138.0, "angle": 1.0, "speed": 0.0035, "size": 6.0}, {"name": "织女星", "note": "25 ly", "attack": "prism", "form": "star7", "style": 2, "weapon": "织女星炮", "orbit": 250.0, "angle": 4.2, "speed": 0.002, "size": 7.0}, {"name": "大角星", "note": "36.7 ly", "attack": "quake", "form": "star8", "style": 5, "weapon": "大角星炮", "orbit": 288.0, "angle": 3.1, "speed": 0.0018, "size": 8.0}],
+	[{"name": "参宿四", "note": "548 ly", "attack": "quake", "form": "star6", "style": 4, "weapon": "红巨星炮", "orbit": 230.0, "angle": 1.7, "speed": 0.015, "size": 9.0}, {"name": "蟹状星云脉冲星", "note": "6,500 ly", "attack": "beam", "form": "pulsar", "style": 2, "weapon": "蟹云脉冲炮", "orbit": 172.0, "angle": 3.6, "speed": 0.017, "size": 7.0}, {"name": "半人马座 ω", "note": "17,000 ly", "attack": "cluster", "form": "globular", "style": 1, "weapon": "球状星团炮", "orbit": 262.0, "angle": 5.4, "speed": 0.011, "size": 9.0}, {"name": "大麦哲伦云", "note": "160,000 ly", "attack": "meteor", "form": "spiral", "style": 3, "weapon": "麦哲伦阵列", "orbit": 305.0, "angle": 0.35, "speed": 0.006, "size": 14.0, "disc": false}, {"name": "小麦哲伦云", "note": "200,000 ly", "attack": "swarm", "form": "spiral", "style": 0, "weapon": "麦哲伦副阵", "orbit": 296.0, "angle": 0.95, "speed": 0.006, "size": 11.0, "disc": false}, {"name": "银心黑洞", "note": "26,000 ly", "attack": "gravity", "form": "hole", "style": 5, "weapon": "黑洞引擎", "orbit": 0.0, "angle": 0.0, "speed": 0.0, "size": 14.0}],
+	[{"name": "仙女座星系", "note": "2.5 Mly", "attack": "swarm", "form": "spiral", "style": 4, "weapon": "仙女座阵列", "at": Vector2(590, 410), "size": 16.0, "disc": false}, {"name": "三角座星系", "note": "2.7 Mly", "attack": "wave", "form": "spiral", "style": 2, "weapon": "三角座阵列", "at": Vector2(408, 420), "size": 13.0, "disc": false}, {"name": "室女座星系团", "note": "54 Mly", "attack": "prism", "form": "cluster", "style": 2, "weapon": "室女座引擎", "at": Vector2(305, 210), "size": 16.0, "disc": false}, {"name": "后发座星系团", "note": "320 Mly", "attack": "chain", "form": "cluster", "style": 5, "weapon": "后发座引擎", "at": Vector2(735, 170), "size": 16.0, "disc": false}, {"name": "巨引源", "note": "250 Mly", "attack": "gravity", "form": "attractor", "style": 4, "weapon": "巨引源引擎", "at": Vector2(205, 470), "size": 14.0, "disc": false}, {"name": "拉尼亚凯亚", "note": "520 Mly", "attack": "quake", "form": "node", "style": 5, "weapon": "超星系团引擎", "at": Vector2(800, 455), "size": 12.0, "disc": false}],
+	[{"name": "斯隆长城", "note": "1.4 Gly", "attack": "rail", "form": "wall", "style": 5, "weapon": "长城引擎", "node": 5, "size": 8.0, "disc": false}, {"name": "武仙-北冕座长城", "note": "10 Gly", "attack": "wave", "form": "wall", "style": 3, "weapon": "武仙长城引擎", "node": 9, "size": 8.0, "disc": false}, {"name": "最远类星体", "note": "13 Gly", "attack": "beam", "form": "quasar", "style": 2, "weapon": "类星体喷流", "node": 14, "size": 8.0, "disc": false}, {"name": "宇宙微波背景", "note": "46.5 Gly", "attack": "ring", "form": "cmb", "style": 4, "weapon": "背景辐射炮", "node": 20, "size": 9.0, "disc": false}, {"name": "CMB 冷斑", "note": "3 Gly", "attack": "gravity", "form": "void", "style": 5, "weapon": "冷斑引擎", "node": 26, "size": 9.0, "disc": false}, {"name": "牧夫座空洞", "note": "700 Mly", "attack": "meteor", "form": "void", "style": 1, "weapon": "空洞引擎", "node": 31, "size": 9.0, "disc": false}],
+	[{"name": "第五维", "attack": "rail", "form": "calabi", "style": 5, "weapon": "第五维共振器", "orbit": 236.0, "angle": 0.52, "speed": 0.01, "size": 10.0, "disc": false}, {"name": "第六维", "attack": "prism", "form": "calabi", "style": 2, "weapon": "第六维共振器", "orbit": 236.0, "angle": 1.57, "speed": 0.01, "size": 10.0, "disc": false}, {"name": "第七维", "attack": "chain", "form": "calabi", "style": 3, "weapon": "第七维共振器", "orbit": 236.0, "angle": 2.62, "speed": 0.01, "size": 10.0, "disc": false}, {"name": "第八维", "attack": "wave", "form": "calabi", "style": 4, "weapon": "第八维共振器", "orbit": 236.0, "angle": 3.67, "speed": 0.01, "size": 10.0, "disc": false}, {"name": "第九维", "attack": "gravity", "form": "calabi", "style": 1, "weapon": "第九维共振器", "orbit": 236.0, "angle": 4.71, "speed": 0.01, "size": 10.0, "disc": false}, {"name": "第十维", "attack": "ring", "form": "calabi", "style": 0, "weapon": "第十维共振器", "orbit": 236.0, "angle": 5.76, "speed": 0.01, "size": 10.0, "disc": false}],
 ]
 const WAVE_GROUPS: Array[int] = [32, 48, 64, 80, 104, 128, 160, 192, 224, 256]
 # Waves hold three times the threats at a third of the bounty each: a flood on
@@ -89,7 +136,7 @@ var wave: int = 1
 var money: float = 0.0
 var health: float = 100.0
 var levels: Dictionary = {"damage": 0, "speed": 0, "reload": 0, "crit": 0, "area": 0, "pierce": 0, "targets": 0, "turrets": 0}
-var owned: Array[bool] = [true, false, false, false, false, false]
+var owned: Array[bool] = [true, false, false, false, false, false, false, false, false, false]
 var automation: bool = false
 var paused: bool = false
 var manual_held: bool = false
@@ -100,11 +147,15 @@ var wave_elapsed: float = 0.0
 var mode_time: float = 0.0
 var spawn_clock: float = 0.0
 # Converted celestial bodies: one bitmask per scale.
-var bodies: Array[int] = [0, 0, 0, 0, 0, 0]
+var bodies: Array[int] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 var wells: Array[Dictionary] = []
 var ult_charge: float = 0.0
 var ult_deaths: int = 0
 var ult: Dictionary = {}
+var reward_batches: Array[Dictionary] = []
+var external_reward_clock: bool = false
+var deferred_kill: bool = false
+var boss_reward_queued: bool = false
 var spawn_hold: float = 0.0
 # Space threats materialise along the visible edge of the screen; the view
 # reports its visible field rectangle here (the default matches a 16:9 window).
@@ -114,7 +165,38 @@ var spawn_rect: Rect2 = Rect2(-250, -10, 1500, 640)
 var topup_clock: float = 0.0
 # Seconds since a doomsday weapon's spawn hold ended: the field refills gradually.
 var refill: float = 99.0
+# Seconds of calm after a scale jump before the first threat may spawn.
+var grace: float = 0.0
+const STAGE_GRACE: float = 4.0
+# Boss escorts: every boss brings its own retinue and keeps launching more.
+# Main guns stay on the boss; turrets and celestial cannons clear escorts.
+# An escort that reaches the core shortens the boss's impact countdown.
+const ESCORT_OPENING: Array[int] = [10, 12, 13, 14, 15, 16, 18, 20, 22, 24]
+const ESCORT_BATCH: Array[int] = [3, 4, 4, 5, 5, 5, 6, 6, 7, 7]
+const ESCORT_PERIOD: Array[float] = [3.2, 3.0, 2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.2, 2.1]
+const ESCORT_PENALTY: float = 0.6
+var escort_clock: float = 0.0
+var boss_penalty: float = 0.0
+signal boss_launched(point: Vector2, count: int)
+# Boss skills: a readable wind-up, then a signature attack. Some can be broken
+# by dealing enough damage during the wind-up. Below half HP the boss enrages.
+signal boss_skill(event: String, kind: String, point: Vector2)
+const BOSS_SKILLS: Array[String] = ["meteor_rain", "tidal_shield", "summon", "siege_beam", "meteor_rain", "corona", "magnetic_field", "summon", "devour", "siege_beam"]
+const SKILL_NAMES: Dictionary = {"meteor_rain": "陨石雨", "tidal_shield": "潮汐护盾", "siege_beam": "攻城主炮", "corona": "日冕抛射", "summon": "召唤舰队", "devour": "吞噬", "magnetic_field": "磁场偏转"}
+const SKILL_WINDUP: Dictionary = {"meteor_rain": 1.6, "tidal_shield": 1.2, "siege_beam": 2.4, "corona": 1.8, "summon": 1.8, "devour": 2.6, "magnetic_field": 1.4}
+const SKILL_ACTIVE: Dictionary = {"meteor_rain": 1.2, "tidal_shield": 3.0, "siege_beam": 1.0, "corona": 1.4, "summon": 1.0, "devour": 1.2, "magnetic_field": 3.6}
+# Magnetar: while its field is up, rounds flying at it are bent away and miss.
+# Instant attacks (lances, beams, webs, waves, sweeps) are not deflected.
+const MAGNET_FIELD: float = 2.6
+const MAGNET_DEFLECT: float = 0.65
+signal shot_deflected(point: Vector2, heading: Vector2, turned: float)
+const SKILL_BREAKABLE: Array[String] = ["siege_beam", "devour"]
+const SKILL_BREAK_SHARE: float = 0.04
+var skill: Dictionary = {}
+var skill_clock: float = 6.0
+var enraged: bool = false
 const TOPUP_GAP: float = 0.14
+const FLOOD_GAP: float = 0.05
 # Developer switches: no cooldown (always charged, re-fire mid-strike) and a
 # forced weapon so any scale's doomsday weapon can be tested anywhere.
 var ult_unlimited: bool = false
@@ -129,14 +211,15 @@ var serial: int = 0
 var boss_remaining: float = 0.0
 var transition_from: int = 0
 var transition_length: float = 7.0
-var cooldowns: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+var cooldowns: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 var enemies: Array[Dictionary] = []
+var enemies_by_id: Dictionary = {}
 var shots: Array[Dictionary] = []
 var effects: Array[Dictionary] = []
 var enemy_pool: Array[Dictionary] = []
 var shot_pool: Array[Dictionary] = []
 var effect_pool: Array[Dictionary] = []
-var weapon_damage: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+var weapon_damage: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 var last_reward: float = 0.0
 var boss_spawned: int = 0
 
@@ -156,14 +239,20 @@ func start_new(seed_value: int = 4262026) -> void:
 	Campaign.start_new(self, seed_value)
 
 func defense_position() -> Vector2:
-	return Vector2(500.0, 572.0) if stage == 0 else Vector2(500.0, 325.0)
+	return defense_position_at(stage)
+
+func defense_position_at(view_stage: int) -> Vector2:
+	return Vector2(500.0, 572.0) if view_stage == 0 else Vector2(500.0, 325.0)
 
 func weapon_origin(index: int) -> Vector2:
-	if stage == 0:
+	return weapon_origin_at(index, stage)
+
+func weapon_origin_at(index: int, view_stage: int) -> Vector2:
+	if view_stage == 0:
 		return Vector2(380.0 + index * 48.0, 565.0)
-	var angle: float = -PI * 0.15 + index * TAU / 6.0
-	var radius: float = 108.0 + index * 11.0
-	return defense_position() + Vector2(cos(angle), sin(angle)) * radius
+	var angle: float = -PI * 0.15 + index * TAU / STAGE_COUNT
+	var radius: float = 108.0 + index * 7.0
+	return defense_position_at(view_stage) + Vector2(cos(angle), sin(angle)) * radius
 
 func damage_multiplier() -> float:
 	return Growth.damage_multiplier(self)
@@ -208,6 +297,7 @@ func buy_weapon() -> bool:
 	return Growth.buy_weapon(self)
 
 func clear_battle() -> void:
+	enemies_by_id.clear()
 	for e in enemies:
 		enemy_pool.append(e)
 	enemies.clear()
@@ -215,6 +305,7 @@ func clear_battle() -> void:
 		shot_pool.append(p)
 	shots.clear()
 	wells.clear()
+	sweeps.clear()
 	ult = {}
 	spawn_hold = 0.0
 	priority_id = -1
@@ -231,6 +322,8 @@ func reward_scale() -> float:
 	return pow(hp_scale(), REWARD_HP_EXPONENT)
 
 func wave_seconds() -> float:
+	if stage > 0:
+		return 22.0 + 4.5 * (wave - 1)
 	return 25.0 + 7.0 * (wave - 1)
 
 func min_alive() -> int:
@@ -252,6 +345,12 @@ func living_count() -> int:
 		if not bool(e.dead):
 			n += 1
 	return n
+
+# Money already earned from flood groups this wave (capped at the wave's budget).
+var flood_paid: float = 0.0
+
+func member_reward() -> float:
+	return 10.0 * float(stage_data().reward_multiplier) / wave_density() / (WAVE_SCALE if stage > 0 else 1) * reward_scale()
 
 func wave_size() -> int:
 	return int(stage_data().wave_members[wave - 1]) * int(stage_data().count_multiplier) * wave_density() * (WAVE_SCALE * WAVE_VOLUME if stage > 0 else 1)
@@ -298,6 +397,7 @@ func spawn_enemy(members: int) -> void:
 	var unit_hp: float = (300.0 if elite else 100.0) * hp_scale() / (WAVE_SCALE if stage > 0 else 1)
 	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": lifetime, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": kind, "elite": elite, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 12.0 + (8.0 if elite else 0.0) + (minf(22.0, log(float(members)) * 3.0) if members > 1 else 0.0), "boss": false, "dead": false})
 	enemies.append(e)
+	enemies_by_id[int(e.id)] = e
 
 func edge_point(u: float) -> Vector2:
 	# A point on the perimeter of the spawn rectangle, uniform by length.
@@ -318,9 +418,9 @@ func start_boss() -> void:
 	Campaign.start_boss(self)
 
 func find_enemy(id: int) -> Dictionary:
-	for e in enemies:
-		if int(e.id) == id and not bool(e.dead):
-			return e
+	var e: Dictionary = enemies_by_id.get(id, {})
+	if not e.is_empty() and not bool(e.dead):
+		return e
 	return {}
 
 func select_target(point: Vector2) -> int:
@@ -349,6 +449,9 @@ func focus_shots(target: Dictionary) -> void:
 		if not old.is_empty():
 			old.reserved = maxf(0.0, float(old.reserved) - float(p.effective))
 		var here: Vector2 = p.pos
+		if bool(p.get("stray", false)) or int(p.get("turns", 0)) >= MAX_RETARGETS:
+			continue
+		p.turns = int(p.get("turns", 0)) + 1
 		p.target = int(target.id)
 		p.from = here
 		p.age = 0.0
@@ -360,11 +463,130 @@ func focus_shots(target: Dictionary) -> void:
 func pending_hp(e: Dictionary) -> float:
 	return float(e.hp) + (int(e.members) - 1) * float(e.unit_hp) - float(e.reserved)
 
+func boss_actor() -> Dictionary:
+	for e in enemies:
+		if bool(e.boss) and not bool(e.dead):
+			return e
+	return {}
+
+func spawn_escorts(count: int, opening: bool) -> void:
+	var boss: Dictionary = boss_actor()
+	if boss.is_empty():
+		return
+	var at: Vector2 = boss.pos
+	var core: Vector2 = defense_position()
+	var r: float = float(boss.radius)
+	for i in range(count):
+		serial += 1
+		var e: Dictionary = enemy_pool.pop_back() if not enemy_pool.is_empty() else {}
+		e.clear()
+		# Opening retinue fans out wide around the boss; later waves leave its flanks.
+		var a: float = (i + .5) * TAU / count + rng.randf_range(-.25, .25) if opening else rng.randf_range(-PI, PI)
+		var spread: float = r * (2.2 + rng.randf() * 1.6) if opening else r * (1.1 + rng.randf() * .6)
+		var origin: Vector2 = at + Vector2(cos(a), sin(a) * (.55 if stage == 0 else .8)) * spread
+		origin = origin.clamp(spawn_rect.position, spawn_rect.end)
+		var end: Vector2 = core + (origin - core).normalized() * 68.0
+		var life: float = rng.randf_range(10.0, 14.0) * (1.3 if opening else 1.0)
+		var unit_hp: float = 220.0 * hp_scale(10) / (WAVE_SCALE if stage > 0 else 1)
+		e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": life, "members": 1, "initial_members": 1, "unit_hp": unit_hp, "hp": unit_hp, "kind": "escort", "escort": stage, "elite": false, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 13.0, "boss": false, "dead": false})
+		enemies.append(e)
+		enemies_by_id[int(e.id)] = e
+
+func update_boss_skill(delta: float) -> void:
+	var boss: Dictionary = boss_actor()
+	if boss.is_empty():
+		skill = {}
+		return
+	var max_hp: float = boss_max_hp()
+	if not enraged and float(boss.hp) < max_hp * .5:
+		enraged = true
+		boss_skill.emit("enrage", "", boss.pos)
+	if skill.is_empty():
+		skill_clock -= delta
+		if skill_clock <= 0.0:
+			var kind: String = BOSS_SKILLS[mini(stage, BOSS_SKILLS.size() - 1)]
+			skill = {"kind": kind, "phase": "windup", "age": 0.0, "hp": float(boss.hp)}
+			boss_skill.emit("windup", kind, boss.pos)
+		return
+	skill.age = float(skill.age) + delta
+	var kind: String = skill.kind
+	if str(skill.phase) == "windup":
+		if kind in SKILL_BREAKABLE and float(skill.hp) - float(boss.hp) >= max_hp * SKILL_BREAK_SHARE:
+			boss_skill.emit("broken", kind, boss.pos)
+			end_skill()
+			return
+		if float(skill.age) >= float(SKILL_WINDUP[kind]):
+			skill.phase = "active"
+			skill.age = 0.0
+			fire_boss_skill(kind, boss)
+			boss_skill.emit("fire", kind, boss.pos)
+	elif float(skill.age) >= float(SKILL_ACTIVE[kind]):
+		end_skill()
+
+func end_skill() -> void:
+	skill = {}
+	skill_clock = rng.randf_range(8.0, 11.0) * (.7 if enraged else 1.0)
+
+func fire_boss_skill(kind: String, boss: Dictionary) -> void:
+	match kind:
+		"meteor_rain":
+			# Fast fragments drop from across the sky straight at the defenses.
+			var core: Vector2 = defense_position()
+			for i in range(10):
+				spawn_escorts(1, false)
+				var e: Dictionary = enemies.back()
+				e.start = Vector2(lerpf(spawn_rect.position.x + 60, spawn_rect.end.x - 60, (i + .5) / 10.0), spawn_rect.position.y + 10)
+				e.pos = e.start
+				e.end = Vector2(core.x + (e.start.x - core.x) * .15, core.y)
+				e.lifetime = rng.randf_range(4.5, 6.0)
+				e["fast"] = true
+		"siege_beam":
+			boss_penalty += 2.5
+		"corona":
+			# The ejected shell erases rounds in flight and seeds plasma orbs.
+			var at: Vector2 = boss.pos
+			for i in range(shots.size() - 1, -1, -1):
+				var p: Dictionary = shots[i]
+				if Vector2(p.pos).distance_to(at) < 420.0 and not p.has("body"):
+					var t: Dictionary = find_enemy(int(p.target))
+					if not t.is_empty():
+						t.reserved = maxf(0.0, float(t.reserved) - float(p.effective))
+					shot_pool.append(p)
+					shots.remove_at(i)
+			spawn_escorts(6, false)
+		"summon":
+			spawn_escorts(12, true)
+		"devour":
+			boss.hp = minf(boss_max_hp(), float(boss.hp) + boss_max_hp() * .05)
+
+func update_escorts(delta: float) -> void:
+	if boss_actor().is_empty():
+		return
+	update_boss_skill(delta)
+	escort_clock -= delta
+	if escort_clock <= 0.0:
+		var first: bool = escort_clock < -50.0
+		var n: int = ESCORT_OPENING[stage] if first else ESCORT_BATCH[stage]
+		escort_clock = ESCORT_PERIOD[stage]
+		spawn_escorts(n, first)
+		boss_launched.emit(boss_actor().pos, n)
+	# Escorts that reach the core bring the impact closer.
+	for e in enemies:
+		if not bool(e.dead) and not bool(e.boss) and float(e.age) >= float(e.lifetime):
+			e.dead = true
+			boss_penalty += ESCORT_PENALTY
+			add_effect(e.pos, "breach", 25.0)
+
 func target_for_weapon() -> Dictionary:
 	# A focus-fire target draws every gun while it lives (spare rounds swerve on).
 	var explicit: Dictionary = find_enemy(priority_id)
 	if not explicit.is_empty():
 		return explicit
+	# During a boss fight the heavy guns stay on the boss; escorts are for turrets.
+	if mode == "boss":
+		var boss: Dictionary = boss_actor()
+		if not boss.is_empty():
+			return boss
 	var best: Dictionary = {}
 	var remaining: float = INF
 	for e in enemies:
@@ -376,7 +598,57 @@ func target_for_weapon() -> Dictionary:
 			best = e
 	return best
 
+# Every chapter's main weapon attacks in its own way. The primary target always
+# takes the full volley; the geometry decides who else is caught and for how much.
+const WEAPON_MODES: Array[String] = ["missile", "rod", "sweep", "well", "shotgun", "lance", "pulse", "jets", "web", "standing"]
+const ROD_FALL: float = 0.34
+const SWEEP_ARC: float = 0.3
+const SWEEP_TIME: float = 0.22
+const SWEEP_SHARE: float = 0.45
+const WELL_RADIUS: float = 105.0
+const WELL_SHARE: float = 0.5
+const WELL_PUSH: float = 0.7
+const SHARD_COUNT: int = 6
+const SHARD_SHARE: float = 0.3
+const LANCE_SHARE: float = 0.55
+const BURN_SHARE: float = 0.12
+# Pulsar beacon: a rhythmic train of light pulses straight at the target.
+const PULSE_COUNT: int = 4
+const PULSE_GAP: float = 0.07
+const PULSE_SPLASH: float = 46.0
+const PULSE_SHARE: float = 0.35
+const JET_LENGTH: float = 430.0
+const JET_SHARE: float = 0.5
+const WEB_SHARE: float = 0.45
+const STANDING_WAVELENGTH: float = 250.0
+const STANDING_SHARE: float = 0.4
+var sweeps: Array[Dictionary] = []
+
+func make_shot(target: Dictionary, from: Vector2, duration: float, amount: float, critical: bool, cap: int, index: int, extra: Dictionary) -> void:
+	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
+	p.clear()
+	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
+	p.merge({"target": int(target.id), "from": from, "pos": from, "end": target.pos, "age": 0.0, "duration": maxf(0.035, duration), "damage": amount, "effective": effective, "coverage": cap, "weapon": index, "crit": critical, "beam": false})
+	p.merge(extra)
+	target.reserved = float(target.reserved) + effective
+	shots.append(p)
+
+func line_hits(a: Vector2, b: Vector2, width: float, skip: Dictionary, limit: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for e in enemies:
+		if out.size() >= limit:
+			break
+		if e == skip or bool(e.dead):
+			continue
+		if Geometry2D.get_closest_point_to_segment(e.pos, a, b).distance_to(e.pos) <= width + float(e.radius) * .5:
+			out.append(e)
+	return out
+
 func fire_weapon(index: int, target: Dictionary) -> void:
+	var mode: String = WEAPON_MODES[index]
+	if mode != "missile":
+		fire_special(mode, index, target)
+		return
 	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
 	p.clear()
 	var amount: float = shot_damage(index)
@@ -396,6 +668,198 @@ func fire_weapon(index: int, target: Dictionary) -> void:
 	shots.append(p)
 	fired.emit(index,origin,destination,critical)
 
+func fire_special(mode: String, index: int, target: Dictionary) -> void:
+	var amount: float = shot_damage(index)
+	var critical: bool = rng.randf() < crit_chance()
+	if critical:
+		amount *= crit_multiplier()
+	var cap: int = coverage(index)
+	var origin: Vector2 = weapon_origin(index)
+	var destination: Vector2 = target.pos
+	var aim: float = (destination - origin).angle()
+	var points := PackedVector2Array()
+	var dealt: float = 0.0
+	fired.emit(index, origin, destination, critical)
+	match mode:
+		"rod":
+			# A tungsten rod dropped from orbit straight down onto the target.
+			var top := Vector2(destination.x + 24.0, spawn_rect.position.y - 40.0)
+			make_shot(target, top, ROD_FALL, amount, critical, cap, index, {"mode": "rod"})
+			return
+		"well":
+			make_shot(target, origin, origin.distance_to(destination) / BODY_SPEED, amount, critical, cap, index, {"mode": "well"})
+			return
+		"shotgun":
+			# A cone of comet shards, each locked onto its own threat in the cone.
+			var picks: Array[Dictionary] = []
+			var reach: float = origin.distance_to(destination) * 1.35 + 60.0
+			for e in enemies:
+				if picks.size() >= SHARD_COUNT - 1:
+					break
+				if e == target or bool(e.dead):
+					continue
+				var rel: Vector2 = Vector2(e.pos) - origin
+				if rel.length() <= reach and absf(angle_difference(aim, rel.angle())) <= .42:
+					picks.append(e)
+			make_shot(target, origin, origin.distance_to(destination) / SWARM_SPEED, amount, critical, cap, index, {"mode": "shard", "shard": 0})
+			for j in range(picks.size()):
+				var e: Dictionary = picks[j]
+				make_shot(e, origin, origin.distance_to(e.pos) / SWARM_SPEED, amount * SHARD_SHARE, critical, cap, index, {"mode": "shard", "shard": j + 1})
+			return
+		"jets":
+			make_shot(target, origin, origin.distance_to(destination) / PROJECTILE_SPEED, amount, critical, cap, index, {"mode": "jets"})
+			return
+		"sweep":
+			# The planetary array slashes a short arc across the target and just past it.
+			sweeps.append({"origin": origin, "from": aim - SWEEP_ARC, "to": aim + SWEEP_ARC, "age": 0.0, "dur": SWEEP_TIME, "reach": origin.distance_to(destination) + 120.0, "beams": [0.0], "amount": amount, "share": SWEEP_SHARE, "cap": cap, "weapon": index, "primary": int(target.id), "hit": {}, "crit": critical, "kind": "sweep"})
+			return
+		"pulse":
+			# Tick, tick, tick, tick: pulses leave a beat apart and race to the target.
+			for j in range(PULSE_COUNT):
+				make_shot(target, origin, origin.distance_to(destination) / (PROJECTILE_SPEED * 2.4), amount / PULSE_COUNT, critical, cap, index, {"mode": "pulse", "age": -j * PULSE_GAP, "pulse": j})
+			return
+		"lance":
+			var axis: Vector2 = (destination - origin).normalized()
+			var reach_to: Vector2 = origin + axis * 1500.0
+			# The lance burns through the whole line but its light stops just past
+			# the last threat it pierced, so it never strikes across an empty screen.
+			var farthest: float = origin.distance_to(destination)
+			dealt += apply_damage(target, amount, cap, index, critical)
+			for e in line_hits(origin, reach_to, 16.0, target, 30):
+				points.append(e.pos)
+				farthest = maxf(farthest, (Vector2(e.pos) - origin).dot(axis))
+				dealt += apply_damage(e, amount * LANCE_SHARE, cap, index)
+			reach_to = origin + axis * (farthest + 70.0)
+			wells.append({"kind": "burn", "pos": origin, "to": reach_to, "age": 0.0, "dur": 1.2, "radius": 18.0, "tick": .3, "step": .3, "damage": amount * BURN_SHARE, "coverage": cap, "weapon": index, "stage": index, "slot": -1})
+			weapon_strike.emit("lance", index, origin, reach_to, points, critical)
+		"web":
+			# Filaments branch out from the target: two generations of links.
+			var visited: Array = [target]
+			var frontier: Array = [target]
+			dealt += apply_damage(target, amount, cap, index, critical)
+			for depth in range(2):
+				var next: Array = []
+				for node in frontier:
+					var links: int = 5 if depth == 0 else 2
+					var near: Array = []
+					for e in enemies:
+						if bool(e.dead) or visited.has(e):
+							continue
+						var d: float = Vector2(e.pos).distance_to(node.pos)
+						if d <= (250.0 if depth == 0 else 190.0):
+							near.append([d, e])
+					near.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+					for pair in near.slice(0, links):
+						var e: Dictionary = pair[1]
+						visited.append(e)
+						next.append(e)
+						points.append(node.pos)
+						points.append(e.pos)
+				frontier = next
+			for e in visited:
+				if e != target:
+					dealt += apply_damage(e, amount * WEB_SHARE, cap, index)
+			weapon_strike.emit("web", index, origin, destination, points, critical)
+		"standing":
+			# A standing wave across the field: antinode bands, one locked on the target.
+			var k: float = TAU / STANDING_WAVELENGTH
+			var phase: float = PI * .5 - k * destination.x
+			dealt += apply_damage(target, amount, cap, index, critical)
+			var count: int = 0
+			for e in enemies:
+				if count >= 40:
+					break
+				if e == target or bool(e.dead):
+					continue
+				if absf(sin(k * float(e.pos.x) + phase)) > .82:
+					points.append(e.pos)
+					dealt += apply_damage(e, amount * STANDING_SHARE, cap, index)
+					count += 1
+			weapon_strike.emit("standing", index, origin, destination, PackedVector2Array([Vector2(phase, k)]) + points, critical)
+	source_damage.main += dealt
+
+func update_sweeps(delta: float) -> void:
+	for i in range(sweeps.size() - 1, -1, -1):
+		var sw: Dictionary = sweeps[i]
+		var before: float = clampf(float(sw.age) / float(sw.dur), 0, 1)
+		sw.age = float(sw.age) + delta
+		var after: float = clampf(float(sw.age) / float(sw.dur), 0, 1)
+		var a0: float = lerpf(float(sw.from), float(sw.to), before)
+		var a1: float = lerpf(float(sw.from), float(sw.to), after)
+		var at: Vector2 = sw.origin
+		for e in enemies:
+			if bool(e.dead) or sw.hit.has(int(e.id)):
+				continue
+			var rel: Vector2 = Vector2(e.pos) - at
+			if rel.length() > float(sw.reach):
+				continue
+			for offset in sw.beams:
+				var d0: float = angle_difference(a0 + float(offset), rel.angle())
+				var d1: float = angle_difference(a1 + float(offset), rel.angle())
+				# Crossed when the beam passes the threat's bearing this tick.
+				if (d0 >= 0.0 and d1 <= 0.0) or (d0 <= 0.0 and d1 >= 0.0) or absf(d1) < .02:
+					if absf(d0) < 1.0 and absf(d1) < 1.0:
+						sw.hit[int(e.id)] = true
+						var primary: bool = int(e.id) == int(sw.primary)
+						source_damage.main += apply_damage(e, float(sw.amount) * (1.0 if primary else float(sw.share)), int(sw.cap), int(sw.weapon), bool(sw.crit) and primary)
+						break
+		if float(sw.age) >= float(sw.dur):
+			# A primary the beam somehow missed (it moved) still takes the volley.
+			var primary_e: Dictionary = find_enemy(int(sw.primary))
+			if not primary_e.is_empty() and not sw.hit.has(int(sw.primary)):
+				source_damage.main += apply_damage(primary_e, float(sw.amount), int(sw.cap), int(sw.weapon), bool(sw.crit))
+			sweeps.remove_at(i)
+
+func land_special(p: Dictionary, target: Dictionary, visuals: bool) -> float:
+	# Arrival effects of the projectile-borne chapter weapons.
+	var dealt: float = 0.0
+	var at: Vector2 = target.pos
+	var index: int = int(p.weapon)
+	var points := PackedVector2Array()
+	match str(p.mode):
+		"rod":
+			for e in enemies:
+				if points.size() >= 12:
+					break
+				if e == target or bool(e.dead) or Vector2(e.pos).distance_to(at) > 70.0:
+					continue
+				points.append(e.pos)
+				dealt += apply_damage(e, float(p.damage) * .4, int(p.coverage), index)
+			if visuals:
+				weapon_strike.emit("rod", index, p.from, at, points, bool(p.crit))
+		"well":
+			# Gravity first drags the swarm together, then flings it back outward.
+			for e in enemies:
+				if points.size() >= 16:
+					break
+				if e == target or bool(e.dead) or Vector2(e.pos).distance_to(at) > WELL_RADIUS:
+					continue
+				points.append(e.pos)
+				dealt += apply_damage(e, float(p.damage) * WELL_SHARE, int(p.coverage), index)
+				if not bool(e.dead) and not bool(e.boss):
+					e.age = maxf(0.0, float(e.age) - WELL_PUSH)
+			if visuals:
+				weapon_strike.emit("well", index, p.from, at, points, bool(p.crit))
+		"pulse":
+			for e in enemies:
+				if points.size() >= 6:
+					break
+				if e == target or bool(e.dead) or Vector2(e.pos).distance_to(at) > PULSE_SPLASH:
+					continue
+				points.append(e.pos)
+				dealt += apply_damage(e, float(p.damage) * PULSE_SHARE, int(p.coverage), index)
+			if visuals:
+				weapon_strike.emit("pulse", index, p.from, at, points, bool(p.crit))
+		"jets":
+			var axis: Vector2 = (at - Vector2(p.from)).normalized().orthogonal()
+			for side in [-1.0, 1.0]:
+				for e in line_hits(at, at + axis * side * JET_LENGTH, 14.0, target, 15):
+					points.append(e.pos)
+					dealt += apply_damage(e, float(p.damage) * JET_SHARE, int(p.coverage), index)
+			if visuals:
+				weapon_strike.emit("jets", index, at - axis * JET_LENGTH, at + axis * JET_LENGTH, points, bool(p.crit))
+	return dealt
+
 # Damage actually landed per source (main arsenal / turret ring / bodies).
 var source_damage: Dictionary = {"main": 0.0, "turret": 0.0, "body": 0.0}
 
@@ -403,7 +867,10 @@ func turret_count() -> int:
 	return mini(TURRET_SLOTS, int(levels.get("turrets", 0)))
 
 func turret_position(slot: int) -> Vector2:
-	if stage == 0:
+	return turret_position_at(slot, stage)
+
+func turret_position_at(slot: int, view_stage: int) -> Vector2:
+	if view_stage == 0:
 		var side: float = -1.0 if slot % 2 == 0 else 1.0
 		return Vector2(500.0 + side * (56.0 + (slot / 2) * 24.0), 586.0)
 	var count: int = turret_count()
@@ -413,14 +880,14 @@ func turret_position(slot: int) -> Vector2:
 		var in_ring: int = mini(TURRET_RINGS[ring], count - placed)
 		if slot < placed + in_ring:
 			var a: float = (slot - placed) * TAU / in_ring + ring * 0.3
-			return defense_position() + Vector2(cos(a), sin(a)) * radius
+			return defense_position_at(view_stage) + Vector2(cos(a), sin(a)) * radius
 		placed += in_ring
 		radius += 12.0
-	return defense_position()
+	return defense_position_at(view_stage)
 
 func arsenal_rate(value: Callable) -> float:
 	var total: float = 0.0
-	for i in range(6):
+	for i in range(STAGE_COUNT):
 		if owned[i]:
 			total += float(value.call(i)) / shot_interval(i)
 	return total
@@ -468,7 +935,7 @@ func convert_body(slot: int) -> bool:
 	money -= price
 	bodies[stage] |= 1 << slot
 	body_converted.emit(stage, slot)
-	notice.emit(str(BODIES[stage][slot].name) + "改造完成 · " + str(BODIES[stage][slot].weapon) + "上线")
+	notice.emit(TranslationServer.translate(str(BODIES[stage][slot].name)) + TranslationServer.translate("改造完成 · ") + TranslationServer.translate(str(BODIES[stage][slot].weapon)) + TranslationServer.translate("上线"))
 	checkpoint.emit()
 	return true
 
@@ -521,12 +988,40 @@ func fire_body(body_stage: int, slot: int, target: Dictionary, lanes: Array[Dict
 	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
 	var origin: Vector2 = body_position(body_stage, slot)
 	var destination: Vector2 = target.pos
-	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / BODY_SPEED), "damage": amount, "effective": effective, "coverage": cap, "weapon": mini(body_stage, 5), "crit": critical, "beam": false, "body": slot, "body_stage": body_stage, "attack": attack})
+	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, origin.distance_to(destination) / BODY_SPEED), "damage": amount, "effective": effective, "coverage": cap, "weapon": body_stage, "crit": critical, "beam": false, "body": slot, "body_stage": body_stage, "attack": attack})
 	target.reserved = float(target.reserved) + effective
 	shots.append(p)
 	body_fired.emit(body_stage, slot, origin, destination, critical)
 
+# A round may change target at most this many times; after that it flies on
+# straight and leaves the screen instead of circling round the field.
+const MAX_RETARGETS: int = 3
+
+func magnet_field_radius() -> float:
+	# The magnetar's deflecting field, or 0 when it is not up.
+	if skill.is_empty() or str(skill.kind) != "magnetic_field" or str(skill.phase) != "active":
+		return 0.0
+	var boss: Dictionary = boss_actor()
+	return 0.0 if boss.is_empty() else float(boss.radius) * MAGNET_FIELD
+
+func make_stray(p: Dictionary, turn: float = 0.0) -> void:
+	# No damage any more: keep the current heading and leave the visible field.
+	var from: Vector2 = p.pos
+	var heading: Vector2 = Vector2(p.end) - Vector2(p.from)
+	if heading.length() < .01:
+		heading = Vector2.UP
+	heading = heading.rotated(turn)
+	var speed: float = maxf(PROJECTILE_SPEED * .6, Vector2(p.from).distance_to(p.end) / maxf(.01, float(p.duration)))
+	p.stray = true
+	p.target = -1
+	p.from = from
+	p.end = from + heading.normalized() * 1500.0
+	p.age = 0.0
+	p.duration = 1500.0 / speed
+
 func retarget_shot(p: Dictionary) -> Dictionary:
+	if int(p.get("turns", 0)) >= MAX_RETARGETS:
+		return {}
 	var here: Vector2 = p.pos
 	var best: Dictionary = {}
 	var nearest: float = INF
@@ -540,6 +1035,7 @@ func retarget_shot(p: Dictionary) -> Dictionary:
 	if best.is_empty():
 		return best
 	var old: int = int(p.target)
+	p.turns = int(p.get("turns", 0)) + 1
 	p.target = int(best.id)
 	p.from = here
 	p.age = 0.0
@@ -569,7 +1065,7 @@ func fire_body_special(attack: String, body_stage: int, slot: int, target: Dicti
 	if critical:
 		amount *= crit_multiplier()
 	var cap: int = body_coverage()
-	var weapon_index: int = mini(body_stage, 5)
+	var weapon_index: int = body_stage
 	var origin: Vector2 = body_position(body_stage, slot)
 	var destination: Vector2 = target.pos
 	body_fired.emit(body_stage, slot, origin, destination, critical)
@@ -707,10 +1203,16 @@ func update_wells(delta: float) -> void:
 			# Quakes widen with every shock; gravity and meteors keep their radius.
 			var radius: float = float(w.radius) + (40.0 * shock if str(w.kind) == "quake" else 0.0)
 			var count: int = 0
+			var burn: bool = str(w.kind) == "burn"
 			for e in enemies:
 				if count >= 30:
 					break
-				if bool(e.dead) or Vector2(e.pos).distance_to(w.pos) > radius:
+				if bool(e.dead):
+					continue
+				if burn:
+					if Geometry2D.get_closest_point_to_segment(e.pos, w.pos, w.to).distance_to(e.pos) > radius + float(e.radius) * .5:
+						continue
+				elif Vector2(e.pos).distance_to(w.pos) > radius:
 					continue
 				source_damage.body += apply_damage(e, float(w.damage), int(w.coverage), int(w.weapon))
 				count += 1
@@ -722,15 +1224,42 @@ func ultimate_kind() -> String:
 	return ult_override if ult_override != "" else ULT_KINDS[mini(stage, ULT_KINDS.size() - 1)]
 
 func ultimate_name() -> String:
-	return ULT_NAMES[ULT_KINDS.find(ultimate_kind())]
+	return TranslationServer.translate(ULT_NAMES[ULT_KINDS.find(ultimate_kind())])
 
 func ultimate_ready() -> bool:
 	if ult_unlimited:
 		return mode in ["wave", "boss"] and not paused
 	return ult_charge >= 1.0 and ult.is_empty() and mode in ["wave", "boss"] and not paused
 
-func frozen() -> bool:
-	return not ult.is_empty() and str(ult.kind) == "lightspeed" and float(ult.age) < 4.0
+func enemy_time_rate() -> float:
+	if ult.is_empty():
+		return 1.0
+	var age: float = float(ult.age)
+	match str(ult.kind):
+		"lightspeed":
+			if age >= LIGHTSPEED_IMPACT:
+				return 1.0
+			# Sources keep moving as FTL wakes gradually seal the low-light-speed domain.
+			return lerpf(1.0, .035, smoothstep(0.0, LIGHT_DOMAIN_SEAL, age))
+		"droplet":
+			# From the pass until the last detonation everything hangs still.
+			if age < DROPLET_PASS:
+				return 1.0 - .7 * smoothstep(.2, DROPLET_PASS, age)
+			if age < float(ult.get("cascade_end", DROPLET_PASS + 1.5)):
+				return 0.0
+			return 1.0
+		"fourier":
+			# Sampled: the swarm holds still while the curve is drawn through it.
+			var end: float = FOURIER_TRACE + float(ult.get("trace_dur", 3.0)) + .15
+			if age >= end:
+				return 1.0
+			return 1.0 - smoothstep(0.0, FOURIER_SAMPLE, age)
+		"strings":
+			# Reduced to strings, threats crawl while the extra dimensions shake.
+			if age >= STRINGS_IMPACT:
+				return 1.0
+			return lerpf(1.0, .18, smoothstep(.6, STRINGS_REVEAL + .4, age))
+	return 1.0
 
 func densest_point() -> Vector2:
 	var best: Vector2 = defense_position() + Vector2(0, -170)
@@ -751,7 +1280,7 @@ func fire_ultimate(point: Vector2 = Vector2.INF) -> bool:
 	if not ultimate_ready():
 		return false
 	var kind: String = ultimate_kind()
-	if kind in ["photoid", "prime", "lightspeed", "pi"]:
+	if kind in ["photoid", "prime", "lightspeed", "pi", "droplet", "fourier", "mandelbrot", "strings"]:
 		point = defense_position()
 	elif point == Vector2.INF:
 		point = densest_point()
@@ -761,28 +1290,72 @@ func fire_ultimate(point: Vector2 = Vector2.INF) -> bool:
 		"photoid":
 			spawn_hold = 5.0 + PHOTOID_IMPACT
 		"foil":
-			spawn_hold = 4.6
+			spawn_hold = 6.2
 		"prime":
 			spawn_hold = 3.6
 		"lightspeed":
-			spawn_hold = 5.6
+			spawn_hold = LIGHTSPEED_IMPACT + 1.6
 		"pi":
 			spawn_hold = 4.0
+		"droplet":
+			spawn_hold = 4.2
+		"fourier":
+			spawn_hold = 5.4
+		"mandelbrot":
+			spawn_hold = 4.6
+		"strings":
+			spawn_hold = 5.8
 		_:
 			spawn_hold = 1.6
 	ultimate_fired.emit(kind, point)
 	checkpoint.emit()
 	return true
 
+func foil_half(age: float) -> float:
+	# The square opens unhurriedly until it covers the whole visible screen,
+	# however close to an edge it landed (half-width to the farthest corner).
+	if ult.is_empty() or age < FOIL_OPEN:
+		return 0.0
+	var at: Vector2 = ult.point
+	var r: Rect2 = spawn_rect.grow(120)
+	var need: float = maxf(maxf(absf(r.position.x - at.x), absf(r.end.x - at.x)), maxf(absf(r.position.y - at.y), absf(r.end.y - at.y)))
+	var k: float = clampf((age - FOIL_OPEN) / FOIL_GROW, 0.0, 1.0)
+	return need * (1.0 - pow(1.0 - k, 2.2))
+
 func ult_strike(e: Dictionary, weapon_index: int) -> float:
 	if bool(e.dead):
 		return 0.0
 	if bool(e.boss):
-		return apply_damage(e, boss_max_hp() * ULT_BOSS_SHARE, 1, weapon_index)
-	return apply_damage(e, float(e.hp) + (int(e.members) - 1) * float(e.unit_hp) + 1.0, int(e.members), weapon_index)
+		return apply_damage(e, boss_max_hp() * ULT_BOSS_SHARE, 1, weapon_index, false, true)
+	return apply_damage(e, float(e.hp) + (int(e.members) - 1) * float(e.unit_hp) + 1.0, int(e.members), weapon_index, false, true)
+
+func queue_ultimate_reward(point: Vector2, members: int, reward: float) -> void:
+	var batch: Dictionary = ult.get("loot", {})
+	if batch.is_empty() or bool(batch.released):
+		batch = {"age": 0.0, "released": false, "kind": ult.get("kind", ultimate_kind()), "reward": 0.0, "drops": []}
+		reward_batches.append(batch)
+		if not ult.is_empty():
+			ult.loot = batch
+	# All kills in the same clear burst together one second after the last kill.
+	batch.age = 0.0
+	batch.reward = float(batch.reward) + reward
+	batch.drops.append({"pos": point, "members": members})
+
+func update_rewards(delta: float) -> void:
+	for i in range(reward_batches.size() - 1, -1, -1):
+		var batch: Dictionary = reward_batches[i]
+		batch.age = float(batch.age) + delta
+		if not bool(batch.released) and float(batch.age) >= ULT_LOOT_DELAY:
+			batch.released = true
+			for drop in batch.drops:
+				ultimate_loot.emit(drop.pos, int(drop.members), maxf(.01, ULT_LOOT_DELAY + ULT_LOOT_FLIGHT - float(batch.age)))
+		if float(batch.age) >= ULT_LOOT_DELAY + ULT_LOOT_FLIGHT:
+			money += float(batch.reward)
+			notice.emit("%s · + $%s" % [TranslationServer.translate(ULT_NAMES[ULT_KINDS.find(str(batch.kind))]), Catalog.number(float(batch.reward))])
+			reward_batches.remove_at(i)
 
 func ult_sweep(center: Vector2, radius: float, include_boss: bool) -> void:
-	var w: int = mini(stage, 5)
+	var w: int = stage
 	for e in enemies.duplicate():
 		if bool(e.dead) or Vector2(e.pos).distance_to(center) > radius + float(e.radius):
 			continue
@@ -805,7 +1378,7 @@ func update_ultimate(delta: float) -> void:
 	ult.age = float(ult.age) + delta
 	var kind: String = ult.kind
 	var at: Vector2 = ult.point
-	var w: int = mini(stage, 5)
+	var w: int = stage
 	match kind:
 		"nuke":
 			if crossed(NUKE_IMPACT, delta):
@@ -817,12 +1390,14 @@ func update_ultimate(delta: float) -> void:
 				ultimate_impact.emit(kind, at)
 		"foil":
 			# The foil unfolds into a plane that flattens everything it reaches.
-			if crossed(1.3, delta):
+			if crossed(FOIL_OPEN, delta):
 				ultimate_impact.emit(kind, at)
-			if float(ult.age) >= 1.3:
-				var radius: float = (float(ult.age) - 1.3) * 400.0
+			if float(ult.age) >= FOIL_OPEN:
+				# Square sheet: everything inside its half-width (on both axes) is reduced.
+				var radius: float = foil_half(float(ult.age))
 				for e in enemies.duplicate():
-					if bool(e.dead) or Vector2(e.pos).distance_to(at) > radius:
+					var rel: Vector2 = Vector2(e.pos) - at
+					if bool(e.dead) or maxf(absf(rel.x), absf(rel.y)) > radius:
 						continue
 					if bool(e.boss):
 						if not bool(ult.boss_hit):
@@ -830,8 +1405,12 @@ func update_ultimate(delta: float) -> void:
 							ult_strike(e, w)
 						continue
 					var spot: Vector2 = e.pos
+					var silhouette: int = 3 if str(e.kind).contains("ship") else 4
+					var heading: float = (Vector2(e.end) - Vector2(e.start)).angle() if silhouette == 3 else int(e.seed)
+					var radius_before: float = float(e.radius)
+					var members_before: int = int(e.members)
 					ult_strike(e, w)
-					flattened.emit(spot)
+					flattened.emit(spot, radius_before, silhouette, heading, members_before)
 		"prime":
 			# Ten pulses: the n-th prime p erases p threats at once.
 			var step: int = int(ult.step)
@@ -845,7 +1424,7 @@ func update_ultimate(delta: float) -> void:
 					if taken >= prime:
 						break
 					if bool(e.boss):
-						apply_damage(e, boss_max_hp() * ULT_BOSS_SHARE / PRIMES.size(), 1, w)
+						apply_damage(e, boss_max_hp() * ULT_BOSS_SHARE / PRIMES.size(), 1, w, false, true)
 						points.append(e.pos)
 						continue
 					points.append(e.pos)
@@ -853,15 +1432,200 @@ func update_ultimate(delta: float) -> void:
 					taken += 1
 				prime_strike.emit(prime, points)
 		"lightspeed":
-			if crossed(4.0, delta):
+			if crossed(LIGHTSPEED_IMPACT, delta):
 				ult_sweep(at, 5000.0, true)
 				ultimate_impact.emit(kind, at)
 		"pi":
 			if crossed(PI_IMPACT, delta):
 				ult_sweep(at, 5000.0, true)
 				ultimate_impact.emit(kind, at)
+		"droplet":
+			update_droplet(delta, w)
+		"fourier":
+			update_fourier(delta, w)
+		"mandelbrot":
+			if float(ult.age) >= MANDEL_START:
+				var reach: float = mandel_radius(float(ult.age))
+				for e in enemies.duplicate():
+					if bool(e.dead) or Vector2(e.pos).distance_to(at) > reach + float(e.radius) * .5:
+						continue
+					if bool(e.boss):
+						if not bool(ult.boss_hit):
+							ult.boss_hit = true
+							ult_strike(e, w)
+						continue
+					ult_strike(e, w)
+			if crossed(MANDEL_COVER, delta):
+				ultimate_impact.emit(kind, at)
+		"strings":
+			if crossed(STRINGS_IMPACT, delta):
+				var snapped := PackedVector2Array()
+				for e in enemies:
+					if not bool(e.dead):
+						snapped.append(e.pos)
+				string_snap.emit(snapped)
+				ult_sweep(at, 5000.0, true)
+				ultimate_impact.emit(kind, at)
 	if float(ult.age) >= float(ULT_DURATION.get(kind, 3.0)):
 		ult = {}
+
+func droplet_travel(stops: int) -> float:
+	return clampf(.1 + stops * .0015, .12, .22)
+
+func update_droplet(delta: float, w: int) -> void:
+	var at: Vector2 = ult.point
+	if crossed(DROPLET_PASS, delta):
+		# One unbroken thread: nearest-neighbour order from the core.
+		var left: Array[Dictionary] = []
+		for e in enemies:
+			if not bool(e.dead):
+				left.append(e)
+		var path := PackedVector2Array([at])
+		var ids: Array[int] = []
+		var here: Vector2 = at
+		while not left.is_empty() and ids.size() < 400:
+			var best: int = 0
+			var nearest: float = INF
+			for i in range(left.size()):
+				var d: float = here.distance_squared_to(left[i].pos)
+				if d < nearest:
+					nearest = d
+					best = i
+			var e: Dictionary = left[best]
+			left.remove_at(best)
+			ids.append(int(e.id))
+			here = e.pos
+			path.append(here)
+		var travel: float = droplet_travel(ids.size())
+		ult["threaded"] = ids
+		ult["travel"] = travel
+		ult["shatter_at"] = DROPLET_PASS + travel + DROPLET_HOLD
+		ult["cascade_end"] = DROPLET_PASS + travel + DROPLET_HOLD + DROPLET_CASCADE + .05
+		ult.step = 0
+		droplet_pass.emit(path)
+		ultimate_impact.emit("droplet", at)
+	if ult.has("travel") and crossed(DROPLET_PASS + float(ult.travel), delta):
+		var path_end: Dictionary = find_enemy(int(ult.threaded.back())) if not ult.threaded.is_empty() else {}
+		droplet_arrive.emit(path_end.pos if not path_end.is_empty() else Vector2(ult.point))
+	if not ult.has("shatter_at") or float(ult.age) < float(ult.shatter_at):
+		return
+	# Detonations run down the path in the order the drop passed through.
+	var ids: Array = ult.threaded
+	var made: int = int(ult.get("made", 0))
+	var span: float = DROPLET_CASCADE / maxf(1.0, float(ids.size() - 1))
+	while int(ult.step) < ids.size() and float(ult.age) >= float(ult.shatter_at) + int(ult.step) * span:
+		var k: int = int(ult.step)
+		ult.step = k + 1
+		var e: Dictionary = find_enemy(int(ids[k]))
+		if e.is_empty():
+			continue
+		var spot: Vector2 = e.pos
+		var radius: float = float(e.radius)
+		if bool(e.boss):
+			ult_strike(e, w)
+			droplet_shatter.emit(spot, radius, 10, true)
+			for j in range(10):
+				if made < DROPLET_FRAGMENT_CAP:
+					spawn_fragment(spot, radius * 1.4, j * TAU / 10.0 + .3)
+					made += 1
+			continue
+		if bool(e.get("fragment", false)):
+			# Fragments break only once: hit again, they are simply gone.
+			ult_strike(e, w)
+			droplet_shatter.emit(spot, radius, 0, false)
+			continue
+		var pieces: int = clampi(2 + int(log(float(maxi(1, int(e.members)))) / log(4.0)), 2, 5)
+		ult_strike(e, w)
+		droplet_shatter.emit(spot, radius, pieces, false)
+		var spin: float = float(int(e.seed) % 628) * .01
+		for j in range(pieces):
+			if made >= DROPLET_FRAGMENT_CAP:
+				break
+			spawn_fragment(spot, radius, spin + j * TAU / pieces)
+			made += 1
+	ult["made"] = made
+
+func spawn_fragment(from: Vector2, radius: float, angle: float) -> void:
+	# A small body thrown off a shattered threat: weak and worth a little, but it
+	# never harms the defense if it gets through (the droplet must stay a clear win).
+	serial += 1
+	var e: Dictionary = enemy_pool.pop_back() if not enemy_pool.is_empty() else {}
+	e.clear()
+	var core: Vector2 = defense_position()
+	var origin: Vector2 = (from + Vector2.from_angle(angle) * (radius + 6.0)).clamp(spawn_rect.position, spawn_rect.end)
+	var end: Vector2 = core + (origin - core).normalized() * 68.0
+	var unit_hp: float = 25.0 * hp_scale() / (WAVE_SCALE if stage > 0 else 1)
+	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": rng.randf_range(9.0, 12.0), "members": 1, "initial_members": 1, "unit_hp": unit_hp, "hp": unit_hp, "kind": "fragment", "fragment": true, "elite": false, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 7.0, "boss": false, "dead": false, "shard_angle": angle})
+	enemies.append(e)
+	enemies_by_id[int(e.id)] = e
+
+func update_fourier(delta: float, w: int) -> void:
+	var at: Vector2 = ult.point
+	if crossed(FOURIER_SAMPLE, delta):
+		# The tour: nearest neighbour from the core through every living threat.
+		var left: Array[Dictionary] = []
+		for e in enemies:
+			if not bool(e.dead):
+				left.append(e)
+		var points := PackedVector2Array([at])
+		var ids: Array[int] = [-1]
+		var here: Vector2 = at
+		while not left.is_empty() and ids.size() <= FOURIER_TOUR_CAP:
+			var best: int = 0
+			var nearest: float = INF
+			for i in range(left.size()):
+				var d: float = here.distance_squared_to(left[i].pos)
+				if d < nearest:
+					nearest = d
+					best = i
+			var e: Dictionary = left[best]
+			left.remove_at(best)
+			ids.append(int(e.id))
+			here = e.pos
+			points.append(here)
+		# Arc-length fraction at which the drawing tip reaches each stop (closed loop).
+		var total: float = 0.0
+		var lengths := PackedFloat32Array([0.0])
+		for i in range(1, points.size()):
+			total += points[i - 1].distance_to(points[i])
+			lengths.append(total)
+		total += points[points.size() - 1].distance_to(points[0])
+		var fractions := PackedFloat32Array()
+		for i in range(points.size()):
+			fractions.append(lengths[i] / maxf(1.0, total))
+		ult["tour"] = ids
+		ult["fractions"] = fractions
+		ult["trace_dur"] = clampf(1.4 + points.size() * .016, 1.6, 3.6)
+		ult.step = 1
+		fourier_tour.emit(points, fractions)
+	if not ult.has("tour") or float(ult.age) < FOURIER_TRACE:
+		return
+	var progress: float = (float(ult.age) - FOURIER_TRACE) / float(ult.trace_dur)
+	var ids: Array = ult.tour
+	var fractions: PackedFloat32Array = ult.fractions
+	while int(ult.step) < ids.size() and fractions[int(ult.step)] <= progress:
+		var k: int = int(ult.step)
+		ult.step = k + 1
+		var e: Dictionary = find_enemy(int(ids[k]))
+		if e.is_empty():
+			continue
+		fourier_hit.emit(e.pos, k, ids.size() - 1)
+		ult_strike(e, w)
+	if progress >= 1.0 and not bool(ult.get("closed", false)):
+		ult.closed = true
+		ultimate_impact.emit("fourier", at)
+
+func mandel_radius(age: float) -> float:
+	# Bloom from the core until the boundary has passed the farthest visible corner.
+	if ult.is_empty() or age < MANDEL_START:
+		return 0.0
+	var at: Vector2 = ult.point
+	var r: Rect2 = spawn_rect.grow(80)
+	var need: float = 0.0
+	for corner in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
+		need = maxf(need, at.distance_to(corner))
+	var k: float = clampf((age - MANDEL_START) / (MANDEL_COVER - MANDEL_START), 0.0, 1.0)
+	return need * pow(k, 1.7)
 
 func shell_burst_at(center: Dictionary, p: Dictionary, visuals: bool) -> float:
 	# The heavy shell detonates: every other threat inside the blast takes a share.
@@ -905,10 +1669,12 @@ func add_effect(point: Vector2, kind: String, amount: float = 0.0, weapon: int =
 	f.merge({"pos": point, "kind": kind, "age": 0.0, "duration": 0.8 if kind != "reward" else 1.3, "amount": amount, "weapon": weapon})
 	effects.append(f)
 
-func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, critical: bool=false) -> float:
+func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, critical: bool=false, defer_reward: bool=false) -> float:
 	if bool(e.dead):
 		return 0.0
 	if bool(e.boss):
+		if not skill.is_empty() and str(skill.kind) == "tidal_shield" and str(skill.phase) == "active":
+			amount *= .3
 		var used: float = minf(float(e.hp), amount)
 		e.hp = maxf(0.0, float(e.hp) - amount)
 		e["flash"]=.09
@@ -917,11 +1683,19 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 		if float(e.hp) <= 0.0:
 			e.dead = true
 			add_effect(e.pos,"boss_burst",e.radius,weapon_index)
+			if defer_reward:
+				queue_ultimate_reward(e.pos, 1, float(stage_data().boss_reward) * reward_scale())
+				boss_reward_queued = true
+			deferred_kill = defer_reward
 			destroyed.emit(e.pos,weapon_index,1,true,str(e.kind))
+			deferred_kill = false
 		return used
 	var budget: float = minf(amount, float(cap) * float(e.unit_hp))
 	var initial_budget: float = budget
 	var old_count: int = int(e.members)
+	# Compare total HP before division: at later scales, floor((total - hp) /
+	# unit_hp) can round down and leave one member alive after a lethal strike.
+	var full_clear: bool = cap >= old_count and amount >= float(e.hp) + (old_count - 1) * float(e.unit_hp)
 	e["flash"]=.12
 	hit.emit(e.pos,weapon_index,minf(amount,float(old_count)*float(e.unit_hp)),critical,false,str(e.kind))
 	if budget < float(e.hp):
@@ -929,7 +1703,7 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 		weapon_damage[weapon_index] += budget
 		return budget
 	budget -= float(e.hp)
-	var removed: int = mini(old_count, 1 + int(floor(budget / float(e.unit_hp))))
+	var removed: int = old_count if full_clear else mini(old_count, 1 + int(floor(budget / float(e.unit_hp))))
 	removed = mini(removed, cap)
 	e.members = old_count - removed
 	var consumed: float = float(e.hp) + (removed - 1) * float(e.unit_hp)
@@ -941,21 +1715,35 @@ func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, cri
 		e.hp = 0.0
 		e.dead = true
 		ult_deaths += 1
-	var reward: float = removed * 10.0 * float(stage_data().reward_multiplier) / wave_density() / (WAVE_SCALE if stage > 0 else 1) * (2.0 if bool(e.elite) else 1.0) * reward_scale()
-	money += reward
+	var reward: float = removed * member_reward() * (2.0 if bool(e.elite) else 1.0) * (FRAGMENT_REWARD if bool(e.get("fragment", false)) else 1.0)
+	if bool(e.get("flood", false)):
+		# Flood groups pay until they have matched the wave's own budget once.
+		reward = minf(reward, maxf(0.0, wave_total * member_reward() - flood_paid))
+		flood_paid += reward
+	if defer_reward:
+		queue_ultimate_reward(e.pos, removed, reward)
+	else:
+		money += reward
 	last_reward = reward
 	kills += removed
 	if removed>1 and not bool(e.dead):members_removed.emit(e.pos,weapon_index,removed,str(e.kind))
 	wave_killed += removed
 	weapon_damage[weapon_index] += minf(initial_budget, consumed)
 	if bool(e.dead):
+		deferred_kill = defer_reward
 		destroyed.emit(e.pos,weapon_index,int(e.initial_members),false,str(e.kind))
+		deferred_kill = false
 		add_effect(e.pos, "burst", float(e.radius), weapon_index)
-		add_effect(e.pos, "reward", reward, weapon_index)
+		if not defer_reward:
+			add_effect(e.pos, "reward", reward, weapon_index)
 	return minf(initial_budget, consumed)
 
 func advance(delta: float, visuals: bool = true) -> void:
-	if paused or mode in ["title", "failed", "victory"]:
+	if paused or mode == "title":
+		return
+	if not external_reward_clock:
+		update_rewards(delta)
+	if mode in ["failed", "victory"]:
 		return
 	elapsed += delta
 	mode_time += delta
@@ -970,6 +1758,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 	if mode not in ["wave", "boss"]:
 		return
 	wave_elapsed += delta
+	# A new scale opens with a quiet deployment window before any threat arrives.
+	if grace > 0.0:
+		grace = maxf(0.0, grace - delta)
+		refill = 0.0
 	if spawn_hold > 0.0:
 		refill = 0.0
 	else:
@@ -978,7 +1770,34 @@ func advance(delta: float, visuals: bool = true) -> void:
 	update_ultimate(delta)
 	if mode not in ["wave", "boss"]:
 		return
-	if mode == "wave" and spawn_left > 0 and spawn_hold <= 0.0:
+	if mode == "boss":
+		update_escorts(delta)
+	if mode == "wave" and stage > 0 and spawn_left > 0 and spawn_hold <= 0.0 and grace <= 0.0:
+		# Space chapters: the wave keeps its schedule however fast the defense is.
+		# When the field thins, extra flood groups arrive on top of the budget, so a
+		# stronger defense harvests more instead of skipping ahead.
+		spawn_clock -= delta
+		topup_clock -= delta
+		var burst: int = 0
+		while spawn_left > 0 and burst < 6 and spawn_clock <= 0.0:
+			var members: int = mini(spawn_left, group_size())
+			if (serial + 1) % 9 == 0:
+				members = 1
+			spawn_enemy(members)
+			spawn_left -= members
+			burst += 1
+			spawn_clock = maxf(spawn_clock, 0.0) + spawn_interval(members)
+		# The flood holds its numbers: every group destroyed is replaced at once, so
+		# a stronger defense spreads its fire over a full screen instead of emptying it.
+		# (While a scale or a cleared field ramps back up, groups arrive staggered.)
+		# Replacement is capped (FLOOD_GAP) so an overwhelming defense does not churn
+		# hundreds of spawns a second; the field then thins, which reads as power.
+		var ramping: bool = (wave == 1 and wave_elapsed < 8.0) or refill < 8.0
+		if topup_clock <= 0.0 and living_count() < ramped_min_alive():
+			topup_clock = TOPUP_GAP if ramping else FLOOD_GAP
+			spawn_enemy(1 if (serial + 1) % 9 == 0 else group_size())
+			enemies.back()["flood"] = true
+	elif mode == "wave" and spawn_left > 0 and spawn_hold <= 0.0 and grace <= 0.0:
 		spawn_clock -= delta
 		var burst: int = 0
 		topup_clock -= delta
@@ -996,13 +1815,11 @@ func advance(delta: float, visuals: bool = true) -> void:
 		if bool(e.dead):
 			continue
 		e["flash"]=maxf(0,float(e.get("flash",0))-delta)
-		if frozen():
-			continue
-		e.age = float(e.age) + delta
+		e.age = float(e.age) + delta * enemy_time_rate()
 		var ratio: float = clampf(float(e.age) / float(e.lifetime), 0.0, 1.0)
 		e.pos = Vector2(e.start).lerp(e.end, ratio)
 	# Ready heavy weapons reserve group damage first; fast legacy launchers fill gaps.
-	for i in range(5, -1, -1):
+	for i in range(LAST_STAGE, -1, -1):
 		cooldowns[i] -= delta
 		if not owned[i] or cooldowns[i] > 0.0:
 			continue
@@ -1060,16 +1877,41 @@ func advance(delta: float, visuals: bool = true) -> void:
 						fire_body(s, k, focus, body_lanes, beat)
 					elif not body_lanes.is_empty():
 						fire_body(s, k, body_lanes[(beat * 3) % body_lanes.size()], body_lanes, beat)
+	update_sweeps(delta)
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
 		p.age = float(p.age) + delta
+		if bool(p.get("stray", false)):
+			var t_stray: float = clampf(float(p.age) / float(p.duration), 0.0, 1.0)
+			p.pos = Vector2(p.from).lerp(p.end, t_stray)
+			if t_stray >= 1.0 or not spawn_rect.grow(200).has_point(p.pos):
+				shot_pool.append(p)
+				shots.remove_at(i)
+			continue
 		var target: Dictionary = find_enemy(int(p.target))
 		if target.is_empty():
+			# A queued pulse waits at the muzzle until its turn to leave.
+			if float(p.age) < 0.0:
+				continue
 			# Target died in flight: the round swerves onto the nearest living
-			# threat and still deals its damage there.
+			# threat and still deals its damage there (at most MAX_RETARGETS times).
 			target = retarget_shot(p)
+			if target.is_empty():
+				make_stray(p)
+				continue
 		if not target.is_empty():
 			p.end = target.pos
+			# Magnetar field: a round entering it is likely bent away from the boss.
+			var field: float = magnet_field_radius() if bool(target.boss) else 0.0
+			if field > 0.0 and not p.has("field_checked") and Vector2(p.pos).distance_to(target.pos) <= field:
+				p["field_checked"] = true
+				if rng.randf() < MAGNET_DEFLECT:
+					target.reserved = maxf(0.0, float(target.reserved) - float(p.effective))
+					var side: float = 1.0 if rng.randf() < .5 else -1.0
+					var turn: float = side * rng.randf_range(.9, 1.5)
+					shot_deflected.emit(p.pos, (Vector2(p.end) - Vector2(p.from)).normalized(), turn)
+					make_stray(p, turn)
+					continue
 		var t: float = clampf(float(p.age) / float(p.duration), 0.0, 1.0)
 		p.pos = Vector2(p.from).lerp(p.end, t)
 		if t >= 1.0 or target.is_empty():
@@ -1077,6 +1919,8 @@ func advance(delta: float, visuals: bool = true) -> void:
 				target.reserved = maxf(0.0, float(target.reserved) - float(p.effective))
 				var spent: float = apply_damage(target, float(p.damage), int(p.coverage), int(p.weapon),bool(p.crit))
 				source_damage["turret" if p.has("turret") else ("body" if p.has("body") else "main")] += spent
+				if p.has("mode"):
+					source_damage.main += land_special(p, target, visuals)
 				if p.has("body"):
 					var attack_kind: String = str(p.get("attack", "shell"))
 					if attack_kind == "shell":
@@ -1104,7 +1948,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 			shot_pool.append(p)
 			shots.remove_at(i)
 	if mode == "boss":
-		boss_remaining = maxf(0.0, float(stage_data().boss_window) - wave_elapsed)
+		boss_remaining = maxf(0.0, float(stage_data().boss_window) - wave_elapsed - boss_penalty)
 		var defeated: bool = false
 		for e in enemies:
 			if bool(e.boss) and bool(e.dead):
@@ -1118,6 +1962,12 @@ func advance(delta: float, visuals: bool = true) -> void:
 	else:
 		for e in enemies:
 			if not bool(e.dead) and float(e.age) >= float(e.lifetime):
+				if bool(e.get("fragment", false)):
+					# Droplet debris is spent matter: it burns up on the shield, harmless.
+					e.dead = true
+					if visuals:
+						add_effect(e.pos, "impact", 8.0)
+					continue
 				var fraction: float = float(e.members) / maxi(1, int(e.initial_members))
 				var impact: float = (25.0 if int(e.initial_members) > 1 or bool(e.elite) else 10.0) * fraction
 				health = maxf(0.0, health - maxf(1.0, impact))
@@ -1129,6 +1979,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 					return
 	for i in range(enemies.size() - 1, -1, -1):
 		if bool(enemies[i].dead):
+			enemies_by_id.erase(int(enemies[i].id))
 			enemy_pool.append(enemies[i])
 			enemies.remove_at(i)
 	if mode == "wave" and spawn_left == 0 and wave < 10:
@@ -1139,7 +1990,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 		mode_time = 0.0
 		health = 100.0
 		manual_held = false
-		notice.emit("第 %d 波完成 · 防线已恢复" % wave)
+		notice.emit(TranslationServer.translate("第 %d 波完成 · 防线已恢复") % wave)
 		checkpoint.emit()
 
 func finish_boss() -> void:
@@ -1172,20 +2023,106 @@ func decode_entity(e: Dictionary) -> Dictionary:
 func snapshot() -> Dictionary:
 	var actors: Array = []
 	var projectiles: Array = []
+	var loot: Array = []
+	for batch in reward_batches:
+		var saved_batch: Dictionary = batch.duplicate(true)
+		for i in range(saved_batch.drops.size()):
+			saved_batch.drops[i] = encode_entity(saved_batch.drops[i])
+		loot.append(saved_batch)
 	for e in enemies:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"game": "skyguard", "version": 1, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "enemies": actors, "shots": projectiles}
+	return {"reward_batches": loot, "boss_reward_queued": boss_reward_queued, "game": "skyguard", "version": SAVE_VERSION, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "boss_penalty": boss_penalty, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "flood_paid": flood_paid, "enemies": actors, "shots": projectiles}
+
+# Version 2: ten chapters. Version 1 saves (six chapters) are migrated on load.
+const SAVE_VERSION: int = 2
+const V1_STAGE: Array[int] = [0, 1, 2, 6, 7, 8]
+const V1_WEAPON: Array[int] = [0, 1, 2, 5, 7, 8]
+# Old chapter -> per body slot: [new chapter, new slot] (dropped bodies map to -1).
+const V1_BODIES: Array = [
+	[[0, 0], [0, 1], [0, 2]],
+	[[1, 0], [1, 1], [1, 2]],
+	[[2, 0], [2, 1], [2, 2], [3, 0], [3, 1], [2, 4]],
+	[[5, 1], [6, 0], [5, 3], [5, 4], [6, 5]],
+	[[7, 0], [7, 1], [6, 3], [6, 4], [-1, -1], [-1, -1], [-1, -1]],
+	[[8, 0], [7, 2], [7, 3], [7, 4], [7, 5], [8, 5]],
+]
+
+func saved_stage(data: Dictionary) -> int:
+	# The chapter a save will resume in (old six-chapter saves are mapped forward).
+	var raw: int = int(data.get("stage", 0))
+	if int(data.get("version", SAVE_VERSION)) == 1:
+		var old_mode: String = str(data.get("mode", "wave"))
+		if old_mode == "victory":
+			return LAST_STAGE
+		return V1_STAGE[clampi(raw + (1 if old_mode == "transition" else 0), 0, 5)]
+	return clampi(raw, 0, LAST_STAGE)
+
+static func migrate_v1(old: Dictionary) -> Dictionary:
+	# Old six-chapter campaigns resume at the matching new chapter. Battle state is
+	# dropped (the wave restarts) and every weapon of a passed chapter is granted.
+	var data: Dictionary = old.duplicate(true)
+	var old_stage: int = clampi(int(old.get("stage", 0)), 0, 5)
+	var old_mode: String = str(old.get("mode", "wave"))
+	var stage_now: int = V1_STAGE[old_stage]
+	var wave_now: int = clampi(int(old.get("wave", 1)), 1, 10)
+	var mode_now: String = "wave"
+	match old_mode:
+		"boss", "intermission":
+			mode_now = "intermission"
+			wave_now = 10
+		"transition":
+			stage_now = V1_STAGE[mini(old_stage + 1, 5)]
+			wave_now = 1
+		"victory":
+			# The old ending was the observable universe: the brane awaits.
+			stage_now = LAST_STAGE
+			wave_now = 1
+	var money: float = float(old.get("money", 0.0))
+	for batch in old.get("reward_batches", []):
+		if batch is Dictionary:
+			money += maxf(0.0, float(batch.get("reward", 0.0)))
+	var owned_now: Array = []
+	var cool_now: Array = []
+	var damage_now: Array = []
+	for i in range(STAGE_COUNT):
+		owned_now.append(i <= stage_now and i < stage_now)
+		cool_now.append(0.0)
+		damage_now.append(0.0)
+	var old_owned: Array = old.get("owned", [])
+	var old_damage: Array = old.get("weapon_damage", [])
+	for i in range(mini(6, old_owned.size())):
+		if bool(old_owned[i]):
+			owned_now[V1_WEAPON[i]] = true
+		if i < old_damage.size():
+			damage_now[V1_WEAPON[i]] = float(old_damage[i])
+	owned_now[0] = true
+	var bodies_now: Array = []
+	for i in range(STAGE_COUNT):
+		bodies_now.append(0)
+	var old_bodies: Array = old.get("bodies", [])
+	for s in range(mini(6, old_bodies.size())):
+		var mask: int = int(old_bodies[s])
+		for k in range(V1_BODIES[s].size()):
+			var to: Array = V1_BODIES[s][k]
+			if (mask >> k) & 1 == 1 and int(to[0]) >= 0 and int(to[0]) <= stage_now:
+				bodies_now[int(to[0])] |= 1 << int(to[1])
+	data.merge({"version": SAVE_VERSION, "stage": stage_now, "wave": wave_now, "mode": mode_now, "money": money, "owned": owned_now, "cooldowns": cool_now, "weapon_damage": damage_now, "bodies": bodies_now, "reward_batches": [], "boss_reward_queued": false, "enemies": [], "shots": [], "mode_time": 0.0, "wave_elapsed": 0.0, "boss_remaining": 0.0, "boss_penalty": 0.0, "priority_id": -1, "transition_from": stage_now, "migrated": true}, true)
+	return data
 
 func restore(data: Dictionary) -> bool:
-	if str(data.get("game", "")) != "skyguard" or int(data.get("version", 0)) != 1:
+	if str(data.get("game", "")) != "skyguard" or int(data.get("version", 0)) not in [1, SAVE_VERSION]:
 		return false
-	if int(data.get("stage", -1)) not in range(6) or int(data.get("wave", 0)) not in range(1, 11):
+	if int(data.get("version", 0)) == 1:
+		if int(data.get("stage", -1)) not in range(6) or not data.get("levels", {}) is Dictionary:
+			return false
+		data = migrate_v1(data)
+	if int(data.get("stage", -1)) not in range(STAGE_COUNT) or int(data.get("wave", 0)) not in range(1, 11):
 		return false
 	if str(data.get("mode", "")) not in ["wave", "intermission", "boss", "transition", "failed", "victory"]:
 		return false
-	if not data.get("levels", {}) is Dictionary or not data.get("owned", []) is Array or data.get("owned", []).size() != 6:
+	if not data.get("levels", {}) is Dictionary or not data.get("owned", []) is Array or data.get("owned", []).size() != STAGE_COUNT:
 		return false
 	for key in levels:
 		# Saves from before the turret upgrade simply start it at zero.
@@ -1196,11 +2133,22 @@ func restore(data: Dictionary) -> bool:
 	var saved_money: float = float(data.get("money", -1))
 	if not is_finite(saved_money) or saved_money < 0.0:
 		return false
+	var saved_loot: Variant = data.get("reward_batches", [])
+	if not saved_loot is Array or saved_loot.size() > 10000:
+		return false
+	for batch in saved_loot:
+		if not batch is Dictionary or not batch.get("drops") is Array or str(batch.get("kind", "")) not in ULT_KINDS:
+			return false
+		if not is_finite(float(batch.get("reward", -1))) or float(batch.get("reward", -1)) < 0 or not is_finite(float(batch.get("age", -1))) or float(batch.get("age", -1)) < 0:
+			return false
+		for drop in batch.drops:
+			if not drop is Dictionary or not drop.get("pos") is Array or drop.pos.size() != 2 or int(drop.get("members", 0)) <= 0:
+				return false
 	for key in ["health","elapsed","wave_elapsed","mode_time","spawn_clock","spawn_left","wave_total","wave_killed","kills","attempts","stage_bosses","serial","boss_remaining","transition_from","priority_id","rng_state","automation"]:
 		if not data.has(key):
 			return false
 	for key in ["cooldowns","weapon_damage"]:
-		if not data.get(key) is Array or data[key].size()!=6:
+		if not data.get(key) is Array or data[key].size()!=STAGE_COUNT:
 			return false
 	for key in ["enemies","shots"]:
 		if not data.get(key) is Array or data[key].size()>10000:
@@ -1215,11 +2163,19 @@ func restore(data: Dictionary) -> bool:
 			for vector_key in (["pos","start","end"] if key=="enemies" else ["from","pos","end"]):
 				if not entity[vector_key] is Array or entity[vector_key].size()!=2:
 					return false
-			if key=="shots" and int(entity.weapon) not in range(6):
+			if key=="shots" and int(entity.weapon) not in range(STAGE_COUNT):
 				return false
 			if key=="enemies" and (float(entity.lifetime)<=0 or int(entity.members)<0):
 				return false
 	clear_battle()
+	reward_batches.clear()
+	for batch in saved_loot:
+		var restored_batch: Dictionary = batch.duplicate(true)
+		restored_batch.released = false
+		for i in range(restored_batch.drops.size()):
+			restored_batch.drops[i] = decode_entity(restored_batch.drops[i])
+		reward_batches.append(restored_batch)
+	boss_reward_queued = bool(data.get("boss_reward_queued", false))
 	stage = int(data.stage)
 	wave = int(data.wave)
 	mode = str(data.mode)
@@ -1227,10 +2183,10 @@ func restore(data: Dictionary) -> bool:
 	health = clampf(float(data.health), 0.0, 100.0)
 	for key in levels:
 		levels[key] = int(data.levels.get(key, 0))
-	for i in range(6):
+	for i in range(STAGE_COUNT):
 		owned[i] = bool(data.owned[i])
-		cooldowns[i] = float(data.get("cooldowns", [0, 0, 0, 0, 0, 0])[i])
-		weapon_damage[i] = float(data.get("weapon_damage", [0, 0, 0, 0, 0, 0])[i])
+		cooldowns[i] = float(data.cooldowns[i])
+		weapon_damage[i] = float(data.weapon_damage[i])
 	owned[0] = true
 	automation = bool(data.automation)
 	elapsed = float(data.elapsed)
@@ -1239,8 +2195,8 @@ func restore(data: Dictionary) -> bool:
 	spawn_clock = float(data.spawn_clock)
 	spawn_left = int(data.spawn_left)
 	var saved_bodies: Variant = data.get("bodies", [])
-	for s in range(6):
-		bodies[s] = int(saved_bodies[s]) if saved_bodies is Array and saved_bodies.size() == 6 else 0
+	for s in range(STAGE_COUNT):
+		bodies[s] = int(saved_bodies[s]) if saved_bodies is Array and saved_bodies.size() == STAGE_COUNT else 0
 	ult_charge = clampf(float(data.get("ult_charge", 0.0)), 0.0, 1.0)
 	wave_total = int(data.wave_total)
 	wave_killed = int(data.wave_killed)
@@ -1248,17 +2204,27 @@ func restore(data: Dictionary) -> bool:
 	attempts = int(data.attempts)
 	stage_bosses = int(data.stage_bosses)
 	boss_spawned = int(data.get("boss_spawned", 0))
+	flood_paid = maxf(0.0, float(data.get("flood_paid", 0.0)))
 	serial = int(data.serial)
 	boss_remaining = float(data.boss_remaining)
+	boss_penalty = float(data.get("boss_penalty", 0.0))
+	escort_clock = 1.0
 	transition_from = int(data.transition_from)
 	priority_id = int(data.priority_id)
 	rng.state = int(str(data.rng_state))
 	for e in data.get("enemies", []):
-		enemies.append(decode_entity(e))
+		var restored_enemy: Dictionary = decode_entity(e)
+		enemies.append(restored_enemy)
+		enemies_by_id[int(restored_enemy.id)] = restored_enemy
 	for p in data.get("shots", []):
 		shots.append(decode_entity(p))
 	paused = false
 	manual_held = false
+	if bool(data.get("migrated", false)):
+		if mode == "wave":
+			start_wave()
+		else:
+			clear_battle()
 	return true
 
 func boss_max_hp() -> float:

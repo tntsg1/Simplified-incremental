@@ -1,20 +1,19 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
 [ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
 [resource]
 script=ExtResource("1")
 title="银河"
-subtitle="GALAXY / STELLAR LANCE"
+subtitle="MILKY WAY / PULSAR BEACON"
 scale_label="银河防线 · 100,000 ly"
 accent=Color(0.7,0.53,1,1)
-count_multiplier=65536
+count_multiplier=262144
 reward_multiplier=0.28125
-regular_seconds=2100.0
-boss_hp=2450500000000.0
-hp_base_scale=1800000000.0
-hp_growth=1.6
-boss_window=60.0
-boss_title="失控恒星 · VESPER"
-boss_kind="star"
-weapon_price=100000000.0
+boss_hp=2329000000000.0
+hp_base_scale=4.634000e+15
+hp_growth=3.0
+boss_window=63.0
+boss_title="磁星 · MAGNETAR"
+boss_kind="magnetar"
+weapon_price=8200000000000.0
 boss_reward=7372800.0
-briefing="恒星炮贯穿来袭路径。曾经的太阳系，现在只是银河中的一个节点。"
+briefing="银河旋臂中的威胁成群结队。脉冲星灯塔以极快的节拍扫射。"

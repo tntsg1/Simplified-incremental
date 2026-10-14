@@ -1,21 +1,20 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
 [ext_resource type="Script" path="res://data/stage_spec.gd" id="1"]
 [resource]
 script=ExtResource("1")
-wave_density=PackedInt32Array(1,1,1,2,2,4,4,8,12,16)
-title="太阳系"
-subtitle="SOL / PLANETARY ARRAY"
-scale_label="恒星系防线 · 100 AU"
+title="内太阳系"
+subtitle="INNER SOL / TERRESTRIAL ARRAY"
+scale_label="类地行星防线 · 3 AU"
 accent=Color(1,0.72,0.32,1)
 count_multiplier=1024
 reward_multiplier=0.75
-regular_seconds=1800.0
-boss_hp=9041500000.0
-hp_base_scale=84000.0
-hp_growth=1.62
-boss_window=55.0
-boss_title="外星攻城母舰 · LEVIATHAN"
-boss_kind="mothership"
-weapon_price=150000.0
+boss_hp=2225000000.0
+hp_base_scale=809100000.0
+hp_growth=3.0
+boss_window=51.0
+boss_title="被劫持的矮行星 · CERES"
+boss_kind="dwarf"
+weapon_price=570000.0
 boss_reward=307200.0
-briefing="陨石云与外星舰队共同来袭。行星炮的范围攻击可以清除密集群落。"
+wave_density=PackedInt32Array(1,1,1,2,2,4,4,8,12,16)
+briefing="小行星带被外星推进器搅动。行星炮的范围攻击可以清除密集群落。"
