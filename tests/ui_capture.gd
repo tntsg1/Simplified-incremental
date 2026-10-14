@@ -7,7 +7,7 @@ func _initialize() -> void:
 
 func hover(game, node: Control) -> void:
 	var at: Vector2 = node.get_global_rect().get_center() + Vector2(-40, 0)
-	Input.warp_mouse(at)
+	# Never move the real OS pointer: a synthetic motion event is enough for the game.
 	var e := InputEventMouseMotion.new()
 	e.position = at
 	e.global_position = at

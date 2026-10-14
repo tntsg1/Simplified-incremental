@@ -5,6 +5,25 @@ import os
 ROOT = os.path.join(os.path.dirname(__file__), "..", "build", "bestiary")
 idx = json.load(open(os.path.join(ROOT, "bestiary.json"), encoding="utf-8"))
 
+
+def animate(it):
+    # 16 captured frames -> one looping animated WebP portrait (falls back to the still).
+    from PIL import Image
+    frames_dir = os.path.join(ROOT, "frames")
+    stem = it["file"][:-4]
+    paths = [os.path.join(frames_dir, "%s_%02d.png" % (stem, k)) for k in range(16)]
+    if not all(os.path.exists(x) for x in paths):
+        return it["file"]
+    os.makedirs(os.path.join(ROOT, "anim"), exist_ok=True)
+    frames = [Image.open(x).convert("RGB").resize((240, 240), Image.LANCZOS) for x in paths]
+    out = "anim/%s.webp" % stem
+    frames[0].save(os.path.join(ROOT, out), save_all=True, append_images=frames[1:], duration=70, loop=0, quality=82, method=4)
+    return out
+
+
+for it in idx:
+    it["show"] = animate(it) if it["arch"] != "boss" else it["file"]
+
 CHAPTERS = [("城市", "City · 10 km"), ("地球", "Earth orbit · 36,000 km"), ("内太阳系", "Inner Solar System · 3 AU"),
             ("外太阳系", "Outer Solar System · 30 AU"), ("奥尔特云", "Oort Cloud · 1.6 ly"), ("恒星邻域", "Stellar Neighbourhood · 50 ly"),
             ("银河", "Milky Way · 100,000 ly"), ("超星系团", "Supercluster · 520 Mly"), ("可观测宇宙", "Observable Universe · 93 Gly"),
@@ -37,7 +56,7 @@ for st, (name, scale) in enumerate(CHAPTERS):
         label, note = ARCH[c["arch"]]
         tag = '<span class="new">本章新登场</span>' if c["new"] else ""
         grid.append(f'''<figure class="card">
-  <div class="shot"><img src="{c["file"]}" alt="{c["title"]}" loading="lazy">{tag}</div>
+  <div class="shot"><img src="{c["show"]}" alt="{c["title"]}" loading="lazy">{tag}</div>
   <figcaption>
     <h4>{c["title"]}</h4>
     <p class="chips"><span class="chip arch">{label}</span><span class="chip">{MAT.get(c["mat"], c["mat"])}</span></p>
@@ -113,7 +132,7 @@ h4{{margin:0;font-size:16px;font-weight:600}}
   <section class="top">
     <span class="eyebrow">Skyguard · Bestiary</span>
     <h1>天穹防线 · 怪物图鉴</h1>
-    <p class="lede">十章共 {total} 种怪物和 10 个 Boss，每张都是游戏里实时渲染的单体特写。怪物按六种原型设计，每一章换成那个尺度的外观和名字；原型逐章登场，第 5 章起六种齐全。哪个不满意，直接告诉我名字。</p>
+    <p class="lede">十章共 {total} 种怪物和 10 个 Boss，每只都是游戏里实时渲染的单体特写，怪物卡片是循环动画（游戏内连续截取 16 帧）。怪物按六种原型设计，每一章换成那个尺度的外观和名字；原型逐章登场，第 5 章起六种齐全。哪个不满意，直接告诉我名字。</p>
     <ul class="legend">{legend}</ul>
   </section>
   <nav class="rail" aria-label="章节">{nav}</nav>

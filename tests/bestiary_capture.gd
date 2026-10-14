@@ -11,8 +11,8 @@ func wait_real(seconds: float) -> void:
 	var until: int = Time.get_ticks_msec() + int(seconds * 1000)
 	while Time.get_ticks_msec() < until:
 		game.sim.health = 100.0
-		# Keep the pointer, its aim ring and the core glow out of the portraits.
-		Input.warp_mouse(Vector2(2, 2))
+		# Keep the pointer, its aim ring and the core glow out of the portraits - by hiding them
+		# inside the game. Never move the real OS pointer (the developer is using it).
 		game.field.hover = Vector2(-9999, -9999)
 		if game.get("pointer_frame") != null:
 			game.pointer_frame.visible = false
@@ -43,7 +43,7 @@ func quiet_field() -> void:
 
 func run() -> void:
 	var out: String = OS.get_cmdline_user_args()[0]
-	DirAccess.make_dir_recursive_absolute(out)
+	DirAccess.make_dir_recursive_absolute(out + "/frames")
 	game = preload("res://scenes/main.tscn").instantiate()
 	game.store.enabled = false
 	root.add_child(game)
@@ -92,6 +92,10 @@ func run() -> void:
 			var half: float = float(e.radius) * float(game.field.ARCH_SIZE.get(arch, 1.0)) * (1.8 if arch != "dart" else 2.6) + 8.0
 			var file: String = "%d_%s.png" % [st, arch]
 			await grab(center, half, out + "/" + file)
+			# A short burst of frames for the animated portrait (assembled by tools/bestiary_page.py).
+			for frame in range(16):
+				await wait_real(.07)
+				await grab(center, half, out + "/frames/%d_%s_%02d.png" % [st, arch, frame])
 			index.append({"stage": st, "arch": arch, "title": str(roster[arch][0]), "mat": str(roster[arch][1]), "file": file,
 				"new": arch == sim.NEW_ARCH[st]})
 			print("BESTIARY ", file)

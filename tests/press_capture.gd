@@ -36,7 +36,7 @@ func run() -> void:
 		await process_frame
 	var b: Button = game.cards[0].button
 	var at: Vector2 = b.get_global_rect().get_center() + Vector2(30, 4)
-	Input.warp_mouse(at)
+	# Never move the real OS pointer: a synthetic motion event is enough for the game.
 	var m := InputEventMouseMotion.new()
 	m.position = at
 	m.global_position = at
