@@ -7,14 +7,21 @@ func run() -> void:
 	var director = load("res://scripts/audio_director.gd").new()
 	root.add_child(director)
 	var failures: int = 0
-	for key in ["clean_fire_0", "clean_hit_rock", "clean_destroy", "clean_boss", "alarm", "failed", "victory"]:
+	# Old procedural stingers stay silent until their designed replacements land.
+	for key in ["alarm", "failed", "victory"]:
 		director.play(key, -80, 1, false, true)
 		if director.streams.has(key):
 			failures += 1
+	# Progression cues play the designed effects (assets/audio/sfx).
 	for key in ["purchase", "wave_clear", "milestone"]:
 		director.play(key, -80, 1, false, true)
-		if not director.streams.has(key):
+		if int(director.played.get(key, 0)) != 1:
 			failures += 1
+	# Every designed effect in the manifest has all of its variant files.
+	for key in director.SFX:
+		for v in range(int(director.SFX[key])):
+			if not ResourceLoader.exists("res://assets/audio/sfx/%s_%d.ogg" % [key, v]):
+				failures += 1
 	var sim = load("res://scripts/combat.gd").new()
 	sim.start_new()
 	sim.mode = "boss"
@@ -22,7 +29,7 @@ func run() -> void:
 	director.update(sim, .1)
 	if director.tension.playing:
 		failures += 1
-	print("AUDIO_POLICY_RESULT failures=", failures, " allowed=purchase,wave_clear,milestone boss_pulse=off")
+	print("AUDIO_POLICY_RESULT failures=", failures, " designed_sfx=ok boss_pulse=off")
 	director.free()
 	sim = null
 	await process_frame

@@ -65,7 +65,7 @@ func run() -> void:
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://proofs/handoff_%d_active.png" % stage)
 		game.audio.prepare_stage(stage+1)
-		check(game.audio.streams.has("music_%d" % (stage+1)),"Next music resource must be prepared before handoff")
+		check(game.audio.streams.has(game.audio.TRACKS[stage+1]),"Next music resource must be prepared before handoff")
 	print("HANDOFF_CHECK failures=",failures)
 	game.audio.free()
 	quit(failures)

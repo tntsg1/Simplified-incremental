@@ -135,6 +135,7 @@ var stage: int = 0
 var wave: int = 1
 var money: float = 0.0
 var health: float = 100.0
+var landing_source: String = "main"
 var levels: Dictionary = {"damage": 0, "speed": 0, "reload": 0, "crit": 0, "area": 0, "pierce": 0, "targets": 0, "turrets": 0}
 var owned: Array[bool] = [true, false, false, false, false, false, false, false, false, false]
 var automation: bool = false
@@ -1917,7 +1918,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 		if t >= 1.0 or target.is_empty():
 			if not target.is_empty():
 				target.reserved = maxf(0.0, float(target.reserved) - float(p.effective))
+				# Who landed this hit, for listeners of `hit` (turret rounds carry weapon 0).
+				landing_source = "turret" if p.has("turret") else ("body" if p.has("body") else "main")
 				var spent: float = apply_damage(target, float(p.damage), int(p.coverage), int(p.weapon),bool(p.crit))
+				landing_source = "main"
 				source_damage["turret" if p.has("turret") else ("body" if p.has("body") else "main")] += spent
 				if p.has("mode"):
 					source_damage.main += land_special(p, target, visuals)

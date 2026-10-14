@@ -6,3 +6,4 @@ tools/audio_source/
 tools/audio_work/
 tools/analysis_deps/
 *.tmp
+tools/music_in/

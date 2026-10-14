@@ -1,10 +1,16 @@
 extends Node
 
-const WEAPON_SOUNDS: Array[String]=["clean_fire_0","clean_fire_1","clean_fire_2","clean_fire_1","clean_fire_2","clean_fire_3","clean_fire_0","clean_fire_4","clean_fire_5","clean_fire_5"]
-# New chapter weapons reuse the clean voices, pitched to their own character.
-const WEAPON_PITCH: Array[float]=[1.0,1.0,1.0,.78,1.18,1.0,1.32,1.0,1.0,.84]
-# Chapter -> score: the four added chapters have their own tracks (music_6..9).
-const TRACKS: Array[int]=[0,1,2,6,7,8,3,4,5,9]
+# Designed effects (tools/sfx_design.py): key -> number of variants.
+const SFX: Dictionary = preload("res://assets/audio/sfx/sfx_manifest.json").data
+# Per-role mix levels (dB on top of the files' own loudness targets).
+const LEVEL := {"ult": -5.0, "ult_event": -9.0, "boss": -5.0, "flow": -5.0, "body": -12.0, "fire": -9.0, "fire_side": -15.0, "turret": -17.0, "hit": -13.0, "kill": -10.0, "kill_big": -6.0, "coin": -11.0, "ui": -6.0, "reward": -6.0}
+# Pentatonic steps for sounds that climb (Fourier notes, prime beats).
+const PENTA: Array[int]=[0,2,4,7,9]
+# How many copies of one sound may ring at once.
+const CAP := {"turret": 2, "coin": 3, "ui_click": 2}
+# Chapter -> score (assets/audio/<name>.ogg). One main theme for now; chapter
+# themes from SUNO_PROMPTS.md slot in here as they are made.
+const TRACKS: Array[String]=["bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main"]
 var voices: Array[AudioStreamPlayer]=[]
 var priority_voices: Array[AudioStreamPlayer]=[]
 var priority_cursor: int=0
@@ -14,9 +20,26 @@ var tension: AudioStreamPlayer
 var current_track: int=-1
 var streams: Dictionary={}
 var fire_limits: Array[float]=[0,0,0,0,0,0,0,0,0,0]
+var hit_limits: Array[float]=[0,0,0,0,0,0,0,0,0,0]
 var hit_limit: float=0
+var event_limits: Dictionary={}
+var material_limit: float=0
 var destruction_limit: float=0
-var fire_gap: float=0
+var big_limit: float=0
+var turret_limit: float=0
+var coin_limit: float=0
+var coin_streak: int=0
+var coin_quiet: float=0
+# Recent-sound pressure: the busier the field, the further each new sound sits back.
+var pressure: float=0
+var last_variant: Dictionary={}
+# How many times each designed sound actually started (diagnostics and tests).
+var played: Dictionary={}
+var last_voice: AudioStreamPlayer
+var sim_ref: RefCounted
+# While an ultimate plays it owns the mix: everything else steps back.
+var ult_duck: float=0.0
+var ult_voice: AudioStreamPlayer
 var focus_weapon: int=0
 var enabled: bool=true
 var stage_index: int=0
@@ -45,13 +68,14 @@ func _ready() -> void:
 			AudioServer.set_bus_send(AudioServer.bus_count-1,"Master" if bus=="Skyguard Mix" else "Skyguard Mix")
 	var master: int=AudioServer.get_bus_index("Skyguard Mix")
 	# Gain follows the quiet calibrated source clips; the limiter stays last.
-	for bus in ["Skyguard Music","Skyguard SFX"]:AudioServer.set_bus_volume_db(AudioServer.get_bus_index(bus),5)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Skyguard Music"),5)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Skyguard SFX"),0)
 	if AudioServer.get_bus_effect_count(master)==0:
 		var limiter:=AudioEffectLimiter.new()
 		limiter.threshold_db=-8
 		limiter.ceiling_db=-5
 		AudioServer.add_bus_effect(master,limiter)
-	for i in range(24):
+	for i in range(32):
 		var player:=AudioStreamPlayer.new()
 		player.bus="Skyguard SFX"
 		add_child(player)
@@ -73,6 +97,12 @@ func _ready() -> void:
 	tension.stream.loop=true
 	tension.volume_db=-50
 	add_child(tension)
+	# Every button anywhere in the game clicks (no hover sound, by request).
+	get_tree().node_added.connect(hook_button)
+
+func hook_button(node: Node) -> void:
+	if node is BaseButton:
+		node.pressed.connect(func(): sfx("ui_click",LEVEL.ui))
 
 func get_stream(key: String) -> AudioStream:
 	if not streams.has(key):
@@ -81,7 +111,7 @@ func get_stream(key: String) -> AudioStream:
 
 func prepare_stage(index: int) -> void:
 	if index in range(TRACKS.size()):
-		get_stream("music_"+str(TRACKS[index]))
+		get_stream(TRACKS[index])
 
 func set_enabled(value: bool) -> void:
 	enabled=value
@@ -90,46 +120,174 @@ func set_enabled(value: bool) -> void:
 		AudioServer.set_bus_mute(AudioServer.get_bus_index(bus),not value or level<=0)
 
 func play(key: String, volume: float=-10, pitch: float=1.0, vary: bool=false, important: bool=false) -> void:
-	# Keep purchases and progression cues; repetitive combat/alarm effects are silent.
-	if key not in ["purchase", "milestone", "wave_clear"]:
+	# Progression cues now come from the designed set; the old procedural alarm,
+	# victory and failure stingers stay silent until their replacements land.
+	match key:
+		"purchase":sfx("purchase",LEVEL.reward,1.0,true)
+		"milestone":sfx("milestone",LEVEL.reward,1.0,true)
+		"wave_clear":sfx("wave_clear",LEVEL.reward,1.0,true)
+
+func sfx(key: String, volume: float=0.0, pitch: float=1.0, important: bool=false) -> void:
+	if not enabled or effects_level<=0 or not SFX.has(key):
 		return
-	if not enabled or effects_level<=0:
+	var same: int=0
+	for player in voices:
+		if player.playing and player.get_meta("key","")==key:same+=1
+	if same>=int(CAP.get(key,3)) and not important:
 		return
-	if not important:
-		var active: int=0
-		for player in voices:
-			if player.playing:active+=1
-		if active>=5:return
-	var voice: AudioStreamPlayer=voices[voice_cursor]
-	voice_cursor=(voice_cursor+1)%voices.size()
+	var count: int=int(SFX[key])
+	var pick: int=random.randi()%count
+	if count>1 and pick==int(last_variant.get(key,-1)):
+		pick=(pick+1)%count
+	last_variant[key]=pick
+	var voice: AudioStreamPlayer
 	if important:
 		voice=priority_voices[priority_cursor]
 		priority_cursor=(priority_cursor+1)%priority_voices.size()
+	else:
+		voice=voices[voice_cursor]
+		voice_cursor=(voice_cursor+1)%voices.size()
+	# Dense fights duck each new sound a little, never the important ones.
+	var duck: float=0.0 if important else -minf(9.0,3.0*log(1.0+pressure/3.0)/log(2.0))+ult_duck
+	pressure+=1.0
 	voice.stop()
-	voice.stream=get_stream(key)
-	voice.volume_db=volume+linear_to_db(maxf(.01,effects_level))
-	voice.pitch_scale=pitch*random.randf_range(.94,1.06) if vary else pitch
+	voice.stream=get_stream("sfx/"+key+"_"+str(pick))
+	voice.volume_db=volume+duck+linear_to_db(maxf(.01,effects_level))
+	voice.pitch_scale=pitch*random.randf_range(.97,1.03)
+	voice.set_meta("key",key)
 	voice.play()
+	played[key]=int(played.get(key,0))+1
+	last_voice=voice
 
 func fire(index: int, _point: Vector2, _end: Vector2, _critical: bool) -> void:
-	if fire_limits[index]>0 or fire_gap>0:
+	if index<0 or index>=fire_limits.size() or fire_limits[index]>0:
 		return
-	fire_limits[index]=.72 if index==focus_weapon else 2.4
-	fire_gap=.22
-	play(WEAPON_SOUNDS[index],-18 if index==focus_weapon else -24,WEAPON_PITCH[index],true)
+	var focus: bool=index==focus_weapon
+	# The pulsar lighthouse fires in fours: its beat must survive the limiter.
+	fire_limits[index]=(.075 if index==6 else .11) if focus else .34
+	sfx("w%d_fire" %index,LEVEL.fire if focus else LEVEL.fire_side)
+
+func turret(_slot: int, _origin: Vector2, _end: Vector2, _critical: bool) -> void:
+	if turret_limit>0:
+		return
+	turret_limit=.12
+	sfx("turret",LEVEL.turret)
 
 func impact(_point: Vector2, index: int, _amount: float, critical: bool, boss: bool, kind: String) -> void:
-	if hit_limit>0:
+	if hit_limit>0 or ult_duck<-6.0:
 		return
-	hit_limit=.28 if not boss else .42
-	play("clean_hit_ship" if kind.contains("ship") else "clean_hit_rock",-23 if not critical else -21,1.02-index*.015,true)
+	var key: String
+	var source: String=str(sim_ref.landing_source) if sim_ref!=null else "main"
+	if source=="main" and index>=0 and index<hit_limits.size():
+		if hit_limits[index]>0:
+			return
+		hit_limits[index]=.08
+		key="w%d_hit" %index
+	else:
+		# Turret and body rounds land as plain material knocks, kept sparse.
+		if material_limit>0:
+			return
+		material_limit=.14
+		key="hit_ship" if kind.contains("ship") else "hit_rock"
+	hit_limit=.035
+	sfx(key,LEVEL.hit+(2.0 if critical or boss else 0.0),.94 if critical else 1.0)
 
 func destruction(_point: Vector2, _index: int, members: int, boss: bool, kind: String) -> void:
 	if boss:
-		play("clean_boss",-13,1,false,true)
+		sfx("boss_death",LEVEL.boss,1.0,true)
+	elif ult_duck<-6.0:
+		# Kills inside an ultimate are carried by the ultimate's own sound.
+		return
+	elif kind.contains("elite") or kind=="heavy" or members>=20:
+		if big_limit<=0:
+			big_limit=.25
+			sfx("kill_big",LEVEL.kill_big)
+	elif ult_duck<-6.0:
+		return
 	elif destruction_limit<=0:
-		destruction_limit=.75
-		play("clean_elite" if kind.contains("elite") or kind=="heavy" else "clean_destroy",-20,1.0,true)
+		destruction_limit=.05
+		sfx("kill",LEVEL.kill)
+
+func coins(count: int) -> void:
+	# Loot landing in the wallet: a run of coins climbs in pitch, then resets.
+	if count<=0 or coin_limit>0:
+		return
+	coin_limit=.045
+	coin_quiet=0.0
+	coin_streak+=1
+	sfx("coin",LEVEL.coin,1.0+minf(.3,coin_streak*.012))
+
+func ultimate(kind: String, _point: Vector2) -> void:
+	if SFX.has("ult_"+kind):
+		sfx("ult_"+kind,LEVEL.ult,1.0,true)
+		ult_voice=last_voice
+
+func ultimate_impact(kind: String, _point: Vector2) -> void:
+	# The blast cuts the launch dead: silence-then-boom, in sync at any game speed.
+	if not SFX.has("ult_"+kind+"_boom"):
+		return
+	if is_instance_valid(ult_voice) and ult_voice.playing and str(ult_voice.get_meta("key",""))=="ult_"+kind:
+		ult_voice.stop()
+	sfx("ult_"+kind+"_boom",LEVEL.ult,1.0,true)
+
+func limited(key: String, gap: float) -> bool:
+	# True when `key` played less than `gap` seconds ago (per-key rate limit).
+	if float(event_limits.get(key,0.0))>0.0:
+		return true
+	event_limits[key]=gap
+	return false
+
+func scale_pitch(step: int) -> float:
+	return pow(2.0,(PENTA[step%5]+12*(step/5))/12.0)
+
+func droplet_arrive(_point: Vector2) -> void:
+	sfx("drop_arrive",LEVEL.ult,1.0,true)
+
+func droplet_shatter(_point: Vector2, _radius: float, _pieces: int, boss: bool) -> void:
+	if boss or not limited("drop_shatter",.035):
+		sfx("drop_shatter",LEVEL.ult_event+(3.0 if boss else 0.0),.8 if boss else 1.0,true)
+
+func flattened(_point: Vector2, _radius: float, _sides: int, _heading: float, _members: int) -> void:
+	if not limited("foil_flatten",.05):
+		sfx("foil_flatten",LEVEL.ult_event,1.0,true)
+
+func fourier_hit(_point: Vector2, index: int, total: int) -> void:
+	# The pen climbs two octaves of a pentatonic scale over the whole tour.
+	if limited("fourier_note",.05):
+		return
+	var step: int=int(10.0*index/maxf(1.0,total))
+	sfx("fourier_note",LEVEL.ult_event,scale_pitch(step),true)
+
+func prime_strike(prime: int, _points: PackedVector2Array) -> void:
+	var step: int=maxi(0,[2,3,5,7,11,13,17,19,23,29].find(prime))
+	sfx("prime_beat",LEVEL.ult_event+(4.0 if step==9 else float(step)*.3),scale_pitch(step)*.5,true)
+
+func boss_skill(event: String, kind: String, _point: Vector2) -> void:
+	match event:
+		"windup":sfx("boss_windup",LEVEL.boss,1.0,true)
+		"fire":sfx("boss_"+kind,LEVEL.boss,1.0,true)
+		"broken":sfx("boss_broken",LEVEL.boss,1.0,true)
+		"enrage":sfx("boss_enrage",LEVEL.boss,1.0,true)
+
+func boss_launched(_point: Vector2, _count: int) -> void:
+	if not limited("boss_escort",.4):
+		sfx("boss_escort",LEVEL.boss-4.0)
+
+func deflected(_point: Vector2, _heading: Vector2, _turned: float) -> void:
+	if not limited("deflect",.15):
+		sfx("deflect",LEVEL.hit)
+
+func body_strike(kind: String, _stage: int, _slot: int, _origin: Vector2, _end: Vector2, _points: PackedVector2Array, _critical: bool) -> void:
+	if limited("body",.12) or limited("body_"+kind,.3):
+		return
+	sfx("body_"+kind,LEVEL.body)
+
+func shell_burst(_point: Vector2, _radius: float, _stage: int, _critical: bool) -> void:
+	if not limited("body_shell",.14):
+		sfx("body_shell",LEVEL.body)
+
+func ui(key: String) -> void:
+	sfx(key,LEVEL.ui,1.0,true)
 
 func update(sim: RefCounted, delta: float) -> void:
 	if not enabled:return
@@ -140,21 +298,45 @@ func update(sim: RefCounted, delta: float) -> void:
 		return
 	for i in range(fire_limits.size()):
 		fire_limits[i]=maxf(0,fire_limits[i]-delta)
+		hit_limits[i]=maxf(0,hit_limits[i]-delta)
 	hit_limit=maxf(0,hit_limit-delta)
+	material_limit=maxf(0,material_limit-delta)
+	for key in event_limits.keys():
+		event_limits[key]=float(event_limits[key])-delta
 	destruction_limit=maxf(0,destruction_limit-delta)
-	fire_gap=maxf(0,fire_gap-delta)
+	big_limit=maxf(0,big_limit-delta)
+	turret_limit=maxf(0,turret_limit-delta)
+	coin_limit=maxf(0,coin_limit-delta)
+	pressure*=pow(.06,delta)
+	var ult_on: bool=sim.ult is Dictionary and not sim.ult.is_empty()
+	ult_duck=move_toward(ult_duck,-14.0 if ult_on else 0.0,delta*(60.0 if ult_on else 10.0))
+	coin_quiet+=delta
+	if coin_quiet>.6:coin_streak=0
 	stage_index=sim.stage
+	sim_ref=sim
 	for i in range(sim.LAST_STAGE,-1,-1):
 		if sim.owned[i]:
 			focus_weapon=i
 			break
 	if current_track!=sim.stage:
+		var same_theme: bool=current_track>=0 and TRACKS[current_track]==TRACKS[sim.stage]
+		var previous: int=current_track
 		current_track=sim.stage
-		var player: AudioStreamPlayer=music[sim.stage%2]
-		player.stream=get_stream("music_"+str(TRACKS[sim.stage]))
-		player.stream.loop=true
-		player.volume_db=-55
-		player.play()
+		if same_theme:
+			# Same theme in the next chapter: keep it rolling on the player it is on.
+			if music[previous%2]!=music[sim.stage%2]:
+				var from: AudioStreamPlayer=music[previous%2]
+				var to: AudioStreamPlayer=music[sim.stage%2]
+				to.stream=from.stream
+				to.volume_db=from.volume_db
+				to.play(from.get_playback_position())
+				from.stop()
+		else:
+			var player: AudioStreamPlayer=music[sim.stage%2]
+			player.stream=get_stream(TRACKS[sim.stage])
+			player.stream.loop=true
+			player.volume_db=-55
+			player.play()
 	var target_db: float=-16 if sim.mode!="boss" else -21
 	if sim.paused:target_db-=7
 	for i in range(2):
@@ -168,14 +350,14 @@ func update(sim: RefCounted, delta: float) -> void:
 	if sim.mode!="boss" and tension.volume_db<=-59:tension.stop()
 	if sim.mode!=last_mode:
 		match sim.mode:
-			"boss":play("alarm",-18,.8,false,true)
-			"intermission":play("wave_clear",-15)
-			"transition":play("milestone",-15,.85,false,true)
-			"victory":play("victory",-13,1,false,true)
-			"failed":play("failed",-15,1,false,true)
+			"boss":sfx("boss_alarm",LEVEL.boss,1.0,true)
+			"intermission":play("wave_clear")
+			"transition":sfx("jump",LEVEL.flow,1.0,true)
+			"victory":sfx("victory",LEVEL.flow,1.0,true)
+			"failed":sfx("failed",LEVEL.flow,1.0,true)
 		last_mode=sim.mode
 	if sim.mode=="boss" and not sim.paused and sim.boss_remaining<10:
 		var second: int=ceili(sim.boss_remaining)
 		if second!=alarm_second:
 			alarm_second=second
-			play("alarm",-22,1.0,false,true)
+			sfx("boss_tick",LEVEL.boss-6.0,1.0,true)

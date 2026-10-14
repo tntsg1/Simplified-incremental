@@ -305,6 +305,19 @@ func _ready() -> void:
 	add_child(audio)
 	audio.set_enabled(false)
 	sim.fired.connect(audio.fire)
+	sim.turret_fired.connect(audio.turret)
+	sim.ultimate_fired.connect(audio.ultimate)
+	sim.ultimate_impact.connect(audio.ultimate_impact)
+	sim.droplet_arrive.connect(audio.droplet_arrive)
+	sim.droplet_shatter.connect(audio.droplet_shatter)
+	sim.flattened.connect(audio.flattened)
+	sim.fourier_hit.connect(audio.fourier_hit)
+	sim.prime_strike.connect(audio.prime_strike)
+	sim.boss_skill.connect(audio.boss_skill)
+	sim.boss_launched.connect(audio.boss_launched)
+	sim.shot_deflected.connect(audio.deflected)
+	sim.body_strike.connect(audio.body_strike)
+	sim.shell_burst.connect(audio.shell_burst)
 	sim.hit.connect(audio.impact)
 	sim.destroyed.connect(audio.destruction)
 	sim.fired.connect(field.on_fire)
@@ -607,6 +620,7 @@ func new_modal(width: float, title: String, subtitle: String) -> VBoxContainer:
 		title_screen.set_menu_focus(false)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal = PanelContainer.new()
+	audio.ui("ui_open")
 	modal.add_theme_stylebox_override("panel",panel_style(Color("161616"),Color("454545"),3))
 	modal.size.x = width
 	add_child(modal)
@@ -774,6 +788,7 @@ func continue_game() -> void:
 func close_modal() -> void:
 	if is_instance_valid(title_screen): title_screen.hide()
 	if is_instance_valid(modal):
+		audio.ui("ui_close")
 		# Fold back into a hairline, then go.
 		var old: PanelContainer = modal
 		modal = null
@@ -823,14 +838,18 @@ func open_shop() -> void:
 	if sim.automation_available():
 		auto_button = button(TranslationServer.translate("自动防御  $200  ·  导弹自主索敌"),func():
 			if sim.buy_automation():
-				play_tone("buy")
-				open_shop(),true)
+				play_tone("upgrade")
+				open_shop()
+			else:
+				play_tone("deny"),true)
 		v.add_child(auto_button)
 	if not sim.owned[sim.stage]:
 		weapon_button = button(TranslationServer.translate("部署")+TranslationServer.translate(sim.catalog.weapons[sim.stage].title)+"  $"+Catalog.number(sim.stage_data().weapon_price)+"  ·  "+TranslationServer.translate(sim.catalog.weapons[sim.stage].role),func():
 			if sim.buy_weapon():
-				play_tone("buy")
-				open_shop(),true)
+				play_tone("upgrade")
+				open_shop()
+			else:
+				play_tone("deny"),true)
 		v.add_child(weapon_button)
 	var grid := GridContainer.new()
 	grid.columns = 4 if sim.stage>=4 else 3
@@ -863,7 +882,9 @@ func open_shop() -> void:
 					if int(entry.index)==index:
 						celebrate(entry.button,"+%d" %bought)
 				play_tone("buy")
-				update_shop(),true)
+				update_shop()
+			else:
+				play_tone("deny"),true)
 		card.add_child(buy)
 		cards.append({"index":i,"title":title,"button":buy})
 	var milestones := label("",13,Color("969696"))
@@ -981,7 +1002,7 @@ func show_result() -> void:
 
 func buy_automation_from_hud() -> void:
 	if sim.buy_automation():
-		play_tone("buy")
+		play_tone("upgrade")
 		update_hud()
 
 func update_hud() -> void:
@@ -1189,7 +1210,9 @@ func fire_ultimate_from_hud() -> void:
 func fire_ultimate_at(point: Vector2) -> void:
 	if menu!="" or not sim.fire_ultimate(point):
 		return
-	audio.play("milestone",-6)
+	# Ultimates with their own designed sound carry themselves; the rest get a cue.
+	if not audio.SFX.has("ult_"+str(sim.ult.get("kind",""))):
+		audio.play("milestone",-6)
 	toast_time = 0
 	spring(ult_button,.92,.08)
 	update_ult_button()
@@ -1480,7 +1503,10 @@ func save_game() -> void:
 	store.save_game(sim,settings_payload())
 
 func play_tone(kind: String) -> void:
-	if kind=="buy":audio.play("purchase",-12)
+	match kind:
+		"buy":audio.play("purchase")
+		"upgrade":audio.sfx("upgrade",audio.LEVEL.reward,1.0,true)
+		"deny":audio.ui("ui_deny")
 
 func advance_frame(delta: float, time_scale: float) -> float:
 	# Fixed ticks keep combat deterministic. Under load, yield to rendering and
@@ -1576,6 +1602,7 @@ func _process_frame(delta: float) -> void:
 	money_label.text="$ "+Catalog.number(shown_money)
 	field.money_anchor=field.to_local(money_label.global_position+Vector2(36,22))
 	if field.coin_arrivals>0:
+		audio.coins(field.coin_arrivals)
 		money_pulse=maxf(money_pulse,1.8 if field.coin_arrivals>=8 else .7)
 		field.coin_arrivals=0
 	update_rates(delta)
