@@ -466,7 +466,7 @@ func spawn_child(parent: Dictionary, at: Vector2, members: int, hp_share: float,
 	var unit_hp: float = float(parent.base_hp) * hp_share
 	var roster: Dictionary = ROSTER[clampi(stage, 0, LAST_STAGE)]
 	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": left, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": "ship" if str(parent.get("mat", "")) == "metal" else "rock", "elite": false, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 9.0 + (minf(14.0, log(float(members)) * 2.5) if members > 1 else 0.0), "boss": false, "dead": false})
-	e.merge({"arch": "swarm", "mat": str(parent.get("mat", "rock")), "title": str(roster.swarm[0]), "child": true, "base_hp": unit_hp})
+	e.merge({"arch": "swarm", "mat": str(parent.get("mat", "rock")), "title": str(roster.swarm[0]), "child": true, "base_hp": unit_hp, "art": "%d_swarm" % clampi(stage, 0, LAST_STAGE)})
 	enemies.append(e)
 	enemies_by_id[int(e.id)] = e
 
@@ -521,7 +521,7 @@ func spawn_enemy(members: int) -> void:
 	var base_hp: float = (300.0 if elite else 100.0) * hp_scale() / (WAVE_SCALE if stage > 0 else 1)
 	var unit_hp: float = base_hp if elite else base_hp * float(ARCH_HP[arch]) * float(norm[0])
 	e.merge({"id": serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": lifetime, "members": members, "initial_members": members, "unit_hp": unit_hp, "hp": unit_hp, "kind": kind, "elite": elite, "seed": rng.randi_range(1, 99999), "reserved": 0.0, "radius": 12.0 + (8.0 if elite else 0.0) + (minf(22.0, log(float(members)) * 3.0) if members > 1 else 0.0), "boss": false, "dead": false})
-	e.merge({"arch": arch, "mat": str(entry[1]), "title": str(entry[0]), "base_hp": base_hp * float(norm[0])})
+	e.merge({"arch": arch, "mat": str(entry[1]), "title": str(entry[0]), "base_hp": base_hp * float(norm[0]), "art": "%d_%s" % [clampi(stage, 0, LAST_STAGE), arch]})
 	match arch:
 		"dart":
 			e.radius = float(e.radius) - 2.0

@@ -71,7 +71,7 @@ func run() -> void:
 			sim.serial = 1
 			sim.spawn_enemy(6 if arch == "swarm" else 1)
 			var e: Dictionary = sim.enemies.back()
-			e.merge({"arch": arch, "mat": str(roster[arch][1]), "title": str(roster[arch][0]), "elite": false,
+			e.merge({"arch": arch, "art": "%d_%s" % [st, arch], "mat": str(roster[arch][1]), "title": str(roster[arch][0]), "elite": false,
 				"start": center + Vector2(-.6, -.3), "end": center + Vector2(.6, .3), "pos": center, "age": 0.0, "lifetime": 1000.0,
 				"kind": "ship" if str(roster[arch][1]) == "metal" else "rock"}, true)
 			# Same body size as a mid-sized group in play, without the "x6" count on specials.
@@ -88,7 +88,8 @@ func run() -> void:
 				e.launch_t = 2.6
 				e.launched = 0
 			await wait_real(1.4)
-			var half: float = float(e.radius) * float(game.field.ARCH_SIZE.get(arch, 1.0)) * (2.6 if arch != "dart" else 3.4) + 10.0
+			# Frame the body itself (darts keep a little of their speed streak).
+			var half: float = float(e.radius) * float(game.field.ARCH_SIZE.get(arch, 1.0)) * (1.8 if arch != "dart" else 2.6) + 8.0
 			var file: String = "%d_%s.png" % [st, arch]
 			await grab(center, half, out + "/" + file)
 			index.append({"stage": st, "arch": arch, "title": str(roster[arch][0]), "mat": str(roster[arch][1]), "file": file,

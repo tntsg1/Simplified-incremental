@@ -2428,7 +2428,8 @@ func boss_shape(p: Vector2, radius: float, kind: String, flash: float, live: boo
 			shape(p, radius * .5, 4, -clock * .5, Color(0, 0, 0, 0), GREY, 2)
 
 # How big each archetype is drawn relative to its group radius: size alone tells them apart.
-const ARCH_SIZE: Dictionary = {"swarm": .75, "dart": 1.05, "armored": 1.3, "splitter": 1.1, "shielded": 1.1, "mother": 1.6}
+const ARCH_SIZE: Dictionary = {"swarm": .75, "dart": 1.05, "armored": 1.3, "splitter": 1.1, "shielded": 1.1, "mother": 2.3}
+const MonsterArt = preload("res://scripts/monster_art.gd")
 # Dark body tone for the large archetypes: they read by line work, not by a flat slab.
 const DEEP := Color("161616")
 const MAT_FILL: Dictionary = {"rock": Color("b4b4b4"), "metal": Color("ededed"), "energy": Color("f6f1e6"), "exotic": Color("1a1a1a")}
@@ -2438,8 +2439,23 @@ var intro_id: int = -1
 var intro_t: float = 0.0
 
 func arch_body(e: Dictionary, p: Vector2, size: float, heading: float, spin: float, fill: Color, along: float, across: float, flash: float, mat: String, quiet: bool) -> void:
-	# One silhouette family per archetype, dressed in the chapter's material.
+	# Every named threat has its own drawing (monster_art.gd); archetype cues go on top.
 	var arch: String = str(e.get("arch", "swarm"))
+	var launch_open: float = clampf(1.0 - float(e.get("launch_t", 3.0)), 0.0, 1.0) if arch == "mother" and int(e.get("launched", 0)) < sim.MOTHER_LAUNCHES else 0.0
+	var key: String = str(e.get("art", ""))
+	if key != "":
+		var head_dir := Vector2.from_angle(heading)
+		if arch == "dart":
+			stroke(p - head_dir * size * .6, p - head_dir * size * 5.5, Color(INK, .3 * fill.a))
+		if MonsterArt.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open):
+			if arch == "shielded":
+				var held_bespoke: float = float(e.get("shield", 0.0)) / maxf(1.0, float(e.get("shield_max", 1.0)))
+				if held_bespoke > 0.0:
+					var hex_b := ngon(6, size * 1.75 * (1.0 + flash * .1), clock * .8, p)
+					hex_b.append(hex_b[0])
+					draw_polyline(hex_b, Color(ACCENT.lerp(Color.WHITE, flash), (.35 + .6 * held_bespoke) * fill.a), 1.2 + 1.4 * held_bespoke, true)
+			return
+	# Fallback: one silhouette family per archetype, dressed in the chapter's material.
 	var edge := Color(INK, fill.a)
 	var dir := Vector2.from_angle(heading)
 	var nrm: Vector2 = dir.orthogonal()
