@@ -2431,6 +2431,7 @@ func boss_shape(p: Vector2, radius: float, kind: String, flash: float, live: boo
 const ARCH_SIZE: Dictionary = {"swarm": .75, "dart": 1.05, "armored": 1.3, "splitter": 1.1, "shielded": 1.1, "mother": 2.3}
 const MonsterArt = preload("res://scripts/monster_art.gd")
 const MonsterArtFine = preload("res://scripts/monster_art_fine.gd")
+const MonsterArtV3 = preload("res://scripts/monster_art_v3.gd")
 # Dark body tone for the large archetypes: they read by line work, not by a flat slab.
 const DEEP := Color("161616")
 const MAT_FILL: Dictionary = {"rock": Color("b4b4b4"), "metal": Color("ededed"), "energy": Color("f6f1e6"), "exotic": Color("1a1a1a")}
@@ -2448,7 +2449,7 @@ func arch_body(e: Dictionary, p: Vector2, size: float, heading: float, spin: flo
 		var head_dir := Vector2.from_angle(heading)
 		if arch == "dart":
 			stroke(p - head_dir * size * .6, p - head_dir * size * 5.5, Color(INK, .3 * fill.a))
-		if MonsterArtFine.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open) or MonsterArt.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open):
+		if MonsterArtV3.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open) or MonsterArtFine.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open) or MonsterArt.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open):
 			if arch == "shielded":
 				var held_bespoke: float = float(e.get("shield", 0.0)) / maxf(1.0, float(e.get("shield_max", 1.0)))
 				if held_bespoke > 0.0:

@@ -576,8 +576,8 @@ static func draw(f: Node2D, key: String, e: Dictionary, p: Vector2, s: float, he
 				var width: float = s * .62 * sin(u * PI) * breathe
 				var zig_r: float = s * .1 * sin(k * 2.3 + t * 3.0 + sd)
 				var zig_l: float = s * .1 * sin(k * 1.7 - t * 2.6 + sd * 2)
-				right.append(along + dir * (width + zig_r))
-				left.append(along - dir * (width + zig_l))
+				right.append(along + dir * maxf(width + zig_r, s * .02))
+				left.append(along - dir * maxf(width + zig_l, s * .02))
 			var tear: PackedVector2Array = right.duplicate()
 			var back: PackedVector2Array = left.duplicate()
 			back.reverse()

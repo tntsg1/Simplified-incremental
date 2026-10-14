@@ -1,7 +1,11 @@
 """Build the bestiary page from tests/bestiary_capture.gd output (build/bestiary)."""
 import json
 import os
+import shutil
+import sys
 
+# --site <dir>: also publish a standalone copy for stellarascensiongame.com/skyguard/bestiary/
+SITE = sys.argv[sys.argv.index("--site") + 1] if "--site" in sys.argv else None
 ROOT = os.path.join(os.path.dirname(__file__), "..", "build", "bestiary")
 idx = json.load(open(os.path.join(ROOT, "bestiary.json"), encoding="utf-8"))
 
@@ -141,3 +145,40 @@ h4{{margin:0;font-size:16px;font-weight:600}}
 '''
 open(os.path.join(ROOT, "index.html"), "w", encoding="utf-8").write(html)
 print("BESTIARY_PAGE", total)
+
+if SITE:
+    # Public page: full document, site palette and fonts, a way back to the intro page, no notes to the developer.
+    page = html.replace("<title>天穹防线怪物图鉴</title>", """<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>怪物图鉴 · 天穹防线 SKYGUARD</title>
+<meta name="theme-color" content="#141414"><link rel="icon" href="/stellar/skyguard/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://stellarascensiongame.com/skyguard/bestiary/">
+<meta name="description" content="天穹防线全部 50 种怪物和 10 个 Boss：十个尺度，从城市上空到宇宙膜之外。">
+<meta property="og:image" content="https://stellarascensiongame.com/skyguard/bestiary/9_boss.png">""", 1)
+    page = page.replace('<link rel="preconnect" href="https://fonts.googleapis.com">\n', "")
+    page = page.replace('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">\n', "")
+    page = page.replace("--bg:#0f0f0e; --panel:#171716; --line:#2b2a27; --ink:#ededed; --dim:#8e8b85; --amber:#f2c14e; --amber-dim:#5c4a22;",
+                        "--bg:#141414; --panel:#1a1a1a; --line:#2c2c2c; --ink:#ededed; --dim:#8a8a8a; --amber:#ffc94d; --amber-dim:#5e4a1e;")
+    page = page.replace('--sans:"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif; --mono:"JetBrains Mono",Consolas,monospace;',
+                        '--sans:"PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif; --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;')
+    page = page.replace("body{background", "body{margin:0;background")
+    page = page.replace("</style>", """*{box-sizing:border-box}
+.site{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:4px;font-size:14px;letter-spacing:.06em}
+.site a{color:var(--dim);text-decoration:none;transition:color .3s}.site a:hover,.site a:focus-visible{color:var(--ink);outline:none}
+.site .play{color:var(--amber)}
+</style>
+</head>
+<body>""", 1)
+    page = page.replace("<main>", """<main>
+  <nav class="site" aria-label="站点"><a href="/stellar/skyguard/">← 天穹防线</a><a class="play" href="/stellar/skyguard/play/">进入游戏 ↗</a></nav>""", 1)
+    page = page.replace("怪物卡片是循环动画（游戏内连续截取 16 帧）。", "怪物卡片是游戏里连续截取的循环动画。")
+    page = page.replace("哪个不满意，直接告诉我名字。", "")
+    page = page.replace("</main>\n", "</main>\n</body>\n</html>\n")
+    os.makedirs(os.path.join(SITE, "anim"), exist_ok=True)
+    for it in idx:
+        shutil.copyfile(os.path.join(ROOT, it["show"]), os.path.join(SITE, it["show"]))
+    open(os.path.join(SITE, "index.html"), "w", encoding="utf-8").write(page)
+    print("BESTIARY_SITE", SITE)
