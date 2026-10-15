@@ -109,6 +109,32 @@ GLORY = {
         K(1900, 950, .015, .05, -15, sweep=.004, delay=3.72), K(1500, 750, .015, .05, -15, sweep=.004, delay=3.98),
         N(3200, 220, .9, 1.3, -12, attack=.35, lp=5000, delay=5.6),
         K(70, 34, .45, 1.0, -9, delay=6.35), BL(D5, 1.0, 1.0, -15, 6.4)], group="flow", room=.6, wet=.2, lufs=-14, tail=1.0),
+    # ---------------------------------------------------------------- loot: crisp coins and a jackpot when a big stream lands
+    # The game pitches each coin up a pentatonic step (audio_director.coins), so one variant only.
+    "coin": S("金币到账（清脆的金属叮）", .5, [
+        BL(2093.0, .2, .45, 0), {"tone": 3135.96, "decay": .05, "len": .18, "gain": -7, "delay": .035},
+        {"tone": 1567.98, "decay": .035, "len": .12, "gain": -9}, N(8000, 15000, .01, .04, -12, q=.5),
+        L("Ting Coins", .45, -14)], group="reward", room=.12, wet=.08, lufs=-14, tail=.02),
+    "coin_jackpot": S("大招结算 · 全部到账（叮——当！）", 1.8, [
+        *strum([D6, FS6, 1760.0, 2349.32], 1.2, 1.6, 0, .05), K(140, 70, .04, .12, -8, sweep=.01),
+        N(6000, 14000, .25, 1.0, -14, attack=.01), L("Drop Couple of Gold Coins on Coins 03", .7, -6, delay=.05),
+        L("Ting Coins", .5, -10, delay=.18)], group="reward", room=.45, wet=.16, lufs=-12, tail=.6),
+    # ---------------------------------------------------------------- rewriting pi: the constant played as a melody, then six seams of light
+    # 0-2.0 s: the digits of pi ring out as D-major bells, accelerating like a counter, over a rising choir.
+    # 2.0 s (PI_IMPACT): six spatial seams rupture - a full D-major bloom and a cascade of six crystal bells.
+    "ult_pi": S("大招 · 改写 π · 圆周率奏成旋律（越来越快）", 2.05, [
+        *[BL([D5, E5, FS5, 783.99, A5, B4 * 2, 1108.73, D6, 1318.51, FS6][dg], .45, .6, -9 + 5 * i / 23,
+              .05 + 1.85 * (1 - (1 - i / 24) ** 1.8))
+          for i, dg in enumerate([3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6, 4])],
+        P([D3, A3, D4], 2.05, -10, attack=1.8, hold=.15, decay=.3, lo=400, hi=3200),
+        CH([D3, A3], 2.05, -12, attack=1.7, hold=.2, decay=.3),
+        N(3000, 300, .5, .5, -10, reverse=True, delay=1.55)], lufs=-16, tail=.02),
+    "ult_pi_boom": S("大招 · 改写 π · 六道空间裂缝（辉煌的绽放）", 2.8, [
+        K(55, 22, .7, 2.4, 0, drive=2.6), N(200, 9000, .3, .8, -8, attack=.002),
+        CH([D3, FS3, A3, D4, FS4], 2.6, -2, attack=.06, hold=.5, decay=1.3),
+        P([D2, D3, A3, D4], 2.6, -5, attack=.05, hold=.4, decay=1.2, lo=4500, hi=1200),
+        *strum([FS6, D6, A5, FS5, D5, A4], 1.2, 2.0, -6, .05),
+        L(CRYSTAL, .9, -9, snap=False, lp=9000)], room=.7, wet=.22, lufs=-11, tail=1.0),
 }
 
 

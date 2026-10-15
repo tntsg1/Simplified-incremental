@@ -138,6 +138,12 @@ var display_stage: int=-1
 # Money rolls toward the real value and pops on income.
 var shown_money: float=0
 var money_pulse: float=0
+# Ultimate loot counter under the wallet: rolls up with the coin stream, lands on the real total.
+var loot_label: Label
+var loot_peak: float=0
+var loot_shown: float=0
+var loot_hold: float=0
+var loot_pop: float=0
 
 func panel_style(color: Color, edge: Color = Color("373737"), radius: int = 12) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
@@ -432,6 +438,9 @@ func build_hud() -> void:
 	ui.add_child(scale_label)
 	money_label = label("$ 0",28,Color("ededed"))
 	ui.add_child(money_label)
+	loot_label = label("",24,Color("ffc94d"))
+	loot_label.visible = false
+	ui.add_child(loot_label)
 	rate_label = label("",13,Color("8a8a8a"))
 	ui.add_child(rate_label)
 	wave_label = label(TranslationServer.translate("第 01 / 10 波"),19)
@@ -576,6 +585,7 @@ func layout() -> void:
 	scale_label.position = Vector2(42,72)
 	money_label.position = Vector2(w*.45,29)
 	rate_label.position = Vector2(w*.45+2,74)
+	loot_label.position = Vector2(w*.45+2,94)
 	wave_label.position = Vector2(w-395,32)
 	health_label.position = Vector2(w-180,35)
 	wave_bar.position = Vector2(w-395,75)
@@ -1408,6 +1418,32 @@ func cycle_speed() -> void:
 	game_speed = steps[(steps.find(game_speed)+1)%steps.size()]
 	refresh_speed_button()
 
+func update_loot_counter(delta: float) -> void:
+	var flowing: float=0.0
+	var progress: float=1.0
+	for batch in sim.reward_batches:
+		if bool(batch.released):
+			flowing+=float(batch.reward)
+			progress=minf(progress,clampf((float(batch.age)-sim.ULT_LOOT_DELAY)/sim.ULT_LOOT_FLIGHT,0.0,1.0))
+	if flowing>0.0:
+		loot_peak=flowing
+		loot_shown=flowing*progress*progress*(3.0-2.0*progress)
+		loot_hold=1.8
+	elif loot_peak>0.0:
+		if loot_shown<loot_peak:
+			loot_shown=loot_peak
+			loot_pop=1.0
+		loot_hold-=delta
+		if loot_hold<=0.0:
+			loot_peak=0.0
+	loot_pop=maxf(0.0,loot_pop-delta*2.5)
+	loot_label.visible=loot_peak>0.0
+	if loot_label.visible:
+		loot_label.text="+ $"+Catalog.number(loot_shown)
+		loot_label.modulate.a=clampf(loot_hold/.5,0.0,1.0)
+		loot_label.pivot_offset=Vector2(0,loot_label.size.y*.5)
+		loot_label.scale=Vector2.ONE*(1.0+.35*loot_pop+.05*money_pulse)
+
 func toggle_dev_mode() -> void:
 	if not OS.is_debug_build():
 		return
@@ -1615,12 +1651,15 @@ func _process_frame(delta: float) -> void:
 	money_label.text="$ "+Catalog.number(shown_money)
 	field.money_anchor=field.to_local(money_label.global_position+Vector2(36,22))
 	if field.coin_arrivals>0:
-		audio.coins(field.coin_arrivals)
-		money_pulse=maxf(money_pulse,1.8 if field.coin_arrivals>=8 else .7)
+		audio.coins(field.coin_arrivals,field.ult_arrivals)
+		money_pulse=maxf(money_pulse,2.6 if field.ult_arrivals>0 else (1.8 if field.coin_arrivals>=8 else .7))
 		field.coin_arrivals=0
+		field.ult_arrivals=0
 	update_rates(delta)
 	money_label.pivot_offset=Vector2(0,money_label.size.y*.5)
 	money_label.scale=Vector2.ONE*(1+money_pulse*.07)
+	money_label.modulate=Color.WHITE.lerp(Color(1.0,.84,.45),clampf(money_pulse*.4,0.0,1.0))
+	update_loot_counter(delta)
 	ui_timer += delta
 	if ui_timer>.1 or display_mode!=sim.mode or display_stage!=sim.stage:
 		ui_timer = 0

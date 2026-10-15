@@ -52,7 +52,7 @@ const NUMBER_CAP: int = 56
 # Additive glow layer: light trails, flashes and halos drawn over the flat field.
 const GlowTexture = preload("res://assets/glow.svg")
 const COIN_CAP: int = 70
-const ULT_COIN_CAP: int = 480
+const ULT_COIN_CAP: int = 720
 var glow: Node2D
 var boss_fx: ColorRect
 var boss_sparks: CPUParticles2D
@@ -67,6 +67,7 @@ var glow_trails := PackedVector2Array()
 var glow_heads := PackedVector2Array()
 var coins: Array[Dictionary] = []
 var coin_arrivals: int = 0
+var ult_arrivals: int = 0
 var money_anchor := Vector2(500, -80)
 var last_mode: String = ""
 # Shockwaves ripple the background grid (shader) on every kill and big event.
@@ -614,7 +615,7 @@ func on_ultimate_loot(point: Vector2, members: int, flight: float) -> void:
 	# Continuous curved streams share a soft inlet below the wallet. Slightly
 	# different flight times keep the shower from moving as one rigid sheet.
 	add_wave(point, 14.0, .45)
-	for k in range(4 if members < 50 else 6):
+	for k in range(8 if members < 50 else 12):
 		if coins.size() >= ULT_COIN_CAP:
 			break
 		var burst := Vector2.from_angle(randf() * TAU) * randf_range(90, 155)
@@ -812,6 +813,8 @@ func animate(delta: float, real_delta: float = -1.0) -> void:
 		var coin_delta: float = real_delta if bool(coins[i].get("ultimate", false)) and real_delta >= 0.0 else delta
 		coins[i].age = float(coins[i].age) + coin_delta
 		if float(coins[i].age) >= float(coins[i].dur):
+			if bool(coins[i].get("ultimate", false)):
+				ult_arrivals += 1
 			coins.remove_at(i)
 			coin_arrivals += 1
 	if sim != null and sim.mode != last_mode:
@@ -994,6 +997,7 @@ func redirect_round(i: int, living: Dictionary) -> void:
 func reset_growth() -> void:
 	coins.clear()
 	coin_arrivals = 0
+	ult_arrivals = 0
 	prev_levels = {}
 	growth.clear()
 	for i in range(WEAPONS):
@@ -2924,10 +2928,13 @@ func _draw_field() -> void:
 				var previous: Vector2 = coin_position(c, -.12)
 				for segment in range(4):
 					var next: Vector2 = coin_position(c, -.09 + segment * .03)
-					stroke(previous, next, Color(1, 1, 1, .12 + segment * .12), .7 + segment * .35)
+					stroke(previous, next, Color(ACCENT, .12 + segment * .14), .7 + segment * .4)
 					previous = next
 				var direction: Vector2 = (point - coin_position(c, -.015)).normalized()
-				shape(point, 3.8, 4, direction.angle(), INK)
+				# Gold coins: an amber diamond with a white glint that winks as it tumbles.
+				shape(point, 4.4, 4, direction.angle(), ACCENT.lerp(Color.WHITE, .25))
+				if sin(clock * 14.0 + float(c.get("phase", 0.0)) * 3.0) > .6:
+					shape(point, 1.8, 4, direction.angle() + PI * .25, Color.WHITE)
 			else:
 				shape(point, 3.2, 4, clock * 6, INK)
 	flush_batch()
