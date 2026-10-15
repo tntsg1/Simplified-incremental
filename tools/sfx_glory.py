@@ -114,7 +114,7 @@ GLORY = {
     "coin": S("金币到账（清脆的金属叮）", .5, [
         BL(2093.0, .2, .45, 0), {"tone": 3135.96, "decay": .05, "len": .18, "gain": -7, "delay": .035},
         {"tone": 1567.98, "decay": .035, "len": .12, "gain": -9}, N(8000, 15000, .01, .04, -12, q=.5),
-        L("Ting Coins", .45, -14)], group="reward", room=.12, wet=.08, lufs=-14, tail=.02),
+        L("Ting Coins", .45, -14)], group="reward", room=.12, wet=.08, lufs=-17, tail=.02),
     "coin_jackpot": S("大招结算 · 全部到账（叮——当！）", 1.8, [
         *strum([D6, FS6, 1760.0, 2349.32], 1.2, 1.6, 0, .05), K(140, 70, .04, .12, -8, sweep=.01),
         N(6000, 14000, .25, 1.0, -14, attack=.01), L("Drop Couple of Gold Coins on Coins 03", .7, -6, delay=.05),

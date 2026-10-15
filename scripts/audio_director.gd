@@ -7,7 +7,7 @@ const LEVEL := {"ult": -5.0, "ult_event": -9.0, "boss": -5.0, "flow": -5.0, "bod
 # Pentatonic steps for sounds that climb (Fourier notes, prime beats).
 const PENTA: Array[int]=[0,2,4,7,9]
 # How many copies of one sound may ring at once.
-const CAP := {"turret": 2, "coin": 4, "ui_click": 2}
+const CAP := {"turret": 2, "coin": 3, "ui_click": 2}
 # Chapter -> score (assets/audio/<name>.ogg). One main theme for now; chapter
 # themes from SUNO_PROMPTS.md slot in here as they are made.
 const TRACKS: Array[String]=["bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main"]
@@ -154,8 +154,9 @@ func sfx(key: String, volume: float=0.0, pitch: float=1.0, important: bool=false
 		voice=voices[voice_cursor]
 		voice_cursor=(voice_cursor+1)%voices.size()
 	# Dense fights duck each new sound a little, never the important ones.
-	# Coins stay crisp under fights and ultimates: they are the payoff.
-	var duck: float=0.0 if important or key=="coin" else -minf(9.0,3.0*log(1.0+pressure/3.0)/log(2.0))+ult_duck
+	# Coins duck with a crowded fight like everything else, but not under an ultimate:
+	# the loot stream that follows it is the payoff.
+	var duck: float=0.0 if important else -minf(9.0,3.0*log(1.0+pressure/3.0)/log(2.0))+(0.0 if key=="coin" else ult_duck)
 	pressure+=1.0
 	voice.stop()
 	voice.stream=get_stream("sfx/"+key+"_"+str(pick))
@@ -229,7 +230,7 @@ func coins(count: int, ult_count: int=0) -> void:
 	coin_quiet=0.0
 	coin_streak+=1
 	if ult_count>0:
-		sfx("coin",LEVEL.coin+3.0,.8*scale_pitch(coin_streak%8))
+		sfx("coin",LEVEL.coin,.8*scale_pitch(coin_streak%8))
 	else:
 		sfx("coin",LEVEL.coin,1.0+minf(.3,coin_streak*.012))
 
@@ -345,7 +346,7 @@ func update(sim: RefCounted, delta: float) -> void:
 	ult_duck=move_toward(ult_duck,-14.0 if ult_on else 0.0,delta*(60.0 if ult_on else 10.0))
 	coin_quiet+=delta
 	if coin_quiet>.3 and ult_stream>=20:
-		sfx("coin_jackpot",LEVEL.reward,1.0,true)
+		sfx("coin_jackpot",LEVEL.reward-2.0,1.0,true)
 		ult_stream=0
 	if coin_quiet>.6:
 		coin_streak=0
