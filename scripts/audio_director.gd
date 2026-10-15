@@ -67,6 +67,11 @@ func _ready() -> void:
 			AudioServer.add_bus()
 			AudioServer.set_bus_name(AudioServer.bus_count-1,bus)
 			AudioServer.set_bus_send(AudioServer.bus_count-1,"Master" if bus=="Skyguard Mix" else "Skyguard Mix")
+	# The buses live in default_bus_layout.tres: the web build's sample playback only
+	# mirrors buses that exist at startup (runtime-added ones played nothing in browsers).
+	# Web ignores bus effects, so the missing limiter is offset by a little master headroom.
+	if OS.has_feature("web"):
+		AudioServer.set_bus_volume_db(0,-3.0)
 	var master: int=AudioServer.get_bus_index("Skyguard Mix")
 	# Gain follows the quiet calibrated source clips; the limiter stays last.
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Skyguard Music"),5)
