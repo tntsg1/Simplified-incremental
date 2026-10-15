@@ -89,6 +89,26 @@ GLORY = {
         CH([D4, FS4, A4, D5], 2.8, -1, attack=.05, hold=.6, decay=1.2),
         P([D3, A3, D4, A4], 2.8, -4, attack=.04, hold=.4, decay=1.2, lo=5000, hi=1500),
         *strum([A5, D6, FS6], 1.4, 2.4, -8, .06)], room=.65, wet=.2, lufs=-11, tail=1.1),
+    # ---------------------------------------------------------------- chapter jump, timed to the 7 s cinematic (ui_fx "jump")
+    # 0-1.6 stamp: sub swells, engines spool up, a reversed breath pulls in. 1.6 ignition. 1.6-5.8
+    # hyperspace wind with streaks whooshing past ever faster. 2.6 the chapter card blooms in D major,
+    # one bell per title glyph (.09 s apart). 3.85 the scale readout flips. 5.8-7.0 deceleration and arrival.
+    "jump": S("跃迁到下一章（与 7 秒过场同步）", 7.4, [
+        P([D2, A2], 1.8, -14, attack=1.5, hold=.1, decay=.4, lo=200, hi=1400, delay=.1),
+        N(300, 7000, .08, 1.5, -8, attack=1.45, hold=1.45, lp=8000, delay=.1),
+        {"synth": "zap", "from": 110, "to": 880, "attack": 1.4, "decay": 30.0, "len": 1.5, "gain": -16, "glide": 1.4, "delay": .1, "voices": 4, "harm": 3, "lp": 3000},
+        N(2500, 300, .5, .5, -10, reverse=True, delay=1.1),
+        K(50, 22, .55, 1.4, 0, drive=2.6, delay=1.6), N(9000, 500, .45, 1.2, -6, delay=1.6),
+        L("Braam 035", 1.3, -10, pitch=-6, delay=1.6),
+        N(200, 2400, 1.0, 4.4, -17, attack=.4, hold=3.2, lp=3500, delay=1.6),
+        *[N(500, 4500, .14, .4, -17 + i * .4, attack=.12, delay=d) for i, d in enumerate((1.85, 2.2, 2.5, 2.75, 2.97, 3.17, 3.35, 3.55, 3.75, 3.95, 4.2, 4.5, 4.85, 5.25))],
+        K(72, 30, .55, 1.4, -1, drive=2.2, delay=2.6),
+        CH([D3, A3, D4, FS4, A4], 3.8, -1, attack=.12, hold=1.6, decay=1.8, delay=2.6),
+        P([D2, D3, A3, D4], 4.0, -6, attack=.15, hold=1.6, decay=2.0, lo=600, hi=4500, delay=2.6),
+        *strum([D5, E5, FS5, A5, B4 * 2, D6], 1.0, 1.2, -9, .09, delay=2.75),
+        K(1900, 950, .015, .05, -15, sweep=.004, delay=3.72), K(1500, 750, .015, .05, -15, sweep=.004, delay=3.98),
+        N(3200, 220, .9, 1.3, -12, attack=.35, lp=5000, delay=5.6),
+        K(70, 34, .45, 1.0, -9, delay=6.35), BL(D5, 1.0, 1.0, -15, 6.4)], group="flow", room=.6, wet=.2, lufs=-14, tail=1.0),
 }
 
 
