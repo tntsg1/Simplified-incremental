@@ -1,8 +1,12 @@
 extends SceneTree
 # Renders every chapter's enemy archetypes and bosses one at a time, live, and
 # saves a close-up of each for the bestiary page.
-# Usage: -- <out_dir>     (writes <stage>_<arch>.png, <stage>_boss.png, bestiary.json)
+# Usage: -- <out_dir> [stages e.g. 5,6] [hit]   (writes <stage>_<arch>.png, <stage>_boss.png, bestiary.json)
+# "hit" strikes each subject every .35 s during its frame burst, to review the impact effect.
 var game: Control
+var subject: Dictionary = {}
+var striking: bool = false
+var next_strike: int = 0
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -18,6 +22,10 @@ func wait_real(seconds: float) -> void:
 			game.pointer_frame.visible = false
 		game.field.glow.visible = false
 		game.field.intro_t = 0.0
+		if striking and not subject.is_empty() and Time.get_ticks_msec() >= next_strike:
+			subject["flash"] = .12
+			subject["hp"] = maxf(1.0, float(subject.get("hp", 1.0)) * .97)
+			next_strike = Time.get_ticks_msec() + 350
 		await process_frame
 
 func grab(center: Vector2, half: float, path: String) -> void:
@@ -42,7 +50,13 @@ func quiet_field() -> void:
 	sim.grace = 9999.0
 
 func run() -> void:
-	var out: String = OS.get_cmdline_user_args()[0]
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	var out: String = args[0]
+	var only: Array = []
+	if args.size() > 1 and args[1] != "all":
+		for part in args[1].split(","):
+			only.append(int(part))
+	striking = args.size() > 2 and args[2] == "hit"
 	DirAccess.make_dir_recursive_absolute(out + "/frames")
 	game = preload("res://scenes/main.tscn").instantiate()
 	game.store.enabled = false
@@ -58,6 +72,8 @@ func run() -> void:
 	# Far from the core and its defence ring, clear of the HUD.
 	var center := Vector2(200, 190)
 	for st in range(sim.STAGE_COUNT):
+		if not only.is_empty() and not only.has(st):
+			continue
 		sim.stage = st
 		sim.wave = 3
 		sim.start_wave()
@@ -87,6 +103,7 @@ func run() -> void:
 			if arch == "mother":
 				e.launch_t = 2.6
 				e.launched = 0
+			subject = e
 			await wait_real(1.4)
 			# Frame the body itself (darts keep a little of their speed streak).
 			var half: float = float(e.radius) * float(game.field.ARCH_SIZE.get(arch, 1.0)) * (1.8 if arch != "dart" else 2.6) + 8.0
@@ -98,6 +115,7 @@ func run() -> void:
 				await grab(center, half, out + "/frames/%d_%s_%02d.png" % [st, arch, frame])
 			index.append({"stage": st, "arch": arch, "title": str(roster[arch][0]), "mat": str(roster[arch][1]), "file": file,
 				"new": arch == sim.NEW_ARCH[st]})
+			subject = {}
 			print("BESTIARY ", file)
 		# The chapter boss, once it has settled in.
 		quiet_field()

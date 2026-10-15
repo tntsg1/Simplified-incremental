@@ -2440,6 +2440,44 @@ var bare: bool = false
 var intro_id: int = -1
 var intro_t: float = 0.0
 
+func hit_burst(e: Dictionary, q: Vector2, size: float, flash: float, a: float) -> void:
+	# Impact: a white bloom on the body, a shock ring snapping outward, sparks thrown off it.
+	# Each hit (new hp) picks its own spark angles.
+	var k: float = 1.0 - flash
+	draw_circle(q, size * (.5 + .3 * k), Color(1, 1, 1, .3 * flash * flash * a))
+	draw_arc(q, size * (1.0 + 1.1 * k), 0, TAU, 40, Color(1, .95, .82, .9 * flash * a), .8 + 2.2 * flash, true)
+	var hit_seed: int = int(e.seed) + int(float(e.get("hp", 0.0))) % 97
+	for j in range(5):
+		var u := Vector2.from_angle(hit_seed * 1.37 + j * 1.26 + .4 * sin(hit_seed + j * 3.0))
+		var r0: float = size * (.85 + 1.2 * k)
+		stroke(q + u * r0, q + u * (r0 + size * (.2 + .5 * flash)), Color(ACCENT.lerp(Color.WHITE, flash), flash * a), .8 + flash)
+
+
+func shield_bubble(e: Dictionary, q: Vector2, size: float, flash: float, a: float) -> void:
+	# Shield: a faint hex bubble with two light pulses running round its edge in opposite
+	# directions, rippling inward when struck and thinning as it is worn down.
+	var held: float = float(e.get("shield", 0.0)) / maxf(1.0, float(e.get("shield_max", 1.0)))
+	if held <= 0.0:
+		return
+	var r: float = size * 1.75 * (1.0 + flash * .08 + .02 * sin(clock * 2.4 + int(e.seed)))
+	var rot: float = clock * .35 + int(e.seed)
+	var hex := ngon(6, r, rot, q)
+	draw_colored_polygon(hex, Color(ACCENT, (.04 + .08 * flash) * held * a))
+	hex.append(hex[0])
+	draw_polyline(hex, Color(ACCENT.lerp(Color.WHITE, flash), (.22 + .35 * held) * a), 1.0, true)
+	for dir_sign in [1.0, -1.0]:
+		var u: float = fposmod(clock * .45 * dir_sign + (.5 if dir_sign < 0 else 0.0), 1.0) * 6.0
+		var i: int = int(u)
+		var a0: Vector2 = hex[i].lerp(hex[i + 1], u - i)
+		var a1: Vector2 = hex[i].lerp(hex[i + 1], minf(1.0, u - i + .35))
+		draw_line(a0, a1, Color(ACCENT.lerp(Color.WHITE, .5), (.5 + .5 * held) * a), 2.0, true)
+		draw_circle(a0, 1.6, Color(1, 1, 1, .9 * held * a))
+	if flash > 0.0:
+		var inner := ngon(6, r * (1.0 - .35 * (1.0 - flash)), rot, q)
+		inner.append(inner[0])
+		draw_polyline(inner, Color(ACCENT, .7 * flash * a), 1.5, true)
+
+
 func arch_body(e: Dictionary, p: Vector2, size: float, heading: float, spin: float, fill: Color, along: float, across: float, flash: float, mat: String, quiet: bool) -> void:
 	# Every named threat has its own drawing (monster_art.gd); archetype cues go on top.
 	var arch: String = str(e.get("arch", "swarm"))
@@ -2449,13 +2487,20 @@ func arch_body(e: Dictionary, p: Vector2, size: float, heading: float, spin: flo
 		var head_dir := Vector2.from_angle(heading)
 		if arch == "dart":
 			stroke(p - head_dir * size * .6, p - head_dir * size * 5.5, Color(INK, .3 * fill.a))
-		if MonsterArtV3.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open) or MonsterArtFine.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open) or MonsterArt.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open):
+		# Hit: the body is knocked back along its path, squashed against the blow and bulging
+		# sideways, then springs back; newborn threats stay stretched by their entry speed.
+		var kick: float = flash * flash
+		var q: Vector2 = p - head_dir * size * .22 * kick
+		var axis := Transform2D(heading, Vector2.ZERO)
+		var squash: Transform2D = axis * Transform2D.IDENTITY.scaled(Vector2(along, across)) * axis.affine_inverse()
+		draw_set_transform_matrix(Transform2D(0.0, q) * squash * Transform2D(0.0, -p))
+		var drawn: bool = MonsterArtV3.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open) or MonsterArtFine.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open) or MonsterArt.draw(self, key, e, p, size, heading, spin, fill.a, flash, launch_open)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+		if drawn:
 			if arch == "shielded":
-				var held_bespoke: float = float(e.get("shield", 0.0)) / maxf(1.0, float(e.get("shield_max", 1.0)))
-				if held_bespoke > 0.0:
-					var hex_b := ngon(6, size * 1.75 * (1.0 + flash * .1), clock * .8, p)
-					hex_b.append(hex_b[0])
-					draw_polyline(hex_b, Color(ACCENT.lerp(Color.WHITE, flash), (.35 + .6 * held_bespoke) * fill.a), 1.2 + 1.4 * held_bespoke, true)
+				shield_bubble(e, q, size, flash, fill.a)
+			if flash > 0.0:
+				hit_burst(e, q, size, flash, fill.a)
 			return
 	# Fallback: one silhouette family per archetype, dressed in the chapter's material.
 	var edge := Color(INK, fill.a)
@@ -2671,7 +2716,12 @@ func enemy(e: Dictionary) -> void:
 		var across: float = 1.0 + .22 * flash - .2 * young
 		arch_body(e, p, size * float(ARCH_SIZE.get(arch_name, 1.0)), heading, spin, fill, along, across, flash, mat, dense and not focused)
 		if bool(e.elite):
-			shape(p, size * 1.95, 8, spin * .5, Color(0, 0, 0, 0), Color(ACCENT, .75 * fill.a), 1.5)
+			# Elite: the game's own four-segment reticle in amber, turning and breathing.
+			var er: float = size * (1.95 + .08 * sin(clock * 3.0 + int(e.seed)))
+			for j in range(4):
+				var a0: float = clock * 1.1 + j * PI * .5
+				draw_arc(p, er, a0, a0 + .75, 8, Color(ACCENT, .85 * fill.a), 1.6, true)
+				draw_circle(p + Vector2.from_angle(a0 + .375) * (er + 4.0), 1.2, Color(ACCENT, .7 * fill.a))
 		if int(e.id) == intro_id and intro_t > 0.0:
 			# First of a new archetype: a pulsing ring and its name.
 			var k: float = fposmod(clock * 1.6, 1.0)
