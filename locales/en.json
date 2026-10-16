@@ -269,7 +269,7 @@
   "火力范围": "Firepower Area",
   "每级增加 18% 基础覆盖；Lv.10 群落爆裂使覆盖额外 +30%，Lv.25 区域轰击额外 +25%。": "+18% base coverage per level. Lv.10: swarm burst adds +30% coverage. Lv.25: area bombardment adds +25%.",
   "能量暴击": "Energy Critical",
-  "每级暴击率 +2%，最高 50%；每二十五级提高暴击倍率。": "+2% critical chance per level, up to 50%. Critical multiplier increases every 25 levels.",
+  "每级暴击率 +2%，达到 100% 必定暴击；溢出每 1% 转为 +3% 暴击伤害；每二十五级暴击倍率 +1。": "+2% critical chance per level. Guaranteed critical hits at 100%; each excess 1% adds 3% critical damage. Critical multiplier +1 every 25 levels.",
   "弹头伤害": "Warhead Damage",
   "每级伤害 +15%。Lv.10 / 25 / 50，伤害翻倍；高阶弹头提高群落覆盖。": "+15% damage per level. Lv.10 / 25 / 50 doubles damage. Advanced warheads improve swarm coverage.",
   "贯穿能力": "Piercing",

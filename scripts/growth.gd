@@ -63,11 +63,12 @@ static func coverage(ctx: RefCounted, index: int) -> int:
 
 
 static func crit_chance(ctx: RefCounted) -> float:
-	return minf(0.5, int(ctx.levels.crit) * 0.02)
+	return int(ctx.levels.crit) * 0.02
 
 
 static func crit_multiplier(ctx: RefCounted) -> float:
-	return 2.0 + int(ctx.levels.crit) / 25
+	# Each percentage point above guaranteed crit adds three points of crit damage.
+	return 2.0 + int(ctx.levels.crit) / 25 + maxf(0.0, crit_chance(ctx) - 1.0) * 3.0
 
 
 static func nominal_dps(ctx: RefCounted) -> float:
@@ -77,7 +78,7 @@ static func nominal_dps(ctx: RefCounted) -> float:
 			total += ctx.shot_damage(i) / ctx.shot_interval(i)
 	# Turrets together add 5% of the arsenal per turret bought.
 	total *= 1.0 + 0.05 * int(ctx.levels.get("turrets", 0)) + ctx.BODY_SHARE * ctx.total_bodies()
-	return total * (1.0 + ctx.crit_chance() * (ctx.crit_multiplier() - 1.0))
+	return total * (1.0 + minf(1.0, ctx.crit_chance()) * (ctx.crit_multiplier() - 1.0))
 
 
 static func upgrade_cost(ctx: RefCounted, index: int, count: int = 1) -> float:
@@ -139,4 +140,3 @@ static func buy_weapon(ctx: RefCounted) -> bool:
 	ctx.notice.emit(TranslationServer.translate(ctx.catalog.weapons[ctx.stage].title) + TranslationServer.translate("上线 · 全局升级已继承"))
 	ctx.checkpoint.emit()
 	return true
-

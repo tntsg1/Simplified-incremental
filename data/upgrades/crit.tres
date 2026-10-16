@@ -6,4 +6,4 @@ key="crit"
 title="能量暴击"
 base_cost=80
 unlock_stage=1
-description="每级暴击率 +2%，最高 50%；每二十五级提高暴击倍率。"
+description="每级暴击率 +2%，达到 100% 必定暴击；溢出每 1% 转为 +3% 暴击伤害；每二十五级暴击倍率 +1。"
