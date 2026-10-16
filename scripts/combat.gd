@@ -714,6 +714,10 @@ func fire_boss_skill(kind: String, boss: Dictionary) -> void:
 		"devour":
 			boss.hp = minf(boss_max_hp(), float(boss.hp) + boss_max_hp() * .05)
 
+func breach_damage(e: Dictionary) -> float:
+	var fraction: float = float(e.members) / maxi(1, int(e.initial_members))
+	return maxf(1.0, (25.0 if int(e.initial_members) > 1 or bool(e.elite) else 10.0) * fraction)
+
 func update_escorts(delta: float) -> void:
 	if boss_actor().is_empty():
 		return
@@ -725,12 +729,19 @@ func update_escorts(delta: float) -> void:
 		escort_clock = ESCORT_PERIOD[stage]
 		spawn_escorts(n, first)
 		boss_launched.emit(boss_actor().pos, n)
-	# Escorts that reach the core bring the impact closer.
+	# Hostile escorts damage the defense as well as hastening the boss impact.
 	for e in enemies:
 		if not bool(e.dead) and not bool(e.boss) and float(e.age) >= float(e.lifetime):
 			e.dead = true
+			if bool(e.get("fragment", false)):
+				add_effect(e.pos, "impact", 8.0)
+				continue
+			health = maxf(0.0, health - breach_damage(e))
 			boss_penalty += ESCORT_PENALTY
 			add_effect(e.pos, "breach", 25.0)
+			if health <= 0.0:
+				fail_stage()
+				return
 
 func target_for_weapon() -> Dictionary:
 	# A focus-fire target draws every gun while it lives (spare rounds swerve on).
@@ -1945,6 +1956,8 @@ func advance(delta: float, visuals: bool = true) -> void:
 		return
 	if mode == "boss":
 		update_escorts(delta)
+		if mode != "boss":
+			return
 	if mode == "wave" and stage > 0 and spawn_left > 0 and spawn_hold <= 0.0 and grace <= 0.0:
 		# Space chapters: the wave keeps its schedule however fast the defense is.
 		# When the field thins, extra flood groups arrive on top of the budget, so a
@@ -2158,9 +2171,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 					if visuals:
 						add_effect(e.pos, "impact", 8.0)
 					continue
-				var fraction: float = float(e.members) / maxi(1, int(e.initial_members))
-				var impact: float = (25.0 if int(e.initial_members) > 1 or bool(e.elite) else 10.0) * fraction
-				health = maxf(0.0, health - maxf(1.0, impact))
+				health = maxf(0.0, health - breach_damage(e))
 				e.dead = true
 				if visuals:
 					add_effect(e.pos, "breach", 25.0)
