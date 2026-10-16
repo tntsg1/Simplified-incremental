@@ -34,7 +34,10 @@ func run() -> void:
 	check(c.target_for_weapon().id==c.enemies[1].id,"shared priority")
 	c.fire_weapon(0,c.enemies[0])
 	c.select_target(Vector2(650,350))
-	check(int(c.shots.back().target)==c.enemies[1].id,"focus fire turns rounds already in flight")
+	check(int(c.shots.back().target)==c.enemies[0].id,"focus fire refuses targets outside launch cone")
+	c.enemies[1].pos=Vector2(365,350)
+	c.select_target(Vector2(365,350))
+	check(int(c.shots.back().target)==c.enemies[1].id,"focus fire turns rounds smoothly toward reachable targets")
 	c.priority_id=-1
 	c.enemies[1].reserved=1000
 	check(c.target_for_weapon().id==c.enemies[0].id,"reserved lethal damage avoids overkill")
@@ -279,7 +282,7 @@ func run() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(store.path))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(store.path+".bak"))
 	print("LOGIC_CHECKS ",checks," failures=",failed)
-	if failed==0:
+	if failed==0 and not "--logic-only" in OS.get_cmdline_user_args():
 		for seed_value in [4262026,9294,71491]:
 			campaign(seed_value)
 	print("TOTAL_CHECKS ",checks," failures=",failed)

@@ -1,4 +1,5 @@
 extends RefCounted
+const Guidance = preload("res://scripts/projectile_guidance.gd")
 
 signal members_removed(point: Vector2, weapon: int, members: int, kind: String)
 signal pierced(origin: Vector2, destination: Vector2, weapon: int)
@@ -580,24 +581,36 @@ func select_target(point: Vector2) -> int:
 		focus_shots(find_enemy(result))
 	return result
 
-# Focus fire: every round already in flight swerves onto the chosen threat.
+# Launch direction is immutable even after several focus changes or a save.
+func shot_launch(p: Dictionary) -> float:
+	if not p.has("launch_angle"):
+		p.launch_angle = (Vector2(p.end) - Vector2(p.from)).angle()
+	return float(p.launch_angle)
+
+func shot_can_follow(p: Dictionary, target: Dictionary) -> bool:
+	if bool(p.beam):
+		return true
+	var launch: float = shot_launch(p)
+	var heading: Vector2 = (Vector2(p.end) - Vector2(p.from)).normalized()
+	var here: Vector2 = p.pos
+	var goal: Vector2 = target.pos
+	return Guidance.accepts(here, Guidance.control(here, heading, goal), goal, launch, PROJECTILE_SPEED)
+
 func focus_shots(target: Dictionary) -> void:
 	if target.is_empty():
 		return
 	for p in shots:
-		if int(p.target) == int(target.id):
+		if int(p.target) == int(target.id) or bool(p.get("stray", false)) or int(p.get("turns", 0)) >= MAX_RETARGETS or not shot_can_follow(p, target):
 			continue
 		var old: Dictionary = find_enemy(int(p.target))
 		if not old.is_empty():
 			old.reserved = maxf(0.0, float(old.reserved) - float(p.effective))
-		var here: Vector2 = p.pos
-		if bool(p.get("stray", false)) or int(p.get("turns", 0)) >= MAX_RETARGETS:
-			continue
 		p.turns = int(p.get("turns", 0)) + 1
 		p.target = int(target.id)
-		p.from = here
-		p.age = 0.0
-		p.duration = 0.05 if bool(p.beam) else maxf(0.035, here.distance_to(target.pos) / PROJECTILE_SPEED)
+		p.from = p.pos
+		p.age = minf(0.0, float(p.age))
+		p.duration = 0.05 if bool(p.beam) else maxf(0.035, Vector2(p.pos).distance_to(target.pos) / PROJECTILE_SPEED)
+		p.end = target.pos
 		p.effective = float(p.damage) if bool(target.boss) else minf(float(p.damage), int(p.coverage) * float(target.unit_hp))
 		target.reserved = float(target.reserved) + float(p.effective)
 	focused.emit(int(target.id))
@@ -1152,7 +1165,8 @@ func make_stray(p: Dictionary, turn: float = 0.0) -> void:
 	var heading: Vector2 = Vector2(p.end) - Vector2(p.from)
 	if heading.length() < .01:
 		heading = Vector2.UP
-	heading = heading.rotated(turn)
+	var launch: float = shot_launch(p)
+	heading = Vector2.from_angle(launch + clampf(wrapf(heading.angle() + turn - launch, -PI, PI), -Guidance.HALF_CONE, Guidance.HALF_CONE))
 	var speed: float = maxf(PROJECTILE_SPEED * .6, Vector2(p.from).distance_to(p.end) / maxf(.01, float(p.duration)))
 	p.stray = true
 	p.target = -1
@@ -1171,7 +1185,7 @@ func retarget_shot(p: Dictionary) -> Dictionary:
 		if bool(e.dead):
 			continue
 		var d: float = here.distance_to(e.pos)
-		if d < nearest:
+		if d < nearest and shot_can_follow(p, e):
 			nearest = d
 			best = e
 	if best.is_empty():
@@ -1180,6 +1194,7 @@ func retarget_shot(p: Dictionary) -> Dictionary:
 	p.turns = int(p.get("turns", 0)) + 1
 	p.target = int(best.id)
 	p.from = here
+	p.end = best.pos
 	p.age = 0.0
 	p.duration = 0.05 if bool(p.beam) else maxf(0.035, nearest / (SWARM_SPEED if p.has("swarm") else (BODY_SPEED if p.has("body") else PROJECTILE_SPEED)))
 	p.effective = float(p.damage) if bool(best.boss) else minf(float(p.damage), int(p.coverage) * float(best.unit_hp))
@@ -2046,6 +2061,8 @@ func advance(delta: float, visuals: bool = true) -> void:
 	update_sweeps(delta)
 	for i in range(shots.size() - 1, -1, -1):
 		var p: Dictionary = shots[i]
+		if not bool(p.get("stray", false)) and not bool(p.beam):
+			shot_launch(p)
 		p.age = float(p.age) + delta
 		if bool(p.get("stray", false)):
 			var t_stray: float = clampf(float(p.age) / float(p.duration), 0.0, 1.0)
@@ -2066,6 +2083,10 @@ func advance(delta: float, visuals: bool = true) -> void:
 				make_stray(p)
 				continue
 		if not target.is_empty():
+			if not bool(p.beam) and not Guidance.within(Vector2(target.pos) - Vector2(p.from), shot_launch(p)):
+				target.reserved = maxf(0.0, float(target.reserved) - float(p.effective))
+				make_stray(p)
+				continue
 			p.end = target.pos
 			# Magnetar field: a round entering it is likely bent away from the boss.
 			var field: float = magnet_field_radius() if bool(target.boss) else 0.0

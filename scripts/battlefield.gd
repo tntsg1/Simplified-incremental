@@ -1,4 +1,5 @@
 extends Node2D
+const Guidance = preload("res://scripts/projectile_guidance.gd")
 # Minimal monochrome battlefield: flat grey geometry, white threats, one amber
 # accent for criticals, bosses and danger. Every shape is drawn in _draw; no textures.
 
@@ -125,6 +126,7 @@ var b_value := PackedFloat32Array()
 var b_target := PackedInt32Array()
 # Times each cosmetic round has changed target; after MAX_RETARGETS it flies off.
 var b_turns := PackedByteArray()
+var b_launch := PackedFloat32Array()
 var b_paths: Array[PackedFloat32Array] = []
 # Shaped damage-number lines are reused by text; volleys repeat the same values.
 var line_cache: Dictionary = {}
@@ -480,6 +482,13 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 			ctrl = from + (destination - point).normalized() * from.distance_to(to) * .5
 			path = curve_lengths(from, ctrl, to)
 		travel = maxf(.001, path[-1] / sim.PROJECTILE_SPEED)
+		var launch: float = (destination - point).angle()
+		if not Guidance.accepts(from, ctrl, to, launch, sim.PROJECTILE_SPEED):
+			to = from + Vector2.from_angle(launch) * maxf(1.0, (to - from).dot(Vector2.from_angle(launch)))
+			ctrl = (from + to) * 0.5
+			path = curve_lengths(from, ctrl, to)
+			travel = maxf(.001, path[-1] / sim.PROJECTILE_SPEED)
+		b_launch.append(launch)
 		b_from.append(from)
 		b_ctrl.append(ctrl)
 		b_to.append(to)
@@ -868,6 +877,7 @@ func animate(delta: float, real_delta: float = -1.0) -> void:
 			b_value[i] = b_value[alive]
 			b_target[i] = b_target[alive]
 			b_turns[i] = b_turns[alive]
+			b_launch[i] = b_launch[alive]
 			b_paths[i] = b_paths[alive]
 		else:
 			i += 1
@@ -883,6 +893,7 @@ func animate(delta: float, real_delta: float = -1.0) -> void:
 		b_value.resize(alive)
 		b_target.resize(alive)
 		b_turns.resize(alive)
+		b_launch.resize(alive)
 
 func on_retargeted(old_target: int, new_target: int) -> void:
 	if redirects.size() > 400:
@@ -901,45 +912,54 @@ func on_focused(target_id: int) -> void:
 	add_wave(target.pos, 14.0, .9)
 	punch = maxf(punch, .35)
 
-func swerve(i: int, best: Dictionary) -> void:
-	var t: float = clampf(b_age[i] / b_dur[i], 0, 1) if b_age[i] > 0 else 0.0
-	var u: float = maxf(0, t - .03)
-	var to: Vector2 = b_to[i]
-	var f: Vector2 = b_from[i]
-	var pos: Vector2 = round_position(i, t)
-	var near: Vector2 = round_position(i, u)
-	var dir: Vector2 = (pos - near).normalized() if pos.distance_to(near) > .001 else (to - f).normalized()
-	var travel: float = maxf(.08, pos.distance_to(best.pos) / sim.PROJECTILE_SPEED)
-	var velocity: Vector2 = (Vector2(best.end) - Vector2(best.start)) / maxf(.01, float(best.lifetime))
-	var goal: Vector2 = Vector2(best.pos) + velocity * travel
-	var span: float = pos.distance_to(goal)
-	b_from[i] = pos
-	b_ctrl[i] = pos + dir * span * .5
+func round_heading(i: int, progress: float) -> Vector2:
+	var t: float = round_parameter(i, progress)
+	return ((b_ctrl[i] - b_from[i]) * (1.0 - t) + (b_to[i] - b_ctrl[i]) * t).normalized()
+
+func round_goal(i: int, target: Dictionary) -> Vector2:
+	var progress: float = clampf(b_age[i] / b_dur[i], 0.0, 1.0)
+	var here: Vector2 = round_position(i, progress)
+	var velocity: Vector2 = (Vector2(target.end) - Vector2(target.start)) / maxf(.01, float(target.lifetime))
+	return Vector2(target.pos) + velocity * here.distance_to(target.pos) / sim.PROJECTILE_SPEED
+
+func round_can_follow(i: int, target: Dictionary) -> bool:
+	var progress: float = clampf(b_age[i] / b_dur[i], 0.0, 1.0)
+	var here: Vector2 = round_position(i, progress)
+	var goal: Vector2 = round_goal(i, target)
+	return Guidance.accepts(here, Guidance.control(here, round_heading(i, progress), goal), goal, b_launch[i], sim.PROJECTILE_SPEED)
+
+func set_round_route(i: int, here: Vector2, heading: Vector2, goal: Vector2) -> void:
+	b_from[i] = here
+	b_ctrl[i] = Guidance.control(here, heading, goal)
 	b_to[i] = goal
 	b_age[i] = minf(0.0, b_age[i])
-	b_paths[i] = curve_lengths(b_from[i], b_ctrl[i], b_to[i])
+	b_paths[i] = curve_lengths(here, b_ctrl[i], goal)
 	b_dur[i] = maxf(.001, b_paths[i][-1] / sim.PROJECTILE_SPEED)
-	b_target[i] = int(best.id)
-	b_turns[i] = b_turns[i] + 1
 	b_crit[i] = b_crit[i] | 2
 
+func swerve(i: int, best: Dictionary) -> void:
+	if not round_can_follow(i, best):
+		return
+	var progress: float = clampf(b_age[i] / b_dur[i], 0.0, 1.0)
+	var here: Vector2 = round_position(i, progress)
+	var heading: Vector2 = round_heading(i, progress)
+	var goal: Vector2 = round_goal(i, best)
+	set_round_route(i, here, heading, goal)
+	b_target[i] = int(best.id)
+	b_turns[i] += 1
+
 func deflect_round(i: int, here: Vector2) -> void:
-	# Bent by the magnetar's field: a curving exit off the screen, no damage.
-	var t: float = clampf(b_age[i] / b_dur[i], 0, 1)
-	var dir: Vector2 = (here - round_position(i, maxf(0, t - .03))).normalized()
-	if dir == Vector2.ZERO:
-		dir = Vector2.UP
+	var progress: float = clampf(b_age[i] / b_dur[i], 0.0, 1.0)
+	var heading: Vector2 = round_heading(i, progress)
 	var side: float = 1.0 if randf() < .5 else -1.0
-	var out: Vector2 = dir.rotated(side * randf_range(.9, 1.5))
-	b_from[i] = here
-	b_ctrl[i] = here + dir * 90.0
-	b_to[i] = here + out * 1400.0
-	b_age[i] = 0.0
-	b_paths[i] = curve_lengths(b_from[i], b_ctrl[i], b_to[i])
-	b_dur[i] = maxf(.001, b_paths[i][-1] / sim.PROJECTILE_SPEED)
+	var offset: float = wrapf(heading.angle() - b_launch[i], -PI, PI)
+	var desired: float = clampf(offset + side * .5, -Guidance.HALF_CONE, Guidance.HALF_CONE)
+	var goal: Vector2 = here + Vector2.from_angle(b_launch[i] + (offset + desired) * .5) * 1400.0
+	if not Guidance.accepts(here, Guidance.control(here, heading, goal), goal, b_launch[i], sim.PROJECTILE_SPEED):
+		goal = here + heading * 1400.0
+	set_round_route(i, here, heading, goal)
 	b_target[i] = -1
 	b_value[i] = 0.0
-	b_crit[i] = b_crit[i] | 2
 	if spark_limits[0] <= 0:
 		spark_limits[0] = .05
 		add_feedback("spark", here, 0, 9.0, .2)
@@ -948,50 +968,26 @@ func on_shot_deflected(point: Vector2, heading: Vector2, turned: float) -> void:
 	add_feedback("spark", point, 1, 12.0, .25)
 
 func redirect_round(i: int, living: Dictionary) -> void:
-	var t: float = clampf(b_age[i] / b_dur[i], 0, 1)
-	var u: float = maxf(0, t - .03)
-	var to: Vector2 = b_to[i]
-	var f: Vector2 = b_from[i]
-	var pos: Vector2 = round_position(i, t)
-	var near: Vector2 = round_position(i, u)
-	var dir: Vector2 = (pos - near).normalized() if pos.distance_to(near) > .001 else (to - f).normalized()
-	# Follow the sim's own choice so the round lands where the damage does.
+	var progress: float = clampf(b_age[i] / b_dur[i], 0.0, 1.0)
+	var here: Vector2 = round_position(i, progress)
+	var heading: Vector2 = round_heading(i, progress)
 	var best: Dictionary = {}
 	var nearest: float = INF
 	var followed: int = int(redirects.get(b_target[i], -1))
-	if b_turns[i] >= sim.MAX_RETARGETS:
-		# Out of turns: no new target; the round flies straight off the screen.
-		followed = -1
-		living = {}
-	if living.has(followed):
-		best = living[followed]
-		nearest = pos.distance_to(best.pos)
+	if b_turns[i] < sim.MAX_RETARGETS:
+		if living.has(followed) and round_can_follow(i, living[followed]):
+			best = living[followed]
+		else:
+			for e in living.values():
+				var distance: float = here.distance_to(e.pos)
+				if distance < nearest and round_can_follow(i, e):
+					nearest = distance
+					best = e
+	if not best.is_empty():
+		swerve(i, best)
 	else:
-		for e in living.values():
-			var d: float = pos.distance_to(e.pos)
-			if d < nearest:
-				nearest = d
-				best = e
-	var goal: Vector2
-	if best.is_empty():
-		goal = pos + dir * 1400.0
+		set_round_route(i, here, heading, here + heading * 1400.0)
 		b_target[i] = -1
-	else:
-		var travel: float = maxf(.08, nearest / sim.PROJECTILE_SPEED)
-		var velocity: Vector2 = (Vector2(best.end) - Vector2(best.start)) / maxf(.01, float(best.lifetime))
-		goal = Vector2(best.pos) + velocity * travel
-		b_target[i] = int(best.id)
-		b_turns[i] = b_turns[i] + 1
-	var span: float = pos.distance_to(goal)
-	b_from[i] = pos
-	# Preserve the incoming tangent; arc-length timing preserves travel speed.
-	b_ctrl[i] = pos + dir * span * .5
-	b_crit[i] = b_crit[i] | 2
-	b_to[i] = goal
-	b_age[i] = 0.0
-	b_paths[i] = curve_lengths(b_from[i], b_ctrl[i], b_to[i])
-	b_dur[i] = maxf(.001, b_paths[i][-1] / sim.PROJECTILE_SPEED)
-	if best.is_empty():
 		b_value[i] = 0.0
 
 func reset_growth() -> void:
@@ -1093,10 +1089,8 @@ func draw_bullets() -> void:
 			continue
 		var t: float = age / b_dur[i]
 		var style: int = b_style[i]
-		var u: float = maxf(0, t - .03)
 		var pos: Vector2 = round_position(i, t)
-		var near: Vector2 = round_position(i, u)
-		var dir: Vector2 = (pos - near).normalized()
+		var dir: Vector2 = round_heading(i, t)
 		# Fixed-length tracer that grows out of the muzzle: a glowing pellet,
 		# not a hair-thin line spanning half the screen.
 		# Fresh rounds grow their tracer out of the muzzle; swerved ones (flag 2) keep it.
