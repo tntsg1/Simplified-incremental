@@ -21,6 +21,8 @@ var draw_ms: float = 0
 var reduced_effects: bool = false
 var trauma: float = 0
 var labels_left: int = 24
+# Key-art captures (store capsules) draw the battle without any text on the field.
+var quiet_text: bool = false
 var atlas = preload("res://scripts/cosmic_atlas.gd").new()
 var ultimate_art = preload("res://scripts/ultimate_art.gd").new()
 var feedback: Array[Dictionary] = []
@@ -306,12 +308,16 @@ func star(center: Vector2, radius: float, rotation: float, color: Color) -> void
 	draw_colored_polygon(points, color)
 
 func ink(text: String, pos: Vector2, color: Color = DIM, size: int = 12) -> void:
+	if quiet_text:
+		return
 	text = TranslationServer.translate(text)
 	if not scene_transform.is_equal_approx(Transform2D.IDENTITY):
 		return
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 func ink_outlined(text: String, pos: Vector2, color: Color, size: int) -> void:
+	if quiet_text:
+		return
 	text = TranslationServer.translate(text)
 	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(BG, .9 * color.a))
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
@@ -2902,7 +2908,7 @@ func _draw_field() -> void:
 			var label: String = "%s +%d" % [GROWTH_NAMES.get(g.key, g.key), int(g.gained)]
 			var rise: float = 8 * (1 - pow(1 - minf(1, t * 3), 2))
 			ink_outlined(label, center + Vector2(core_outer + 18, -20 - int(g.slot) * 23 - rise), Color(col, 1 - t * t * t), 15)
-	for n in numbers:
+	for n in ([] as Array[Dictionary] if quiet_text else numbers):
 		var t: float = float(n.age) / .75
 		var lift: float = 22 * (1 - pow(1 - t, 2))
 		var grow: float = 1.0 + .35 * maxf(0, 1 - t * 6)
@@ -3174,6 +3180,8 @@ func on_body_strike(kind: String, body_stage: int, slot: int, origin: Vector2, d
 			add_wave(origin.lerp(destination, .5), 16.0, 1.0)
 
 func centered(text: String, pos: Vector2, size: int, color: Color, outline: bool = false) -> void:
+	if quiet_text:
+		return
 	var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	var at: Vector2 = pos - Vector2(w * .5, -size * .35)
 	if outline:

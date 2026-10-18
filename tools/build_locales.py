@@ -36,6 +36,14 @@ for code in codes:
             failed = True
             continue
         text = table[i]
+        # Fragments glued to numbers or names keep the English edge spacing (editors trim it).
+        english = source[key]
+        lead = english[:len(english) - len(english.lstrip(" "))]
+        trail = english[len(english.rstrip(" ")):]
+        if lead and not text.startswith(" ") and not text.startswith("-"):
+            text = lead + text
+        if trail and not text.endswith(" "):
+            text = text + trail
         if tokens(text) != tokens(source[key]) or text.count("\n") != source[key].count("\n"):
             print(code, "MISMATCH", i, repr(source[key]), "->", repr(text))
             failed = True

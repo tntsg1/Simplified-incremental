@@ -94,7 +94,7 @@ func refresh() -> void:
 	canvas.add_child(achievements)
 	text("—  T H E  L A S T  L I G H T  O F  C I V I L I Z A T I O N",Vector2(128,219),660,10,Color("b4b4b4"))
 	text("S K Y G U A R D",Vector2(122,249),780,68)
-	text(words("天 穹 防 线","ORBITAL DEFENSE"),Vector2(128,337),500,18,Color("b4b4b4"))
+	text(words("天 穹 防 线","LAST LIGHT"),Vector2(128,337),500,18,Color("b4b4b4"))
 	text(words("从第一枚导弹，到宇宙最后的光。","From the first missile to the last light in the universe."),Vector2(128,378),570,14,Color("898989"))
 	new_button = row("01",words("新游戏","New campaign"),"NEW CAMPAIGN ↗",425,func():
 		if game.saved.is_empty(): game.start_game()

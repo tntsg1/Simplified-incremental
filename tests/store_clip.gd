@@ -3,7 +3,7 @@ extends SceneTree
 # frame renders whatever the frame time. Waits count frames, never wall-clock time.
 # Never moves the OS pointer: the in-game pointer and its reticle are hidden instead.
 # Usage: --write-movie <out.avi> --fixed-fps 30 --resolution 1280x720 --position 5000,5000
-#        --script res://tests/store_clip.gd -- <scenario> <seconds>
+#        --script res://tests/store_clip.gd -- <scenario> <seconds> [language]
 #   scenarios: city | bodies | weapons | boss | jump | ult:<kind>
 var game: Control
 
@@ -51,6 +51,9 @@ func run() -> void:
 	root.add_child(game)
 	await process_frame
 	game.saved = {}
+	if args.size() > 2:
+		# Store pages show each language its own interface; saves and preferences stay off.
+		game.apply_language(args[2])
 	game.start_game()
 	game.close_modal()
 	var sim = game.sim

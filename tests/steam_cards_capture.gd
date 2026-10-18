@@ -3,7 +3,7 @@ extends SceneTree
 #   card_<stage>.png  - the chapter boss in close-up, centred, 1920x1080 window
 #   scene_<stage>.png - the chapter's battlefield with its celestial bodies, no threats
 # Never moves the OS pointer: the pointer and its reticle are hidden inside the game.
-# Usage (run with --resolution 1920x1080 --position 5000,5000): -- <out_dir> <stage> <scene|card>
+# Usage (run with --resolution 1920x1080 --position 5000,5000): -- <out_dir> <stage> <scene|card|capsule>
 # One shot per process: switching a live game between full combat and a lone boss in one
 # process proved fragile, so tools/steam_cards.py runs each shot fresh.
 var game: Control
@@ -103,6 +103,33 @@ func run() -> void:
 		await wait_real(6.0, false, 1.0)
 		await wait_scene(2.0, sim.defense_position() + Vector2(0, -150), 1.18)
 		await shot("%s/scene_%d.png" % [out, st])
+	elif which == "capsule":
+		# Store capsule key art: the boss under the full defense's fire, escorts swarming,
+		# framed right of centre so the logo has the left side. The boss never dies.
+		setup(st, true)
+		for i in range(st + 1):
+			sim.owned[i] = true
+		sim.levels.damage = 10 + st * 22
+		sim.levels.reload = 10 + st * 13
+		sim.levels.crit = 5 + st * 3
+		sim.levels.area = st * 5
+		sim.levels.targets = st * 2
+		sim.levels.turrets = mini(48, 16 + st * 4)
+		sim.automation = true
+		sim.start_boss()
+		game.field.quiet_text = true
+		var until: int = Time.get_ticks_msec() + 7000
+		while Time.get_ticks_msec() < until:
+			var boss: Dictionary = sim.boss_actor()
+			if not boss.is_empty():
+				boss.hp = sim.boss_max_hp() * .8
+				game.field.skill_pop = {}
+				var zoom: float = clampf(340.0 / (float(boss.radius) * 2.6), 1.4, 3.4)
+				hold_scene(Vector2(boss.pos) + Vector2(-360.0 / zoom, 30.0 / zoom), zoom)
+			else:
+				hold_scene(Vector2.INF, 1.0)
+			await process_frame
+		await shot("%s/capsule_%d.png" % [out, st])
 	else:
 		# The boss alone, settled in, framed large.
 		setup(st, false)
