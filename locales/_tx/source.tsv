@@ -1,0 +1,595 @@
+0	弹头	Warhead
+1	弹速	Velocity
+2	装填	Reload
+3	暴击	Critical
+4	范围	Area
+5	贯穿	Pierce
+6	锁定	Lock-on
+7	炮台	Turrets
+8	第 %02d 波	WAVE %02d
+9	第 10 波完成	WAVE 10 COMPLETE
+10	巨型威胁即将降临	A colossal threat approaches
+11	连击 ×	COMBO ×
+12	01  /  防御控制中心	01  /  DEFENSE CONTROL
+13	地球	Earth
+14	太阳	Sun
+15	上线	 online
+16	  ·  天体改造完成	  ·  Celestial conversion complete
+17	改造 	Convert 
+18	 · 在役	 · Active
+19	齐射 	Salvo 
+20	每次覆盖 	Coverage 
+21	 成员	 targets
+22	精英舰船	Elite warship
+23	外星舰群	Alien fleet
+24	精英天体	Elite celestial body
+25	自然威胁群	Threat swarm
+26	来袭天体	Incoming body
+27	成员 	Members 
+28	总生命	Total HP
+29	撞击 %.1f 秒	Impact in %.1f s
+30	在途伤害 	Damage in flight 
+31	点击指定全体系优先目标	Click to focus all weapons
+32	点击 / 按住目标发射	Click / hold to fire
+33	半径 300 · 一切蒸发	Radius 300 · Total vaporization
+34	一颗以光速飞行的粒子	A particle traveling at light speed
+35	空间维度 2 → 1	Dimensions 2 → 1
+36	新防线部署中  %.1f s	Deploying new defense  %.1f s
+37	敌踪消失  %.1f s	Threats hidden  %.1f s
+38	光粒  PHOTOID	PHOTOID
+39	巨型威胁接近 · 	Colossal threat approaching · 
+40	灾变核心已消散 · 天穹防线完成	Catastrophe core dispersed · All defenses secured
+41	尺度跃迁 · 下一道防线：	Scale jump · Next defense: 
+42	防线突破 · 资金、升级和武器全部保留	Defense breached · Funds, upgrades and weapons retained
+43	核弹	Nuclear Strike
+44	光粒打击	Photoid Strike
+45	一向箔	Dimension Foil
+46	质数打击	Prime Strike
+47	降低光速	Reduce Light Speed
+48	改写 π	Rewrite π
+49	西区摩天楼	West Skyscraper
+50	楼顶炮台	Rooftop Turret
+51	中央塔	Central Tower
+52	塔顶导弹阵	Tower Missile Array
+53	东区摩天楼	East Skyscraper
+54	月球	Moon
+55	月轨主炮	Lunar Cannon
+56	近地空间站	Near-Earth Station
+57	轨道炮站	Orbital Battery
+58	同步卫星	Geostationary Satellite
+59	激光卫星	Laser Satellite
+60	水星	Mercury
+61	水星炮	Mercury Cannon
+62	金星	Venus
+63	金星炮	Venus Cannon
+64	火星	Mars
+65	火星炮	Mars Cannon
+66	木星	Jupiter
+67	木星巨炮	Jupiter Cannon
+68	土星	Saturn
+69	土星环炮	Saturn Ring Cannon
+70	戴森球	Dyson Sphere
+71	天狼星	Sirius
+72	天狼星炮	Sirius Cannon
+73	参宿四	Betelgeuse
+74	红巨星炮	Red Giant Cannon
+75	织女星	Vega
+76	织女星炮	Vega Cannon
+77	大角星	Arcturus
+78	大角星炮	Arcturus Cannon
+79	银心黑洞	Galactic Black Hole
+80	黑洞引擎	Black Hole Engine
+81	仙女座星系	Andromeda Galaxy
+82	仙女座阵列	Andromeda Array
+83	三角座星系	Triangulum Galaxy
+84	三角座阵列	Triangulum Array
+85	大麦哲伦云	Large Magellanic Cloud
+86	麦哲伦阵列	Magellanic Array
+87	小麦哲伦云	Small Magellanic Cloud
+88	麦哲伦副阵	Magellanic Subarray
+89	人马矮星系	Sagittarius Dwarf
+90	人马阵列	Sagittarius Array
+91	大熊矮星系	Ursa Major Dwarf
+92	大熊阵列	Ursa Major Array
+93	天龙矮星系	Draco Dwarf
+94	天龙阵列	Draco Array
+95	长城节点	Great Wall Node
+96	长城引擎	Great Wall Engine
+97	室女座节点	Virgo Node
+98	室女座引擎	Virgo Engine
+99	后发座节点	Coma Node
+100	后发座引擎	Coma Engine
+101	巨引源	Great Attractor
+102	巨引源引擎	Great Attractor Engine
+103	拉尼亚凯亚	Laniakea
+104	超星系团引擎	Supercluster Engine
+105	牧夫座空洞	Boötes Void
+106	空洞引擎	Void Engine
+107	改造完成 · 	 converted · 
+108	第 %d 波完成 · 防线已恢复	Wave %d complete · Defense restored
+109	银河旋臂 / ORION ARM	ORION ARM
+110	本星系群 / LOCAL GROUP	LOCAL GROUP
+111	宇宙纤维 / COSMIC WEB	COSMIC WEB
+112	星系际空洞	Intergalactic Void
+113	防御节点已上线	Defense node online
+114	点击改造  $	Click to convert  $
+115	热寂，停止了。	Heat death has stopped.
+116	所有距离，归于一点。	All distances converge to a point.
+117	零。亦是无限。	Zero. And infinity.
+118	光，再次诞生。	Light is born again.
+119	引力织成星海。	Gravity weaves a sea of stars.
+120	一颗星球，学会了生长。	A planet learns to grow.
+121	宇宙很大。我们仍在这里。	The universe is vast. We are still here.
+122	银河系。太阳系。	The Milky Way. The Solar System.
+123	地球。那座熟悉的城市。	Earth. That familiar city.
+124	最后的光，留给文明。	The last light belongs to civilization.
+125	发射器进化 · 齐射规模翻倍	Launcher evolution · Salvo size doubled
+126	弹头突破 · Lv.%d 全体系伤害翻倍	Warhead breakthrough · Lv.%d doubles all weapon damage
+127	自动防御已上线 · 点击目标即可指定集火	Auto defense online · Click a target to focus fire
+128	上线 · 全局升级已继承	 online · Global upgrades inherited
+129	城市	City
+130	第 01 / 10 波	Wave 01 / 10
+131	防线 100%	Defense 100%
+132	巨型威胁	Colossal Threat
+133	开启自动防御 · $200	Enable Auto Defense · $200
+134	升级防线  [U]	Upgrade Defense  [U]
+135	暂停  [Esc]	Pause  [Esc]
+136	毁灭性打击：战斗时间与击毁共同充能  [Q]	Ultimate strike: charge through combat time and kills  [Q]
+137	加速游戏：×1 / ×2 / ×4 / ×8	Game speed: ×1 / ×2 / ×4 / ×8
+138	开发：资金 ×10	Dev: Funds ×10
+139	上一波	Previous Wave
+140	跳过本波	Skip Wave
+141	击毁 Boss	Destroy Boss
+142	上一章	Previous Chapter
+143	直达下一章	Next Chapter
+144	无敌：关	Invincible: Off
+145	大招冷却：正常	Ultimate Cooldown: Normal
+146	大招：本章	Ultimate: Chapter
+147	跳过结局  Esc	Skip Ending  Esc
+148	天穹防线	SKYGUARD
+149	SKYGUARD  /  从第一枚导弹，到宇宙最后的光	SKYGUARD  /  From the first missile to the universe's last light
+150	城市  →  地球  →  太阳系  →  银河  →  星系团  →  宇宙	City → Earth → Solar System → Galaxy → Cluster → Universe
+151	继续战役 · 	Continue Campaign · 
+152	开始新战役	New Campaign
+153	退出	Quit
+154	鼠标优先  ·  U 升级  ·  Esc 暂停  ·  F11 全屏	Mouse controls · U Upgrades · Esc Pause · F11 Fullscreen
+155	开始新的防线？	Start a new defense?
+156	新战役会覆盖当前进度。	A new campaign will overwrite your current progress.
+157	返回	Back
+158	点击或按住来袭目标发射导弹 · 升级面板暂停战斗	Click or hold incoming targets to fire · Upgrades pause combat
+159	战役已恢复 · 没有离线时间结算	Campaign restored · No offline progress applied
+160	存档无法读取，请开始新战役	Could not read save · Start a new campaign
+161	升级防线	Upgrade Defense
+162	战斗、撞击计时与收入已暂停 · 所有已购武器共享升级	Combat, impact timers and income paused · All owned weapons share upgrades
+163	购买 ×1	Buy ×1
+164	购买 ×10	Buy ×10
+165	购买最多	Buy Max
+166	自动防御  $200  ·  导弹自主索敌	Auto Defense  $200  ·  Automatic targeting
+167	部署	Deploy 
+168	继续防御  [U / Esc]	Resume Defense  [U / Esc]
+169	弹头突破全部完成	All warhead breakthroughs complete
+170	弹头 Lv.%d 伤害翻倍	Warhead Lv.%d doubles damage
+171	发射器已达最大规模	Maximum launcher size reached
+172	装填 Lv.%d 发射器翻倍	Reload Lv.%d doubles launchers
+173	下一突破：	Next breakthrough: 
+174	   ·   老武器始终在役	   ·   Older weapons stay active
+175	理论单体火力 $d / s   ·   齐射发射器 $l   ·   最大覆盖 $c 成员	Single-target DPS $d   ·   Salvo launchers $l   ·   Coverage $c targets
+176	防线暂停	Defense Paused
+177	所有模拟与计时已停止 · 进度已保存	Simulation and timers stopped · Progress saved
+178	继续防御	Resume Defense
+179	声音：开启	Sound: On
+180	声音：关闭	Sound: Off
+181	音乐	Music
+182	音效	Effects
+183	特效：柔和	Battle Effects: Soft
+184	特效：标准	Battle Effects: Standard
+185	UI 动态效果：开启	UI Motion: On
+186	UI 动态效果：关闭	UI Motion: Off
+187	保存并返回主菜单	Save and Return to Menu
+188	累计防御 %.1f 分钟  ·  击毁 %s 个目标	Defended for %.1f minutes  ·  %s targets destroyed
+189	防线已被突破	Defense Breached
+190	战役完成  /  SKYGUARD	CAMPAIGN COMPLETE  /  SKYGUARD
+191	本阶段重启，资金、全部升级与已购武器保留	Restart this stage · Retain funds, upgrades and weapons
+192	巨型威胁未在撞击前击毁。升级伤害与暴击，缩短 Boss 战。	The colossal threat reached the defense. Upgrade damage and critical hits to shorten the boss fight.
+193	群落超出了拦截能力。装填 Lv.%d 增加发射器。	The swarm overwhelmed your defenses. Reload Lv.%d adds launchers.
+194	
+范围与贯穿能消灭更多成员；部署本阶段的新炮。	
+Area and piercing destroy more members. Deploy this stage's new weapon.
+195	六道防线全部守住。
+你让城市的第一座发射井，一直战斗到宇宙尽头。	All six defenses held.
+Your city's first missile silo fought to the edge of the universe.
+196	防御时间 %.1f 分钟   ·   击毁 %s   ·   重试 %d	Defense time %.1f min   ·   Destroyed %s   ·   Retries %d
+197	重播 · 宇宙的新生	Replay · A Universe Reborn
+198	返回主菜单	Return to Menu
+199	重启本阶段	Restart Stage
+200	先升级防线	Upgrade Defenses First
+201	第 %02d / 10 波	Wave %02d / 10
+202	防线 %.0f%%	Defense %.0f%%
+203	撞击倒计时  %.1f s	Impact countdown  %.1f s
+204	阵列	 Array
+205	自动防御已开放 · 花 $200 购买，所有武器自主索敌	Auto defense unlocked · Buy for $200 to automate all weapons
+206	自动防御 · $200（还差 $%d）	Auto Defense · $200 (need $%d)
+207	购买后所有武器自动索敌；点击目标可指定集火。	All weapons target automatically. Click a target to focus fire.
+208	已开放购买 · 开启后自动攻击	Available to buy · Enables automatic attacks
+209	点击 / 按住目标发射 · 第六波可花 $200 购买自动防御	Click / hold to fire · Auto defense costs $200 from Wave 6
+210	新武器可部署：	New weapon available: 
+211	  ·  打开升级防线	  ·  Open upgrades
+212	自动拦截  ·  点击集火    /    	Auto intercept · Click to focus fire    /    
+213	突破	Breakthrough
+214	进化	Evolution
+215	 · 打击中	 · Firing
+216	 · 就绪  [Q]	 · Ready  [Q]
+217	已就绪 · 按 Q 或点击按钮发动	Ready · Press Q or click to fire
+218	  ·  每 0.4 秒开火，相当于全体系火力 +12%	  ·  Fires every 0.4 s; adds 12% total firepower
+219	换章后缩入核心，继续开火	Folds into the core next chapter and keeps firing
+220	改造	Convert
+221	取消	Cancel
+222	价格  $	Price  $
+223	还差 $	Need $
+224	每秒伤害 %s   ·   每秒击毁 %s	Damage / s  %s   ·   Kills / s  %s
+225	开发者模式：	Developer Mode: 
+226	开启 · 加速可到 ×32	On · Speed up to ×32
+227	关闭	Off
+228	已经是本章第一波	Already at the first wave of this chapter
+229	回到第 %d 波	Returned to Wave %d
+230	已经是第一章	Already at the first chapter
+231	回到	Returned to 
+232	当前不是 Boss 战	Not currently in a boss fight
+233	已经是最后一章	Already at the final chapter
+234	无敌：开	Invincible: On
+235	大招冷却：0	Ultimate Cooldown: 0
+236	大招：	Ultimate: 
+237	加速 ×%d  [F]	Speed ×%d  [F]
+238	WARNING   ·   巨型威胁接近   ·   	WARNING   ·   COLOSSAL THREAT APPROACHING   ·   
+239	巨型威胁已摧毁	COLOSSAL THREAT DESTROYED
+240	2D → 1D  ·  低维展开	2D → 1D  ·  DIMENSIONAL UNFOLDING
+241	黑域封闭	BLACK DOMAIN SEALED
+242	光速航迹铺设中	LAYING LIGHT-SPEED WAKES
+243	红移 · 远离	REDSHIFT · RECEDING
+244	接近 · 蓝移	APPROACHING · BLUESHIFT
+245	地表防线 · 10 km	Surface Defense · 10 km
+246	毁城小行星 · CHIRON	City-Killer Asteroid · CHIRON
+247	点击或按住陨石发射导弹。拦截获得资金，升级防御体系。	Click or hold meteors to fire missiles. Interceptions earn funds to upgrade your defenses.
+248	星系团	Galaxy Cluster
+249	星系团防线 · 100 Mly	Cluster Defense · 100 Mly
+250	外星巨构战舰 · CATHEDRAL	Alien Megastructure Warship · CATHEDRAL
+251	类星体炮同时覆盖多支舰队。独立精英仍需优先处理。	Quasar cannons cover multiple fleets at once. Prioritize independent elites.
+252	宇宙	Universe
+253	宇宙防线 · 93 Gly	Cosmic Defense · 93 Gly
+254	宇宙灾变核心 · THE SILENCE	Cosmic Catastrophe Core · THE SILENCE
+255	六层火力汇聚在最后的边界。击毁灾变核心，让所有防线迎来黎明。	Six layers of firepower converge at the final boundary. Destroy the catastrophe core and bring dawn to every defense.
+256	行星防线 · 12,742 km	Planetary Defense · 12,742 km
+257	流浪天体 · NOMAD	Rogue Celestial Body · NOMAD
+258	城市缩成地球上的一个亮点。购买轨道炮，迎击来自各方向的威胁。	The city becomes a point of light on Earth. Buy an orbital cannon to intercept threats from every direction.
+259	银河	Milky Way
+260	银河防线 · 100,000 ly	Galactic Defense · 100,000 ly
+261	失控恒星 · VESPER	Runaway Star · VESPER
+262	恒星炮贯穿来袭路径。曾经的太阳系，现在只是银河中的一个节点。	Stellar cannons pierce incoming paths. Your Solar System is now just one node in the galaxy.
+263	太阳系	Solar System
+264	恒星系防线 · 100 AU	Stellar Defense · 100 AU
+265	外星攻城母舰 · LEVIATHAN	Alien Siege Carrier · LEVIATHAN
+266	陨石云与外星舰队共同来袭。行星炮的范围攻击可以清除密集群落。	Meteor clouds and alien fleets attack together. Planetary area attacks clear dense swarms.
+267	火力范围	Firepower Area
+268	每级增加 18% 基础覆盖；Lv.10 群落爆裂使覆盖额外 +30%，Lv.25 区域轰击额外 +25%。	+18% base coverage per level. Lv.10: swarm burst adds +30% coverage. Lv.25: area bombardment adds +25%.
+269	能量暴击	Energy Critical
+270	每级暴击率 +2%，达到 100% 必定暴击；溢出每 1% 转为 +3% 暴击伤害；每二十五级暴击倍率 +1。	+2% critical chance per level. Guaranteed critical hits at 100%; each excess 1% adds 3% critical damage. Critical multiplier +1 every 25 levels.
+271	弹头伤害	Warhead Damage
+272	每级伤害 +15%。Lv.10 / 25 / 50，伤害翻倍；高阶弹头提高群落覆盖。	+15% damage per level. Lv.10 / 25 / 50 doubles damage. Advanced warheads improve swarm coverage.
+273	贯穿能力	Piercing
+274	每级覆盖 +25%；溢出火力继续命中邻近敌人。	+25% coverage per level. Excess firepower hits nearby enemies.
+275	装填效率	Reload Efficiency
+276	每级射速 +10%。每十级发射器翻倍，增加齐射规模。	+10% fire rate per level. Launchers double every 10 levels, increasing salvo size.
+277	拦截速度	Intercept Speed
+278	每级弹速 +8%，最高 20 倍。弹头更快命中，减少在途浪费。	+8% projectile speed per level, up to 20×. Faster hits reduce wasted damage in flight.
+279	多重锁定	Multi-Target Lock
+280	每级齐射伤害 +25%、覆盖 +30%，增加弹头与攻击束。	+25% salvo damage and +30% coverage per level. Adds warheads and attack beams.
+281	增设炮台	Additional Turrets
+282	每级增设一座自动炮台，每座每 0.25 秒独立开火一次；全部炮台合计相当于每座 +5% 全体系火力。	Adds an automatic turret each level. Each fires independently every 0.25 s; combined turret firepower adds 5% per turret to total weapon output.
+283	导弹发射井	Missile Silo
+284	高频拦截 / 蜂群弹头	Rapid interception / Swarm warheads
+285	轨道炮	Orbital Cannon
+286	重弹贯穿 / 轨道齐射	Heavy piercing / Orbital salvo
+287	行星炮阵列	Planetary Cannon Array
+288	区域清除 / 行星阵列	Area clearance / Planetary array
+289	恒星炮	Stellar Cannon
+290	长程穿透 / 恒星光矛	Long-range piercing / Stellar lance
+291	类星体炮	Quasar Cannon
+292	多域覆盖 / 类星体网络	Multi-region coverage / Quasar network
+293	宇宙炮	Cosmic Cannon
+294	全域扫掠 / 宇宙共振	Global sweep / Cosmic resonance
+295	语言	Language
+296	中文	中文
+297	English	English
+298	地表防线	Surface Defense
+299	毁城小行星	City-Killer Asteroid
+300	星系团防线	Cluster Defense
+301	外星巨构战舰	Alien Megastructure Warship
+302	宇宙防线	Cosmic Defense
+303	宇宙灾变核心	Cosmic Catastrophe Core
+304	行星防线	Planetary Defense
+305	流浪天体	Rogue Celestial Body
+306	银河防线	Galactic Defense
+307	失控恒星	Runaway Star
+308	恒星系防线	Stellar Defense
+309	外星攻城母舰	Alien Siege Carrier
+310	加速游戏：×1 / ×2	Game speed: ×1 / ×2
+311	CMB 冷斑	CMB Cold Spot
+312	一瞬间，贯穿一切	One instant, through everything
+313	三体星炮	Three-Body Cannon
+314	两张膜，仍在靠近。	Two branes, still drawing closer.
+315	主小行星带 / MAIN BELT	MAIN ASTEROID BELT
+316	伤害 -70%	Damage -70%
+317	傅里叶分解	Fourier Decomposition
+318	共振断裂	Resonant snap
+319	内太阳系	Inner Solar System
+320	冥卫双星炮	Pluto–Charon Twin Cannon
+321	冥王星	Pluto
+322	冰冷的彗核从太阳系的最外壳层涌入。彗核投射器把冰核撒成一片弹雨。	Frozen comet nuclei pour in from the Solar System's outermost shell. The comet launcher scatters ice into a rain of shards.
+323	冰核散射 / 长尾弹雨	Ice-shard spread / Long-tailed volley
+324	冷斑引擎	Cold Spot Engine
+325	十道防线全部守住。
+你让城市的第一座发射井，一直战斗到宇宙之外。	All ten lines held.
+From the city's first silo, you fought on beyond the universe itself.
+326	半人马座 α	Alpha Centauri
+327	半人马座 ω	Omega Centauri
+328	召唤舰队	Summon Fleet
+329	可观测宇宙	Observable Universe
+330	后发座星系团	Coma Cluster
+331	吞噬	Devour
+332	塞德娜	Sedna
+333	塞德娜冰炮	Sedna Ice Cannon
+334	外太阳系	Outer Solar System
+335	外星舰队从木星背后现身。引力炮借巨行星之力投出重弹。	The alien fleet emerges from behind Jupiter. The gravity cannon borrows the giants' pull to hurl heavy slugs.
+336	太阳 / SUN	SUN
+337	太阳引力透镜	Solar Gravitational Lens
+338	奥尔特云	Oort Cloud
+339	奥尔特云 / OORT CLOUD	OORT CLOUD
+340	奥尔特彗核群	Oort Nucleus Swarm
+341	宇宙微波背景	Cosmic Microwave Background
+342	宇宙膜	The Brane
+343	室女座星系团	Virgo Cluster
+344	对撞之膜 · THE OTHER BRANE	Colliding Brane · THE OTHER BRANE
+345	小行星带被外星推进器搅动。行星炮的范围攻击可以清除密集群落。	Alien thrusters are stirring up the asteroid belt. The planetary array's sweeping fire clears dense swarms.
+346	小行星带阵列	Asteroid Belt Array
+347	巨行星引力炮	Giant-Planet Gravity Cannon
+348	巨行星防线 · 50 AU	Giant-planet line · 50 AU
+349	巴纳德星	Barnard's Star
+350	巴纳德星炮	Barnard's Star Cannon
+351	希尔斯云	Hills Cloud
+352	引力弹弓 / 重型轨道弹	Gravity slingshot / Heavy slug
+353	引力透镜炮	Gravitational Lens Cannon
+354	弦振动  ·  谐波 n = 	String vibration  ·  harmonic n = 
+355	弦振动 / 高维共振	String vibration / Higher-dimensional resonance
+356	强相互作用力材料  ·  表面绝对光滑	Strong-interaction matter  ·  a perfectly smooth surface
+357	彗尾炮	Comet-Tail Cannon
+358	彗星云防线 · 1.6 ly	Comet-cloud line · 1.6 ly
+359	彗核投射器	Comet Nucleus Launcher
+360	彗核阵列	Comet Nucleus Array
+361	恒星邻域	Stellar Neighbourhood
+362	我们的宇宙 / OUR BRANE	OUR BRANE
+363	我们的宇宙只是高维空间中的一张膜。另一张膜正在靠近。	Our universe is only a membrane in a higher-dimensional space. Another brane is closing in.
+364	打断！	Interrupted!
+365	拉尼亚凯亚 / LANIAKEA	LANIAKEA
+366	撞击倒计时 -2.5s	Impact countdown -2.5s
+367	攻城主炮	Siege Beam
+368	放大 ×%s  ·  迭代 %d	Zoom ×%s  ·  iterations %d
+369	整个宇宙网正在燃烧。宇宙炮扫过全部纤维。	The whole cosmic web is burning. The cosmic cannon sweeps every filament.
+370	斯隆长城	Sloan Great Wall
+371	旅行者一号	Voyager 1
+372	旅行者信标	Voyager Beacon
+373	日冕抛射	Coronal Ejection
+374	日球层 / HELIOSPHERE	HELIOSPHERE
+375	星系沿着拉尼亚凯亚的引力流奔向巨引源。类星体炮覆盖多个星系群。	Galaxies stream along Laniakea's flows toward the Great Attractor. The quasar cannon's jets cut across whole groups.
+376	星际来客 · 'OUMUAMUA	Interstellar Visitor · 'OUMUAMUA
+377	曼德博分形	Mandelbrot
+378	最远类星体	Most Distant Quasar
+379	本地泡 / LOCAL BUBBLE	LOCAL BUBBLE
+380	来袭天体从四面八方逼近。部署轨道炮，点击月球与卫星改造成武器。	Incoming bodies close in from every side. Deploy the orbital cannon and click the Moon and satellites to convert them into weapons.
+381	柯伊伯带 / KUIPER BELT	KUIPER BELT
+382	武仙-北冕座长城	Hercules–Corona Borealis Great Wall
+383	武仙长城引擎	Hercules Wall Engine
+384	水滴	Droplet
+385	海尔-波普彗星	Comet Hale–Bopp
+386	海王星	Neptune
+387	海王星炮	Neptune Cannon
+388	潮汐护盾	Tidal Shield
+389	灶神星	Vesta
+390	点击来袭目标发射导弹。第六波起可购买自动防御。	Click incoming targets to fire missiles. Automated defense can be bought from wave 6.
+391	狂暴	ENRAGED
+392	球状星团炮	Globular Cluster Cannon
+393	直流分量 → 0	DC component → 0
+394	磁星 · MAGNETAR	Neutron Star · MAGNETAR
+395	第 %d 次谐波 → 0	Harmonic %d → 0
+396	第七维	7th Dimension
+397	第七维共振器	7th-Dimension Resonator
+398	第九维	9th Dimension
+399	第九维共振器	9th-Dimension Resonator
+400	第五维	5th Dimension
+401	第五维共振器	5th-Dimension Resonator
+402	第八维	8th Dimension
+403	第八维共振器	8th-Dimension Resonator
+404	第六维	6th Dimension
+405	第六维共振器	6th-Dimension Resonator
+406	第十维	10th Dimension
+407	第十维共振器	10th-Dimension Resonator
+408	类地行星防线 · 3 AU	Terrestrial line · 3 AU
+409	类星体喷流	Quasar Jet
+410	粒子视界 · 465 亿光年	Particle horizon · 46.5 Gly
+411	维度震荡	Dimensional Resonance
+412	背景辐射炮	Background Radiation Cannon
+413	脉冲星灯塔	Pulsar Beacon
+414	膜共振炮	Brane Resonator
+415	膜宇宙防线 · 第 11 维	Brane line · 11th dimension
+416	膜，相撞。所有距离，归于一点。	The branes collide. Every distance falls to a single point.
+417	蟹云脉冲炮	Crab Pulsar Cannon
+418	蟹状星云脉冲星	Crab Pulsar
+419	被劫持的矮行星 · CERES	Hijacked Dwarf Planet · CERES
+420	贯穿 %d 个目标	%d targets pierced
+421	超星系团	Supercluster
+422	超星系团防线 · 520 Mly	Supercluster line · 520 Mly
+423	近邻恒星 / SOLAR NEIGHBOURHOOD	SOLAR NEIGHBOURHOOD
+424	近邻恒星之间的空间开始沸腾。恒星炮的光矛可以穿透长列。	Space between the nearby stars begins to boil. The stellar cannon's lance burns through whole lines.
+425	近邻恒星防线 · 50 ly	Nearby-star line · 50 ly
+426	邻膜 / NEIGHBOUR BRANE	NEIGHBOUR BRANE
+427	银河旋臂中的威胁成群结队。脉冲星灯塔以极快的节拍扫射。	Threats swarm through the Milky Way's arms. The pulsar beacon sweeps them at a blistering beat.
+428	陨石雨	Meteor Rain
+429	集火打断  %d%%	Focus to interrupt  %d%%
+430	频谱采样中	Sampling the spectrum
+431	额外维度展开	Extra dimensions unfolding
+432	高维体 / THE BULK	THE BULK
+433	高频脉冲 / 节拍连射	Rapid pulses / Rhythmic burst
+434	击毁威胁赚取资金，让防御体系不断进化。
+早期点击目标发射；购买自动化后，点击指定集火。
+十道防线，十个巨型威胁，从城市一直打到宇宙之外。	Destroy threats to earn funds and evolve your defense.
+Click targets to fire early on; after buying automation, click to focus fire.
+Ten lines of defense, ten colossal threats, from a city to beyond the universe.
+435	两个宇宙，仍在靠近。	Two universes, still drawing closer.
+436	我们的宇宙 / OUR UNIVERSE	OUR UNIVERSE
+437	邻近宇宙泡	Neighbouring bubble universes
+438	本波重来，资金、全部升级与已购武器保留	Retry this wave · Funds, upgrades and weapons are kept
+439	重打本波	Retry Wave
+440	磁场偏转	Magnetic Deflection
+441	磁场偏转 · 弹体偏折	Magnetic field · Rounds deflected
+442	采样中	Sampling
+443	傅里叶项 %d  ·  已击穿 %d / %d	Fourier terms %d  ·  pierced %d / %d
+444	导出存档	Export campaign
+445	无法写入文件，请选择其他位置。	Could not write the file. Choose another location.
+446	镜头运动：关闭	Camera motion: Off
+447	镜头运动：开启	Camera motion: On
+448	成就解锁：	Achievement unlocked: 
+449	退出  ↗	EXIT  ↗
+450	成就	ACHIEVEMENTS
+451	天 穹 防 线	ORBITAL DEFENSE
+452	从第一枚导弹，到宇宙最后的光。	From the first missile to the last light in the universe.
+453	新游戏	New campaign
+454	暂无存档	NO CAMPAIGN
+455	第 %d 波	WAVE %d
+456	继续战役	Continue campaign
+457	设置	Settings
+458	操作指南	Field manual
+459	点击 / 按住目标发射 · F 加速 · U 升级 · Esc 暂停 · F11 全屏	Click / hold to fire · F speed · U upgrades · Esc pause · F11 fullscreen
+460	声音	Sound
+461	柔和战斗特效	Softer combat effects
+462	主页与界面动态效果	Menu and interface motion
+463	关闭镜头运动	Disable camera motion
+464	窗口 / 全屏  [F11]	Window / fullscreen  [F11]
+465	设置会保存在本机，下次启动继续生效。	Preferences are saved on this computer.
+466	已解锁 %d / %d	UNLOCKED %d / %d
+467	本机成就已保存，Steam 可用时会重试同步。	Achievements save locally and retry syncing when Steam is available.
+468	Steam 成就同步尚未启用，本机记录已保留。	Steam achievement sync is not enabled yet. Local progress is preserved.
+469	01  点击或按住来袭目标，手动发射导弹。
+
+02  按 U 打开升级面板，升级时战斗暂停。
+
+03  自动防御开放后，在升级面板购买自动化；
+      之后点击目标即可指定集火。
+
+04  按 Q 发动已充能的大招，按 F 切换 ×1 / ×2。
+
+05  Esc 暂停；F11 切换全屏。
+
+战役会自动保存，可随时继续或导出本地备份。	01  Click or hold incoming targets to fire missiles.
+
+02  Press U to upgrade. Combat pauses while upgrading.
+
+03  Buy automation when it becomes available.
+      Click targets to focus your automated defenses.
+
+04  Q fires a charged ultimate. F switches ×1 / ×2 speed.
+
+05  Esc pauses. F11 toggles fullscreen.
+
+Your campaign saves automatically. Continue or export a backup.
+470	返回主页  [Esc]	BACK TO MENU  [Esc]
+471	第一道光	First Light
+472	击毁第一个来袭目标。	Destroy your first incoming target.
+473	千次拦截	A Thousand Intercepts
+474	在一场战役中累计击毁 1000 个目标。	Destroy 1,000 targets in one campaign.
+475	防线进化	Evolving Defense
+476	购买第一次防线升级。	Purchase your first defense upgrade.
+477	自主防御	Autonomous Defense
+478	购买自动防御。	Purchase automated defense.
+479	天体为盾	Celestial Shield
+480	首次将天体转化为防御武器。	Convert a celestial body into a defense weapon.
+481	终极打击	Ultimate Strike
+482	首次释放已充能的大招。	Fire your first charged ultimate ability.
+483	守住城市	City Secured
+484	完成城市防线，进入地球阶段。	Complete the city defense and reach Earth.
+485	蓝色星球	The Blue Planet
+486	完成地球防线，进入内太阳系阶段。	Complete the Earth defense and reach the inner Solar System.
+487	类地行星卫士	Terrestrial Sentinel
+488	完成内太阳系防线，进入外太阳系阶段。	Complete the inner Solar System defense and reach the outer Solar System.
+489	巨行星之外	Beyond the Giants
+490	完成外太阳系防线，进入奥尔特云阶段。	Complete the outer Solar System defense and reach the Oort Cloud.
+491	冰壳彼岸	Past the Ice Shell
+492	完成奥尔特云防线，进入恒星邻域阶段。	Complete the Oort Cloud defense and reach the Stellar Neighbourhood.
+493	比邻	Next Door
+494	完成恒星邻域防线，进入银河阶段。	Complete the Stellar Neighbourhood defense and reach the Milky Way.
+495	银河守望	Galactic Watch
+496	完成银河防线，进入超星系团阶段。	Complete the Milky Way defense and reach the Supercluster.
+497	跨越星海	Beyond the Starfields
+498	完成超星系团防线，进入可观测宇宙阶段。	Complete the Supercluster defense and reach the Observable Universe.
+499	视界之外	Beyond the Horizon
+500	完成可观测宇宙防线，进入宇宙膜阶段。	Complete the Observable Universe defense and reach the Brane.
+501	最后的光	The Last Light
+502	守住全部十道防线，直到宇宙之外。	Hold all ten lines of defense, beyond the universe itself.
+503	百发守望	A Hundred Defenses
+504	在一场战役中累计击毁 100 个目标。	Destroy 100 targets in one campaign.
+505	万点星火	Ten Thousand Sparks
+506	在一场战役中累计击毁 10000 个目标。	Destroy 10,000 targets in one campaign.
+507	弹头突破	Warhead Breakthrough
+508	将弹头伤害升级至 Lv.10。	Upgrade warhead damage to level 10.
+509	极限火力	Extreme Firepower
+510	将弹头伤害升级至 Lv.50。	Upgrade warhead damage to level 50.
+511	第一道炮环	First Turret Ring
+512	在一场战役中部署至少 12 座炮台。	Deploy at least 12 turrets in one campaign.
+513	四十八重防线	Forty-Eight Defenses
+514	在一场战役中部署全部 48 座炮台。	Deploy all 48 turrets in one campaign.
+515	文明武库	Civilization Arsenal
+516	在一场战役中拥有全部十种主武器。	Own all ten main weapons in one campaign.
+517	城市即武器	The City Is a Weapon
+518	改造城市阶段的全部三座建筑。	Convert all three city buildings in one campaign.
+519	月亮为我开火	The Moon Fires for Us
+520	将月球改造为月轨主炮。	Convert the Moon into its orbital cannon.
+521	恒星之握	A Star in Our Grasp
+522	将太阳改造为戴森球武器。	Convert the Sun into a Dyson weapon.
+523	驯服深渊	Taming the Abyss
+524	将银心黑洞改造为黑洞引擎。	Convert the galactic central black hole into an engine.
+525	群星联防	United Galaxies
+526	在一场战役中改造超星系团阶段的全部六个天体。	Convert all six bodies of the Supercluster stage in one campaign.
+527	宇宙神经网	Cosmic Neural Network
+528	在一场战役中改造可观测宇宙阶段的全部六个天体。	Convert all six bodies of the Observable Universe stage in one campaign.
+529	卷曲维度	Curled Dimensions
+530	在一场战役中改造宇宙膜阶段的全部六个卷曲维度。	Convert all six curled dimensions of the Brane stage in one campaign.
+531	万物皆防线	Everything Is a Defense
+532	在一场战役中改造全部十个阶段的 50 个可改造天体。	Convert all 50 bodies across the ten stages in one campaign.
+533	核火初现	Nuclear Dawn
+534	实际释放一次核弹大招。	Fire the nuclear ultimate.
+535	一束光的重量	The Weight of Light
+536	实际释放一次光粒打击。	Fire the photoid ultimate.
+537	维度折叠	Folding Dimensions
+538	实际释放一次一向箔。	Fire the dimensional foil ultimate.
+539	质数裁决	Prime Judgment
+540	实际释放一次质数打击。	Fire the prime-number ultimate.
+541	光速由我定义	Light Speed Is Mine
+542	实际释放一次降低光速大招。	Fire the light-speed reduction ultimate.
+543	重写圆周	Rewriting the Circle
+544	实际释放一次改写 π 大招。	Fire the pi-rewriting ultimate.
+545	一瞬间	In a Single Instant
+546	实际释放一次水滴大招。	Fire the Droplet ultimate.
+547	频谱归零	Spectrum Zeroed
+548	实际释放一次傅里叶分解大招。	Fire the Fourier Decomposition ultimate.
+549	无穷细节	Infinite Detail
+550	实际释放一次曼德博分形大招。	Fire the Mandelbrot ultimate.
+551	十一维	Eleven Dimensions
+552	实际释放一次维度震荡大招。	Fire the Dimensional Resonance ultimate.
+553	末日武器学家	Doomsday Specialist
+554	累计实际释放全部十种大招，可跨战役完成。	Fire all ten ultimates at least once, across any campaigns.
+555	打断施法	Interrupted
+556	在蓄力期间打断一次可打断的 Boss 技能。	Interrupt a breakable boss skill during its wind-up.
+557	炮口沉默	Silencing the Cannon
+558	在蓄力期间打断攻城主炮。	Interrupt the siege beam during its wind-up.
+559	拒绝吞噬	Refusing the Void
+560	在蓄力期间打断吞噬。	Interrupt devour during its wind-up.
+561	战役已保存 · 本机进度	Campaign saved · On this computer
+562	准备开始你的第一道防线。	Your first line of defense awaits.

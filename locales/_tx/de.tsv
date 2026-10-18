@@ -1,0 +1,628 @@
+0	Sprengkopf
+1	Geschwindigkeit
+2	Nachladen
+3	Kritisch
+4	Fläche
+5	Durchschlag
+6	Zielerfassung
+7	Geschütze
+8	WELLE %02d
+9	WELLE 10 ABGESCHLOSSEN
+10	Eine kolossale Bedrohung naht
+11	KOMBO ×
+12	01  /  VERTEIDIGUNGSZENTRALE
+13	Erde
+14	Sonne
+15	 online
+16	  ·  Himmelskörper umgebaut
+17	Umbauen
+18	 · Aktiv
+19	Salve
+20	Abdeckung
+21	 Ziele
+22	Elite-Kriegsschiff
+23	Außerirdische Flotte
+24	Elite-Himmelskörper
+25	Bedrohungsschwarm
+26	Anfliegender Körper
+27	Mitglieder
+28	Gesamt-HP
+29	Einschlag in %.1f s
+30	Schaden im Flug
+31	Klicken, um alle Waffen zu bündeln
+32	Klicken / halten zum Feuern
+33	Radius 300 · Totale Verdampfung
+34	Ein Teilchen mit Lichtgeschwindigkeit
+35	Dimensionen 2 → 1
+36	Neue Verteidigung wird aufgebaut  %.1f s
+37	Bedrohungen verborgen  %.1f s
+38	PHOTOID
+39	Kolossale Bedrohung im Anflug ·
+40	Katastrophenkern zerstreut · Alle Linien gehalten
+41	Maßstabssprung · Nächste Linie:
+42	Linie durchbrochen · Geld, Upgrades und Waffen bleiben erhalten
+43	Atomschlag
+44	Photoid-Schlag
+45	Dimensionsfolie
+46	Primzahlschlag
+47	Licht verlangsamen
+48	π umschreiben
+49	West-Wolkenkratzer
+50	Dachgeschütz
+51	Zentralturm
+52	Turm-Raketenbatterie
+53	Ost-Wolkenkratzer
+54	Mond
+55	Mondkanone
+56	Erdnahe Station
+57	Orbitalbatterie
+58	Geostationärer Satellit
+59	Lasersatellit
+60	Merkur
+61	Merkurkanone
+62	Venus
+63	Venuskanone
+64	Mars
+65	Marskanone
+66	Jupiter
+67	Jupiterkanone
+68	Saturn
+69	Saturnring-Kanone
+70	Dyson-Sphäre
+71	Sirius
+72	Siriuskanone
+73	Beteigeuze
+74	Rote-Riesen-Kanone
+75	Wega
+76	Wegakanone
+77	Arktur
+78	Arkturkanone
+79	Galaktisches Schwarzes Loch
+80	Schwarzloch-Antrieb
+81	Andromedagalaxie
+82	Andromeda-Array
+83	Dreiecksgalaxie
+84	Dreiecks-Array
+85	Große Magellansche Wolke
+86	Magellan-Array
+87	Kleine Magellansche Wolke
+88	Magellan-Subarray
+89	Schütze-Zwerggalaxie
+90	Schütze-Array
+91	Großer-Bär-Zwerggalaxie
+92	Großer-Bär-Array
+93	Drache-Zwerggalaxie
+94	Drache-Array
+95	Große-Mauer-Knoten
+96	Große-Mauer-Antrieb
+97	Jungfrau-Knoten
+98	Jungfrau-Antrieb
+99	Coma-Knoten
+100	Coma-Antrieb
+101	Großer Attraktor
+102	Großer-Attraktor-Antrieb
+103	Laniakea
+104	Superhaufen-Antrieb
+105	Bootes-Leerraum
+106	Leerraum-Antrieb
+107	 umgebaut ·
+108	Welle %d abgeschlossen · Verteidigung wiederhergestellt
+109	ORION-ARM
+110	LOKALE GRUPPE
+111	KOSMISCHES NETZ
+112	Intergalaktischer Leerraum
+113	Verteidigungsknoten online
+114	Klicken zum Umbauen  $
+115	Der Wärmetod ist gestoppt.
+116	Alle Entfernungen laufen in einem Punkt zusammen.
+117	Null. Und Unendlichkeit.
+118	Das Licht wird neu geboren.
+119	Die Schwerkraft webt ein Sternenmeer.
+120	Ein Planet lernt zu wachsen.
+121	Das Universum ist weit. Wir sind noch hier.
+122	Die Milchstraße. Das Sonnensystem.
+123	Die Erde. Diese vertraute Stadt.
+124	Das letzte Licht gehört der Zivilisation.
+125	Werfer-Evolution · Salvengröße verdoppelt
+126	Sprengkopf-Durchbruch · Lv.%d verdoppelt den Schaden aller Waffen
+127	Auto-Verteidigung online · Ziel anklicken, um Feuer zu bündeln
+128	 online · Globale Upgrades übernommen
+129	Stadt
+130	Welle 01 / 10
+131	Verteidigung 100%
+132	Kolossale Bedrohung
+133	Auto-Verteidigung aktivieren · $200
+134	Verteidigung verbessern  [U]
+135	Pause  [Esc]
+136	Ultimativer Schlag: lädt durch Kampfzeit und Abschüsse  [Q]
+137	Spieltempo: ×1 / ×2 / ×4 / ×8
+138	Dev: Geld ×10
+139	Vorherige Welle
+140	Welle überspringen
+141	Boss zerstören
+142	Vorheriges Kapitel
+143	Nächstes Kapitel
+144	Unverwundbar: Aus
+145	Ultimate-Abklingzeit: Normal
+146	Ultimate: Kapitel
+147	Abspann überspringen  Esc
+148	SKYGUARD
+149	SKYGUARD  /  Von der ersten Rakete bis zum letzten Licht des Universums
+150	Stadt → Erde → Sonnensystem → Galaxie → Haufen → Universum
+151	Kampagne fortsetzen ·
+152	Neue Kampagne
+153	Beenden
+154	Maussteuerung · U Upgrades · Esc Pause · F11 Vollbild
+155	Neue Verteidigung beginnen?
+156	Eine neue Kampagne überschreibt deinen aktuellen Fortschritt.
+157	Zurück
+158	Anfliegende Ziele klicken oder halten zum Feuern · Upgrades pausieren den Kampf
+159	Kampagne wiederhergestellt · Kein Offline-Fortschritt
+160	Spielstand nicht lesbar · Starte eine neue Kampagne
+161	Verteidigung verbessern
+162	Kampf, Einschlag-Timer und Einkommen pausiert · Alle Waffen teilen sich die Upgrades
+163	Kaufen ×1
+164	Kaufen ×10
+165	Max kaufen
+166	Auto-Verteidigung  $200  ·  Automatische Zielerfassung
+167	Einsetzen
+168	Verteidigung fortsetzen  [U / Esc]
+169	Alle Sprengkopf-Durchbrüche erreicht
+170	Sprengkopf Lv.%d verdoppelt den Schaden
+171	Maximale Werfergröße erreicht
+172	Nachladen Lv.%d verdoppelt die Werfer
+173	Nächster Durchbruch:
+174	   ·   Ältere Waffen bleiben aktiv
+175	Einzelziel-DPS $d   ·   Salvenwerfer $l   ·   Abdeckung $c Ziele
+176	Verteidigung pausiert
+177	Simulation und Timer gestoppt · Fortschritt gespeichert
+178	Verteidigung fortsetzen
+179	Ton: An
+180	Ton: Aus
+181	Musik
+182	Effekte
+183	Kampfeffekte: Sanft
+184	Kampfeffekte: Standard
+185	UI-Animation: An
+186	UI-Animation: Aus
+187	Speichern und zum Menü
+188	%.1f Minuten verteidigt  ·  %s Ziele zerstört
+189	Verteidigung durchbrochen
+190	KAMPAGNE ABGESCHLOSSEN  /  SKYGUARD
+191	Etappe neu starten · Geld, Upgrades und Waffen bleiben
+192	Die kolossale Bedrohung hat die Verteidigung erreicht. Verbessere Schaden und Krits, um den Bosskampf zu verkürzen.
+193	Der Schwarm hat deine Verteidigung überrannt. Nachladen Lv.%d bringt mehr Werfer.
+194	\nFläche und Durchschlag zerstören mehr Mitglieder. Setze die neue Waffe dieser Etappe ein.
+195	Alle sechs Linien gehalten.\nDas erste Raketensilo deiner Stadt kämpfte bis an den Rand des Universums.
+196	Verteidigungszeit %.1f min   ·   Zerstört %s   ·   Versuche %d
+197	Wiederholen · Ein Universum wird neu geboren
+198	Zum Menü
+199	Etappe neu starten
+200	Erst die Verteidigung verbessern
+201	Welle %02d / 10
+202	Verteidigung %.0f%%
+203	Einschlag-Countdown  %.1f s
+204	-Array
+205	Auto-Verteidigung freigeschaltet · Für $200 kaufen, um alle Waffen zu automatisieren
+206	Auto-Verteidigung · $200 (fehlen $%d)
+207	Alle Waffen zielen automatisch. Ziel anklicken, um Feuer zu bündeln.
+208	Kaufbar · Aktiviert automatische Angriffe
+209	Klicken / halten zum Feuern · Auto-Verteidigung ab Welle 6 für $200
+210	Neue Waffe verfügbar:
+211	  ·  Upgrades öffnen
+212	Auto-Abfang · Klicken zum Bündeln    /
+213	Durchbruch
+214	Evolution
+215	 · Feuert
+216	 · Bereit  [Q]
+217	Bereit · Q drücken oder klicken zum Auslösen
+218	  ·  Feuert alle 0,4 s; +12 % Gesamtfeuerkraft
+219	Wandert im nächsten Kapitel in den Kern und feuert weiter
+220	Umbauen
+221	Abbrechen
+222	Preis  $
+223	Fehlt $
+224	Schaden / s  %s   ·   Abschüsse / s  %s
+225	Entwicklermodus:
+226	An · Tempo bis ×32
+227	Aus
+228	Bereits bei der ersten Welle dieses Kapitels
+229	Zurück zu Welle %d
+230	Bereits im ersten Kapitel
+231	Zurück zu:
+232	Gerade kein Bosskampf
+233	Bereits im letzten Kapitel
+234	Unverwundbar: An
+235	Ultimate-Abklingzeit: 0
+236	Ultimate:
+237	Tempo ×%d  [F]
+238	WARNUNG   ·   KOLOSSALE BEDROHUNG IM ANFLUG   ·
+239	KOLOSSALE BEDROHUNG ZERSTÖRT
+240	2D → 1D  ·  DIMENSIONALE ENTFALTUNG
+241	SCHWARZE DOMÄNE VERSIEGELT
+242	LICHTSPUREN WERDEN GELEGT
+243	ROTVERSCHIEBUNG · ENTFERNT SICH
+244	NÄHERT SICH · BLAUVERSCHIEBUNG
+245	Bodenverteidigung · 10 km
+246	Stadtkiller-Asteroid · CHIRON
+247	Meteore anklicken oder halten, um Raketen abzufeuern. Abfangen bringt Geld für bessere Verteidigung.
+248	Galaxienhaufen
+249	Haufen-Verteidigung · 100 Mly
+250	Außerirdisches Megastruktur-Kriegsschiff · CATHEDRAL
+251	Quasarkanonen decken mehrere Flotten zugleich ab. Einzelne Eliten zuerst ausschalten.
+252	Universum
+253	Kosmische Verteidigung · 93 Gly
+254	Kosmischer Katastrophenkern · THE SILENCE
+255	Sechs Ebenen Feuerkraft treffen an der letzten Grenze zusammen. Zerstöre den Katastrophenkern und bring jeder Linie die Morgendämmerung.
+256	Planetare Verteidigung · 12.742 km
+257	Vagabundierender Himmelskörper · NOMAD
+258	Die Stadt ist nur noch ein Lichtpunkt auf der Erde. Kaufe eine Orbitalkanone, um Bedrohungen aus allen Richtungen abzufangen.
+259	Milchstraße
+260	Galaktische Verteidigung · 100.000 Lj
+261	Schnellläuferstern · VESPER
+262	Sternkanonen durchbohren die Anflugbahnen. Dein Sonnensystem ist nur noch ein Knoten der Galaxie.
+263	Sonnensystem
+264	Stellare Verteidigung · 100 AE
+265	Außerirdischer Belagerungsträger · LEVIATHAN
+266	Meteorwolken und außerirdische Flotten greifen gemeinsam an. Planetare Flächenangriffe räumen dichte Schwärme.
+267	Feuerbereich
+268	+18 % Grundabdeckung pro Stufe. Lv.10: Schwarmbersten +30 %. Lv.25: Flächenbombardement weitere +25 %.
+269	Energie-Krit
+270	+2 % Krit-Chance pro Stufe. Ab 100 % immer kritisch; jedes überschüssige 1 % gibt +3 % Krit-Schaden. Krit-Multiplikator +1 alle 25 Stufen.
+271	Sprengkopf-Schaden
+272	+15 % Schaden pro Stufe. Lv.10 / 25 / 50 verdoppeln den Schaden. Bessere Sprengköpfe erweitern die Schwarmabdeckung.
+273	Durchschlagskraft
+274	+25 % Abdeckung pro Stufe. Überschüssige Feuerkraft trifft nahe Gegner.
+275	Nachladeeffizienz
+276	+10 % Feuerrate pro Stufe. Alle 10 Stufen verdoppeln sich die Werfer und die Salven wachsen.
+277	Abfanggeschwindigkeit
+278	+8 % Projektiltempo pro Stufe, bis 20×. Schnellere Treffer verschwenden weniger Schaden im Flug.
+279	Mehrfachzielerfassung
+280	+25 % Salvenschaden und +30 % Abdeckung pro Stufe. Mehr Sprengköpfe und Angriffsstrahlen.
+281	Zusätzliche Geschütze
+282	Fügt pro Stufe ein automatisches Geschütz hinzu. Jedes feuert unabhängig alle 0,25 s; jedes Geschütz erhöht die Gesamtfeuerkraft um 5 %.
+283	Raketensilo
+284	Schnelles Abfangen / Schwarmsprengköpfe
+285	Orbitalkanone
+286	Schwerer Durchschlag / Orbitalsalve
+287	Planetare Kanonenreihe
+288	Flächenräumung / Planetares Array
+289	Sternkanone
+290	Fernstoß / Sternenlanze
+291	Quasarkanone
+292	Mehrzonen-Abdeckung / Quasarnetz
+293	Kosmische Kanone
+294	Globaler Schwenk / Kosmische Resonanz
+295	Sprache
+296	中文
+297	English
+298	Bodenverteidigung
+299	Stadtkiller-Asteroid
+300	Haufen-Verteidigung
+301	Außerirdisches Megastruktur-Kriegsschiff
+302	Kosmische Verteidigung
+303	Kosmischer Katastrophenkern
+304	Planetare Verteidigung
+305	Vagabundierender Himmelskörper
+306	Galaktische Verteidigung
+307	Schnellläuferstern
+308	Stellare Verteidigung
+309	Außerirdischer Belagerungsträger
+310	Spieltempo: ×1 / ×2
+311	CMB-Kältefleck
+312	Ein Augenblick, durch alles hindurch
+313	Dreikörper-Kanone
+314	Zwei Branen, immer näher.
+315	HAUPTGÜRTEL
+316	Schaden -70%
+317	Fourier-Zerlegung
+318	Resonanzbruch
+319	Inneres Sonnensystem
+320	Pluto-Charon-Zwillingskanone
+321	Pluto
+322	Gefrorene Kometenkerne strömen aus der äußersten Schale des Sonnensystems. Der Kometenwerfer verwandelt Eis in einen Splitterregen.
+323	Eissplitter / Langschweif-Salve
+324	Kältefleck-Antrieb
+325	Alle zehn Linien gehalten.\nVom ersten Silo der Stadt aus hast du jenseits des Universums gekämpft.
+326	Alpha Centauri
+327	Omega Centauri
+328	Flotte rufen
+329	Beobachtbares Universum
+330	Coma-Haufen
+331	Verschlingen
+332	Sedna
+333	Sedna-Eiskanone
+334	Äußeres Sonnensystem
+335	Die außerirdische Flotte taucht hinter Jupiter auf. Die Gravitationskanone nutzt die Anziehung der Riesen für schwere Geschosse.
+336	SONNE
+337	Solare Gravitationslinse
+338	Oortsche Wolke
+339	OORTSCHE WOLKE
+340	Oort-Kernschwarm
+341	Kosmischer Mikrowellenhintergrund
+342	Die Brane
+343	Virgo-Haufen
+344	Kollidierende Brane · THE OTHER BRANE
+345	Außerirdische Triebwerke wühlen den Asteroidengürtel auf. Das planetare Array räumt dichte Schwärme mit Flächenfeuer.
+346	Asteroidengürtel-Array
+347	Riesenplaneten-Gravitationskanone
+348	Riesenplaneten-Linie · 50 AE
+349	Barnards Pfeilstern
+350	Barnard-Kanone
+351	Hills-Wolke
+352	Swing-by / Schweres Geschoss
+353	Gravitationslinsen-Kanone
+354	Saitenschwingung  ·  Oberton n =
+355	Saitenschwingung / Höherdimensionale Resonanz
+356	Stark wechselwirkende Materie  ·  eine vollkommen glatte Oberfläche
+357	Kometenschweif-Kanone
+358	Kometenwolken-Linie · 1,6 Lj
+359	Kometenkern-Werfer
+360	Kometenkern-Array
+361	Sternnachbarschaft
+362	UNSERE BRANE
+363	Unser Universum ist nur eine Membran in einem höherdimensionalen Raum. Eine zweite Brane rückt näher.
+364	Unterbrochen!
+365	LANIAKEA
+366	Einschlag-Countdown -2.5s
+367	Belagerungsstrahl
+368	Zoom ×%s  ·  Iterationen %d
+369	Das ganze kosmische Netz brennt. Die kosmische Kanone fegt jedes Filament.
+370	Sloan Great Wall
+371	Voyager 1
+372	Voyager-Leuchtfeuer
+373	Koronaler Massenauswurf
+374	HELIOSPHÄRE
+375	Galaxien strömen entlang Laniakeas Flüssen zum Großen Attraktor. Die Jets der Quasarkanone schneiden durch ganze Gruppen.
+376	Interstellarer Besucher · 'OUMUAMUA
+377	Mandelbrot
+378	Fernster Quasar
+379	LOKALE BLASE
+380	Anfliegende Körper kommen von allen Seiten. Setze die Orbitalkanone ein und klicke Mond und Satelliten an, um sie zu Waffen umzubauen.
+381	KUIPERGÜRTEL
+382	Herkules-Corona-Borealis-Mauer
+383	Herkules-Mauer-Antrieb
+384	Tropfen
+385	Komet Hale-Bopp
+386	Neptun
+387	Neptunkanone
+388	Gezeitenschild
+389	Vesta
+390	Anfliegende Ziele anklicken, um Raketen abzufeuern. Ab Welle 6 kann die Auto-Verteidigung gekauft werden.
+391	RASEND
+392	Kugelsternhaufen-Kanone
+393	Gleichanteil → 0
+394	Neutronenstern · MAGNETAR
+395	Oberton %d → 0
+396	7. Dimension
+397	Resonator der 7. Dimension
+398	9. Dimension
+399	Resonator der 9. Dimension
+400	5. Dimension
+401	Resonator der 5. Dimension
+402	8. Dimension
+403	Resonator der 8. Dimension
+404	6. Dimension
+405	Resonator der 6. Dimension
+406	10. Dimension
+407	Resonator der 10. Dimension
+408	Erdähnliche Linie · 3 AE
+409	Quasar-Jet
+410	Teilchenhorizont · 46,5 Gly
+411	Dimensionsresonanz
+412	Hintergrundstrahlungs-Kanone
+413	Pulsar-Leuchtfeuer
+414	Branen-Resonator
+415	Branen-Linie · 11. Dimension
+416	Die Branen kollidieren. Jede Entfernung fällt in einen Punkt.
+417	Krebspulsar-Kanone
+418	Krebspulsar
+419	Gekaperter Zwergplanet · CERES
+420	%d Ziele durchbohrt
+421	Superhaufen
+422	Superhaufen-Linie · 520 Mly
+423	SONNENNACHBARSCHAFT
+424	Der Raum zwischen den nahen Sternen beginnt zu kochen. Die Lanze der Sternkanone brennt durch ganze Reihen.
+425	Nahstern-Linie · 50 Lj
+426	NACHBAR-BRANE
+427	Bedrohungen schwärmen durch die Arme der Milchstraße. Das Pulsar-Leuchtfeuer fegt sie im rasenden Takt.
+428	Meteorregen
+429	Bündeln zum Unterbrechen  %d%%
+430	Spektrum wird abgetastet
+431	Zusätzliche Dimensionen entfalten sich
+432	DER BULK
+433	Schnelle Pulse / Rhythmischer Stoß
+434	Zerstöre Bedrohungen, verdiene Geld und entwickle deine Verteidigung weiter.\nAnfangs klickst du Ziele zum Feuern an; nach dem Kauf der Automatik klickst du zum Bündeln.\nZehn Verteidigungslinien, zehn kolossale Bedrohungen, von einer Stadt bis jenseits des Universums.
+435	Zwei Universen, immer näher.
+436	UNSER UNIVERSUM
+437	Benachbarte Blasenuniversen
+438	Welle wiederholen · Geld, Upgrades und Waffen bleiben
+439	Welle wiederholen
+440	Magnetische Ablenkung
+441	Magnetfeld · Geschosse abgelenkt
+442	Abtastung
+443	Fourier-Terme %d  ·  durchbohrt %d / %d
+444	Kampagne exportieren
+445	Datei konnte nicht geschrieben werden. Wähle einen anderen Ort.
+446	Kamerabewegung: Aus
+447	Kamerabewegung: An
+448	Erfolg freigeschaltet:
+449	BEENDEN  ↗
+450	ERFOLGE
+451	ORBITALE VERTEIDIGUNG
+452	Von der ersten Rakete bis zum letzten Licht im Universum.
+453	Neue Kampagne
+454	KEINE KAMPAGNE
+455	WELLE %d
+456	Kampagne fortsetzen
+457	Einstellungen
+458	Handbuch
+459	Klicken / halten zum Feuern · F Tempo · U Upgrades · Esc Pause · F11 Vollbild
+460	Ton
+461	Sanftere Kampfeffekte
+462	Menü- und Oberflächenanimation
+463	Kamerabewegung deaktivieren
+464	Fenster / Vollbild  [F11]
+465	Einstellungen werden auf diesem Computer gespeichert.
+466	FREIGESCHALTET %d / %d
+467	Erfolge werden lokal gespeichert und synchronisiert, sobald Steam verfügbar ist.
+468	Die Steam-Erfolgssynchronisierung ist noch nicht aktiv. Lokaler Fortschritt bleibt erhalten.
+469	01  Anfliegende Ziele klicken oder halten, um Raketen abzufeuern.\n\n02  U öffnet die Upgrades. Der Kampf pausiert währenddessen.\n\n03  Kaufe die Automatik, sobald sie verfügbar ist.\n      Danach klickst du Ziele an, um das Feuer zu bündeln.\n\n04  Q löst ein geladenes Ultimate aus. F wechselt zwischen ×1 / ×2.\n\n05  Esc pausiert. F11 schaltet Vollbild um.\n\nDeine Kampagne speichert automatisch. Fortsetzen oder Sicherung exportieren.
+470	ZURÜCK ZUM MENÜ  [Esc]
+471	Erstes Licht
+472	Zerstöre dein erstes anfliegendes Ziel.
+473	Tausend Abfänge
+474	Zerstöre 1.000 Ziele in einer Kampagne.
+475	Wachsende Verteidigung
+476	Kaufe dein erstes Verteidigungs-Upgrade.
+477	Autonome Verteidigung
+478	Kaufe die Auto-Verteidigung.
+479	Himmelsschild
+480	Baue einen Himmelskörper zur Verteidigungswaffe um.
+481	Ultimativer Schlag
+482	Löse dein erstes geladenes Ultimate aus.
+483	Stadt gesichert
+484	Schließe die Stadtverteidigung ab und erreiche die Erde.
+485	Der blaue Planet
+486	Schließe die Erdverteidigung ab und erreiche das innere Sonnensystem.
+487	Erdähnlicher Wächter
+488	Schließe das innere Sonnensystem ab und erreiche das äußere Sonnensystem.
+489	Jenseits der Riesen
+490	Schließe das äußere Sonnensystem ab und erreiche die Oortsche Wolke.
+491	Hinter der Eisschale
+492	Schließe die Oortsche Wolke ab und erreiche die Sternnachbarschaft.
+493	Gleich nebenan
+494	Schließe die Sternnachbarschaft ab und erreiche die Milchstraße.
+495	Galaktische Wacht
+496	Schließe die Milchstraße ab und erreiche den Superhaufen.
+497	Jenseits der Sternfelder
+498	Schließe den Superhaufen ab und erreiche das beobachtbare Universum.
+499	Jenseits des Horizonts
+500	Schließe das beobachtbare Universum ab und erreiche die Brane.
+501	Das letzte Licht
+502	Halte alle zehn Verteidigungslinien, bis jenseits des Universums.
+503	Hundert Verteidigungen
+504	Zerstöre 100 Ziele in einer Kampagne.
+505	Zehntausend Funken
+506	Zerstöre 10.000 Ziele in einer Kampagne.
+507	Sprengkopf-Durchbruch
+508	Verbessere den Sprengkopf-Schaden auf Stufe 10.
+509	Extreme Feuerkraft
+510	Verbessere den Sprengkopf-Schaden auf Stufe 50.
+511	Erster Geschützring
+512	Setze in einer Kampagne mindestens 12 Geschütze ein.
+513	Achtundvierzig Verteidigungen
+514	Setze in einer Kampagne alle 48 Geschütze ein.
+515	Arsenal der Zivilisation
+516	Besitze in einer Kampagne alle zehn Hauptwaffen.
+517	Die Stadt ist eine Waffe
+518	Baue in einer Kampagne alle drei Stadtgebäude um.
+519	Der Mond feuert für uns
+520	Baue den Mond zur Orbitalkanone um.
+521	Ein Stern in unserer Hand
+522	Baue die Sonne zur Dyson-Waffe um.
+523	Den Abgrund zähmen
+524	Baue das zentrale Schwarze Loch der Galaxie zum Antrieb um.
+525	Vereinte Galaxien
+526	Baue in einer Kampagne alle sechs Körper der Superhaufen-Etappe um.
+527	Kosmisches neuronales Netz
+528	Baue in einer Kampagne alle sechs Körper der Etappe „Beobachtbares Universum“ um.
+529	Eingerollte Dimensionen
+530	Baue in einer Kampagne alle sechs eingerollten Dimensionen der Branen-Etappe um.
+531	Alles ist Verteidigung
+532	Baue in einer Kampagne alle 50 Körper der zehn Etappen um.
+533	Atomare Morgendämmerung
+534	Löse das Atom-Ultimate aus.
+535	Das Gewicht des Lichts
+536	Löse das Photoid-Ultimate aus.
+537	Dimensionen falten
+538	Löse das Dimensionsfolie-Ultimate aus.
+539	Urteil der Primzahlen
+540	Löse das Primzahl-Ultimate aus.
+541	Die Lichtgeschwindigkeit bestimme ich
+542	Löse das Lichtbremse-Ultimate aus.
+543	Den Kreis umschreiben
+544	Löse das π-Ultimate aus.
+545	In einem einzigen Augenblick
+546	Löse das Tropfen-Ultimate aus.
+547	Spektrum auf null
+548	Löse das Fourier-Zerlegung-Ultimate aus.
+549	Unendliches Detail
+550	Löse das Mandelbrot-Ultimate aus.
+551	Elf Dimensionen
+552	Löse das Dimensionsresonanz-Ultimate aus.
+553	Weltuntergangsexperte
+554	Löse alle zehn Ultimates mindestens einmal aus, über beliebige Kampagnen.
+555	Unterbrochen
+556	Unterbrich eine unterbrechbare Boss-Fähigkeit während der Aufladung.
+557	Die Kanone zum Schweigen bringen
+558	Unterbrich den Belagerungsstrahl während der Aufladung.
+559	Dem Nichts widerstehen
+560	Unterbrich Verschlingen während der Aufladung.
+561	Kampagne gespeichert · Auf diesem Computer
+562	Deine erste Verteidigungslinie wartet.
+563	Meteortrümmer
+564	Eisenmeteorit
+565	Weltraumschrott
+566	Aufklärungsdrohne
+567	Verlassener Satellit
+568	Asteroidenbruchstücke
+569	Außerirdischer Abfangjäger
+570	Metallasteroid
+571	Schutthaufen-Asteroid
+572	Ring-Eisbrocken
+573	Abfangjäger-Staffel
+574	Außerirdisches Panzerschiff
+575	Doppelkern-Komet
+576	Plasmaschild-Schiff
+577	Eiskern-Schwarm
+578	Langschweif-Komet
+579	Riesiger Eiskern
+580	Eiskristall-Haufen
+581	Eisschalen-Schiff
+582	Kometennest
+583	Plasmablasen
+584	Flare-Geschoss
+585	Brauner Zwerg
+586	Doppelstern
+587	Koronaschild-Schiff
+588	Interstellare Arche
+589	Sternstrom
+590	Pulsarsplitter
+591	Neutronenstern
+592	Kugelsternhaufen
+593	Magnetosphären-Schiff
+594	Galaktisches Mutterschiff
+595	Zwerggalaxien
+596	Relativistischer Jet
+597	Elliptische Galaxie
+598	Verschmelzende Galaxien
+599	Dunkle-Materie-Halo
+600	Haufenkern
+601	Quasar-Lichtpunkte
+602	Gammablitz
+603	Große-Mauer-Segment
+604	Knoten des kosmischen Netzes
+605	Dunkle-Energie-Blase
+606	Primordiales Schwarzes Loch
+607	Quantenschaum
+608	Tachyon
+609	Kosmischer Strangknoten
+610	Babyuniversum
+611	Branenblase
+612	Riss in ein anderes Universum
+613	Uranus
+614	Uranuskanone
+615	Schwarm
+616	Pfeil
+617	Gepanzert
+618	Spalter
+619	Schildträger
+620	Mutterschiff
+621	Schnell, fliegt in Bögen
+622	Zäh und langsam; seine Panzerung bröckelt Stück für Stück ab
+623	Zerbricht beim Zerstören in zwei Teile
+624	Erst den Schild brechen, dann ist der Kern verwundbar
+625	Setzt unterwegs ständig kleine Gegner frei
+626	Elite ·
+627	Neue Bedrohung ·

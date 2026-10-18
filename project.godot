@@ -27,7 +27,9 @@ window/stretch/mode="canvas_items"
 
 [internationalization]
 
-locale/translations=PackedStringArray("res://locales/game.en.translation")
+rendering/root_node_layout_direction=1
+
+locale/translations=PackedStringArray("res://locales/game.zh.translation", "res://locales/game.en.translation", "res://locales/game.ja.translation", "res://locales/game.ko.translation", "res://locales/game.zh_TW.translation", "res://locales/game.fr.translation", "res://locales/game.de.translation", "res://locales/game.es.translation", "res://locales/game.pt_BR.translation", "res://locales/game.ru.translation", "res://locales/game.ar.translation")
 locale/fallback="zh"
 
 [rendering]

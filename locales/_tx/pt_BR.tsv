@@ -1,0 +1,628 @@
+0	Ogiva
+1	Velocidade
+2	Recarga
+3	Crítico
+4	Área
+5	Perfuração
+6	Travamento
+7	Torretas
+8	ONDA %02d
+9	ONDA 10 CONCLUÍDA
+10	Uma ameaça colossal se aproxima
+11	COMBO ×
+12	01  /  CONTROLE DE DEFESA
+13	Terra
+14	Sol
+15	 on-line
+16	  ·  Conversão celeste concluída
+17	Converter
+18	 · Ativo
+19	Salva
+20	Cobertura
+21	 alvos
+22	Nave de elite
+23	Frota alienígena
+24	Corpo celeste de elite
+25	Enxame de ameaças
+26	Corpo em aproximação
+27	Membros
+28	PV totais
+29	Impacto em %.1f s
+30	Dano em voo
+31	Clique para concentrar todas as armas
+32	Clique / segure para disparar
+33	Raio 300 · Vaporização total
+34	Uma partícula na velocidade da luz
+35	Dimensões 2 → 1
+36	Implantando nova defesa  %.1f s
+37	Ameaças ocultas  %.1f s
+38	FOTOIDE
+39	Ameaça colossal se aproximando ·
+40	Núcleo da catástrofe dispersado · Todas as defesas garantidas
+41	Salto de escala · Próxima defesa:
+42	Defesa rompida · Fundos, melhorias e armas mantidos
+43	Ataque nuclear
+44	Golpe fotoide
+45	Folha dimensional
+46	Golpe primo
+47	Reduzir a luz
+48	Reescrever π
+49	Arranha-céu oeste
+50	Torreta de cobertura
+51	Torre central
+52	Bateria de mísseis da torre
+53	Arranha-céu leste
+54	Lua
+55	Canhão lunar
+56	Estação próxima à Terra
+57	Bateria orbital
+58	Satélite geoestacionário
+59	Satélite laser
+60	Mercúrio
+61	Canhão de Mercúrio
+62	Vênus
+63	Canhão de Vênus
+64	Marte
+65	Canhão de Marte
+66	Júpiter
+67	Canhão de Júpiter
+68	Saturno
+69	Canhão dos anéis de Saturno
+70	Esfera de Dyson
+71	Sirius
+72	Canhão de Sirius
+73	Betelgeuse
+74	Canhão gigante vermelha
+75	Vega
+76	Canhão de Vega
+77	Arcturus
+78	Canhão de Arcturus
+79	Buraco negro galáctico
+80	Motor de buraco negro
+81	Galáxia de Andrômeda
+82	Rede de Andrômeda
+83	Galáxia do Triângulo
+84	Rede do Triângulo
+85	Grande Nuvem de Magalhães
+86	Rede de Magalhães
+87	Pequena Nuvem de Magalhães
+88	Sub-rede de Magalhães
+89	Anã de Sagitário
+90	Rede de Sagitário
+91	Anã da Ursa Maior
+92	Rede da Ursa Maior
+93	Anã do Dragão
+94	Rede do Dragão
+95	Nó da Grande Muralha
+96	Motor da Grande Muralha
+97	Nó de Virgem
+98	Motor de Virgem
+99	Nó de Coma
+100	Motor de Coma
+101	Grande Atrator
+102	Motor do Grande Atrator
+103	Laniakea
+104	Motor do superaglomerado
+105	Vazio de Boötes
+106	Motor do vazio
+107	 convertido ·
+108	Onda %d concluída · Defesa restaurada
+109	BRAÇO DE ÓRION
+110	GRUPO LOCAL
+111	TEIA CÓSMICA
+112	Vazio intergaláctico
+113	Nó de defesa on-line
+114	Clique para converter  $
+115	A morte térmica parou.
+116	Todas as distâncias convergem para um ponto.
+117	Zero. E infinito.
+118	A luz renasce.
+119	A gravidade tece um mar de estrelas.
+120	Um planeta aprende a crescer.
+121	O universo é vasto. Ainda estamos aqui.
+122	A Via Láctea. O Sistema Solar.
+123	A Terra. Aquela cidade familiar.
+124	A última luz pertence à civilização.
+125	Evolução dos lançadores · Tamanho da salva dobrado
+126	Avanço de ogiva · Lv.%d dobra o dano de todas as armas
+127	Defesa automática on-line · Clique num alvo para concentrar o fogo
+128	 on-line · Melhorias globais herdadas
+129	Cidade
+130	Onda 01 / 10
+131	Defesa 100%
+132	Ameaça colossal
+133	Ativar defesa automática · $200
+134	Melhorar defesa  [U]
+135	Pausar  [Esc]
+136	Golpe supremo: carrega com tempo de combate e abates  [Q]
+137	Velocidade: ×1 / ×2 / ×4 / ×8
+138	Dev: Fundos ×10
+139	Onda anterior
+140	Pular onda
+141	Destruir chefe
+142	Capítulo anterior
+143	Próximo capítulo
+144	Invencível: Não
+145	Recarga suprema: Normal
+146	Supremo: Capítulo
+147	Pular final  Esc
+148	SKYGUARD
+149	SKYGUARD  /  Do primeiro míssil à última luz do universo
+150	Cidade → Terra → Sistema Solar → Galáxia → Aglomerado → Universo
+151	Continuar campanha ·
+152	Nova campanha
+153	Sair
+154	Mouse · U Melhorias · Esc Pausar · F11 Tela cheia
+155	Iniciar uma nova defesa?
+156	Uma nova campanha substituirá seu progresso atual.
+157	Voltar
+158	Clique ou segure nos alvos para disparar · Melhorias pausam o combate
+159	Campanha restaurada · Sem progresso off-line
+160	Não foi possível ler o salvamento · Inicie uma nova campanha
+161	Melhorar defesa
+162	Combate, contadores de impacto e renda pausados · Todas as armas compartilham as melhorias
+163	Comprar ×1
+164	Comprar ×10
+165	Comprar máx.
+166	Defesa automática  $200  ·  Mira automática
+167	Implantar
+168	Retomar defesa  [U / Esc]
+169	Todos os avanços de ogiva concluídos
+170	Ogiva Lv.%d dobra o dano
+171	Tamanho máximo de lançadores atingido
+172	Recarga Lv.%d dobra os lançadores
+173	Próximo avanço:
+174	   ·   Armas antigas continuam ativas
+175	DPS em alvo único $d   ·   Lançadores por salva $l   ·   Cobertura $c alvos
+176	Defesa pausada
+177	Simulação e contadores parados · Progresso salvo
+178	Retomar defesa
+179	Som: Ligado
+180	Som: Desligado
+181	Música
+182	Efeitos
+183	Efeitos de combate: Suaves
+184	Efeitos de combate: Padrão
+185	Animação da interface: Ligada
+186	Animação da interface: Desligada
+187	Salvar e voltar ao menu
+188	Defendido por %.1f minutos  ·  %s alvos destruídos
+189	Defesa rompida
+190	CAMPANHA CONCLUÍDA  /  SKYGUARD
+191	Reiniciar esta fase · Fundos, melhorias e armas mantidos
+192	A ameaça colossal alcançou a defesa. Melhore o dano e os críticos para encurtar a luta contra o chefe.
+193	O enxame sobrecarregou suas defesas. Recarga Lv.%d adiciona lançadores.
+194	\nÁrea e perfuração destroem mais membros. Implante a nova arma desta fase.
+195	As seis defesas resistiram.\nO primeiro silo da sua cidade lutou até a borda do universo.
+196	Tempo de defesa %.1f min   ·   Destruídos %s   ·   Tentativas %d
+197	Rever · Um universo renasce
+198	Voltar ao menu
+199	Reiniciar fase
+200	Melhore a defesa primeiro
+201	Onda %02d / 10
+202	Defesa %.0f%%
+203	Contagem para o impacto  %.1f s
+204	 Rede
+205	Defesa automática desbloqueada · Compre por $200 para automatizar todas as armas
+206	Defesa automática · $200 (faltam $%d)
+207	Todas as armas miram sozinhas. Clique num alvo para concentrar o fogo.
+208	Disponível para compra · Ativa ataques automáticos
+209	Clique / segure para disparar · Defesa automática por $200 a partir da onda 6
+210	Nova arma disponível:
+211	  ·  Abrir melhorias
+212	Interceptação automática · Clique para concentrar o fogo    /
+213	Avanço
+214	Evolução
+215	 · Disparando
+216	 · Pronto  [Q]
+217	Pronto · Pressione Q ou clique para disparar
+218	  ·  Dispara a cada 0,4 s; +12% de poder de fogo total
+219	Integra-se ao núcleo no próximo capítulo e continua disparando
+220	Converter
+221	Cancelar
+222	Preço  $
+223	Faltam $
+224	Dano / s  %s   ·   Abates / s  %s
+225	Modo desenvolvedor:
+226	Ligado · Velocidade até ×32
+227	Desligado
+228	Já está na primeira onda deste capítulo
+229	Voltou para a onda %d
+230	Já está no primeiro capítulo
+231	Voltou para:
+232	Não há luta contra chefe agora
+233	Já está no último capítulo
+234	Invencível: Sim
+235	Recarga suprema: 0
+236	Supremo:
+237	Velocidade ×%d  [F]
+238	ALERTA   ·   AMEAÇA COLOSSAL SE APROXIMANDO   ·
+239	AMEAÇA COLOSSAL DESTRUÍDA
+240	2D → 1D  ·  DESDOBRAMENTO DIMENSIONAL
+241	DOMÍNIO NEGRO SELADO
+242	TRAÇANDO RASTROS DE LUZ
+243	DESVIO PARA O VERMELHO · AFASTANDO-SE
+244	APROXIMANDO-SE · DESVIO PARA O AZUL
+245	Defesa de superfície · 10 km
+246	Asteroide destruidor de cidades · CHIRON
+247	Clique ou segure nos meteoros para disparar mísseis. Cada interceptação rende fundos para melhorar suas defesas.
+248	Aglomerado de galáxias
+249	Defesa do aglomerado · 100 Mal
+250	Nave megaestrutura alienígena · CATHEDRAL
+251	Canhões de quasar cobrem várias frotas ao mesmo tempo. Priorize as elites isoladas.
+252	Universo
+253	Defesa cósmica · 93 Gal
+254	Núcleo da catástrofe cósmica · THE SILENCE
+255	Seis camadas de poder de fogo convergem na fronteira final. Destrua o núcleo da catástrofe e leve o amanhecer a todas as defesas.
+256	Defesa planetária · 12.742 km
+257	Corpo celeste errante · NOMAD
+258	A cidade virou um ponto de luz na Terra. Compre um canhão orbital para interceptar ameaças de todas as direções.
+259	Via Láctea
+260	Defesa galáctica · 100.000 al
+261	Estrela fugitiva · VESPER
+262	Canhões estelares atravessam as trajetórias. Seu Sistema Solar agora é só um nó da galáxia.
+263	Sistema Solar
+264	Defesa estelar · 100 UA
+265	Porta-naves de cerco alienígena · LEVIATHAN
+266	Nuvens de meteoros e frotas alienígenas atacam juntas. Ataques de área planetários limpam enxames densos.
+267	Área de fogo
+268	+18% de cobertura base por nível. Lv.10: explosão de enxame adiciona +30%. Lv.25: bombardeio de área adiciona +25%.
+269	Crítico energético
+270	+2% de chance de crítico por nível. Crítico garantido em 100%; cada 1% excedente adiciona 3% de dano crítico. Multiplicador crítico +1 a cada 25 níveis.
+271	Dano da ogiva
+272	+15% de dano por nível. Lv.10 / 25 / 50 dobram o dano. Ogivas avançadas ampliam a cobertura de enxames.
+273	Perfuração
+274	+25% de cobertura por nível. O poder de fogo excedente atinge inimigos próximos.
+275	Eficiência de recarga
+276	+10% de cadência por nível. Os lançadores dobram a cada 10 níveis, aumentando as salvas.
+277	Velocidade de interceptação
+278	+8% de velocidade do projétil por nível, até 20×. Acertos mais rápidos desperdiçam menos dano em voo.
+279	Travamento múltiplo
+280	+25% de dano de salva e +30% de cobertura por nível. Adiciona ogivas e feixes de ataque.
+281	Torretas adicionais
+282	Adiciona uma torreta automática por nível. Cada uma dispara sozinha a cada 0,25 s; cada torreta soma 5% ao poder de fogo total.
+283	Silo de mísseis
+284	Interceptação rápida / Ogivas de enxame
+285	Canhão orbital
+286	Perfuração pesada / Salva orbital
+287	Rede de canhões planetários
+288	Limpeza de área / Rede planetária
+289	Canhão estelar
+290	Perfuração de longo alcance / Lança estelar
+291	Canhão de quasar
+292	Cobertura multizona / Rede de quasares
+293	Canhão cósmico
+294	Varredura global / Ressonância cósmica
+295	Idioma
+296	中文
+297	English
+298	Defesa de superfície
+299	Asteroide destruidor de cidades
+300	Defesa do aglomerado
+301	Nave megaestrutura alienígena
+302	Defesa cósmica
+303	Núcleo da catástrofe cósmica
+304	Defesa planetária
+305	Corpo celeste errante
+306	Defesa galáctica
+307	Estrela fugitiva
+308	Defesa estelar
+309	Porta-naves de cerco alienígena
+310	Velocidade: ×1 / ×2
+311	Mancha fria da RCF
+312	Um instante, através de tudo
+313	Canhão dos Três Corpos
+314	Duas branas, cada vez mais perto.
+315	CINTURÃO PRINCIPAL
+316	Dano -70%
+317	Decomposição de Fourier
+318	Ruptura ressonante
+319	Sistema Solar interno
+320	Canhão gêmeo Plutão–Caronte
+321	Plutão
+322	Núcleos de cometa congelados chegam da camada mais externa do Sistema Solar. O lançador cometário transforma gelo numa chuva de estilhaços.
+323	Estilhaços de gelo / Salva de cauda longa
+324	Motor da mancha fria
+325	As dez linhas resistiram.\nDo primeiro silo da cidade, você lutou além do próprio universo.
+326	Alfa Centauri
+327	Ômega Centauri
+328	Invocar frota
+329	Universo observável
+330	Aglomerado de Coma
+331	Devorar
+332	Sedna
+333	Canhão de gelo de Sedna
+334	Sistema Solar externo
+335	A frota alienígena surge de trás de Júpiter. O canhão gravitacional usa a atração dos gigantes para lançar projéteis pesados.
+336	SOL
+337	Lente gravitacional solar
+338	Nuvem de Oort
+339	NUVEM DE OORT
+340	Enxame de núcleos de Oort
+341	Radiação cósmica de fundo
+342	A Brana
+343	Aglomerado de Virgem
+344	Brana em colisão · THE OTHER BRANE
+345	Propulsores alienígenas agitam o cinturão de asteroides. A varredura da rede planetária limpa enxames densos.
+346	Rede do cinturão de asteroides
+347	Canhão gravitacional dos gigantes
+348	Linha dos gigantes · 50 UA
+349	Estrela de Barnard
+350	Canhão da estrela de Barnard
+351	Nuvem de Hills
+352	Estilingue gravitacional / Projétil pesado
+353	Canhão de lente gravitacional
+354	Vibração de corda  ·  harmônico n =
+355	Vibração de corda / Ressonância multidimensional
+356	Matéria de interação forte  ·  uma superfície perfeitamente lisa
+357	Canhão de cauda de cometa
+358	Linha da nuvem cometária · 1,6 al
+359	Lançador de núcleos cometários
+360	Rede de núcleos cometários
+361	Vizinhança estelar
+362	NOSSA BRANA
+363	Nosso universo é só uma membrana num espaço de mais dimensões. Outra brana se aproxima.
+364	Interrompido!
+365	LANIAKEA
+366	Contagem para o impacto -2.5s
+367	Raio de cerco
+368	Zoom ×%s  ·  iterações %d
+369	Toda a teia cósmica está em chamas. O canhão cósmico varre cada filamento.
+370	Grande Muralha Sloan
+371	Voyager 1
+372	Farol Voyager
+373	Ejeção coronal
+374	HELIOSFERA
+375	As galáxias fluem pelas correntes de Laniakea rumo ao Grande Atrator. Os jatos do canhão de quasar cortam grupos inteiros.
+376	Visitante interestelar · 'OUMUAMUA
+377	Mandelbrot
+378	Quasar mais distante
+379	BOLHA LOCAL
+380	Corpos chegam de todos os lados. Implante o canhão orbital e clique na Lua e nos satélites para convertê-los em armas.
+381	CINTURÃO DE KUIPER
+382	Grande Muralha Hércules–Coroa Boreal
+383	Motor da Muralha de Hércules
+384	Gota
+385	Cometa Hale-Bopp
+386	Netuno
+387	Canhão de Netuno
+388	Escudo de maré
+389	Vesta
+390	Clique nos alvos para disparar mísseis. A defesa automática pode ser comprada a partir da onda 6.
+391	ENFURECIDO
+392	Canhão de aglomerado globular
+393	Componente contínua → 0
+394	Estrela de nêutrons · MAGNETAR
+395	Harmônico %d → 0
+396	7ª dimensão
+397	Ressonador da 7ª dimensão
+398	9ª dimensão
+399	Ressonador da 9ª dimensão
+400	5ª dimensão
+401	Ressonador da 5ª dimensão
+402	8ª dimensão
+403	Ressonador da 8ª dimensão
+404	6ª dimensão
+405	Ressonador da 6ª dimensão
+406	10ª dimensão
+407	Ressonador da 10ª dimensão
+408	Linha terrestre · 3 UA
+409	Jato de quasar
+410	Horizonte de partículas · 46,5 Gal
+411	Ressonância dimensional
+412	Canhão de radiação de fundo
+413	Farol pulsar
+414	Ressonador de brana
+415	Linha da brana · 11ª dimensão
+416	As branas colidem. Toda distância cai num único ponto.
+417	Canhão do pulsar do Caranguejo
+418	Pulsar do Caranguejo
+419	Planeta anão sequestrado · CERES
+420	%d alvos perfurados
+421	Superaglomerado
+422	Linha do superaglomerado · 520 Mal
+423	VIZINHANÇA SOLAR
+424	O espaço entre as estrelas próximas começa a ferver. A lança do canhão estelar atravessa fileiras inteiras.
+425	Linha das estrelas próximas · 50 al
+426	BRANA VIZINHA
+427	Ameaças fervilham pelos braços da Via Láctea. O farol pulsar as varre num ritmo alucinante.
+428	Chuva de meteoros
+429	Concentre o fogo para interromper  %d%%
+430	Amostrando o espectro
+431	Dimensões extras se desdobrando
+432	O BULK
+433	Pulsos rápidos / Rajada rítmica
+434	Destrua ameaças para ganhar fundos e evoluir sua defesa.\nNo início, clique nos alvos para disparar; depois de comprar a automação, clique para concentrar o fogo.\nDez linhas de defesa, dez ameaças colossais, de uma cidade até além do universo.
+435	Dois universos, cada vez mais perto.
+436	NOSSO UNIVERSO
+437	Universos-bolha vizinhos
+438	Repetir esta onda · Fundos, melhorias e armas mantidos
+439	Repetir onda
+440	Deflexão magnética
+441	Campo magnético · Projéteis desviados
+442	Amostrando
+443	Termos de Fourier %d  ·  perfurados %d / %d
+444	Exportar campanha
+445	Não foi possível gravar o arquivo. Escolha outro local.
+446	Movimento de câmera: Desligado
+447	Movimento de câmera: Ligado
+448	Conquista desbloqueada:
+449	SAIR  ↗
+450	CONQUISTAS
+451	DEFESA ORBITAL
+452	Do primeiro míssil à última luz do universo.
+453	Nova campanha
+454	SEM CAMPANHA
+455	ONDA %d
+456	Continuar campanha
+457	Configurações
+458	Manual de campo
+459	Clique / segure para disparar · F velocidade · U melhorias · Esc pausar · F11 tela cheia
+460	Som
+461	Efeitos de combate mais suaves
+462	Animação de menus e interface
+463	Desativar movimento de câmera
+464	Janela / tela cheia  [F11]
+465	As preferências são salvas neste computador.
+466	DESBLOQUEADAS %d / %d
+467	As conquistas são salvas localmente e sincronizadas quando a Steam estiver disponível.
+468	A sincronização de conquistas da Steam ainda não está ativa. O progresso local é mantido.
+469	01  Clique ou segure nos alvos para disparar mísseis.\n\n02  Pressione U para melhorar. O combate pausa durante as melhorias.\n\n03  Compre a automação quando ela ficar disponível.\n      Depois, clique nos alvos para concentrar suas defesas.\n\n04  Q dispara um supremo carregado. F alterna a velocidade ×1 / ×2.\n\n05  Esc pausa. F11 alterna a tela cheia.\n\nSua campanha é salva automaticamente. Continue ou exporte um backup.
+470	VOLTAR AO MENU  [Esc]
+471	Primeira luz
+472	Destrua seu primeiro alvo.
+473	Mil interceptações
+474	Destrua 1.000 alvos em uma campanha.
+475	Defesa em evolução
+476	Compre sua primeira melhoria de defesa.
+477	Defesa autônoma
+478	Compre a defesa automática.
+479	Escudo celeste
+480	Converta um corpo celeste em arma de defesa.
+481	Golpe supremo
+482	Dispare seu primeiro supremo carregado.
+483	Cidade protegida
+484	Conclua a defesa da cidade e chegue à Terra.
+485	O planeta azul
+486	Conclua a defesa da Terra e chegue ao Sistema Solar interno.
+487	Sentinela terrestre
+488	Conclua o Sistema Solar interno e chegue ao Sistema Solar externo.
+489	Além dos gigantes
+490	Conclua o Sistema Solar externo e chegue à nuvem de Oort.
+491	Além da casca de gelo
+492	Conclua a nuvem de Oort e chegue à vizinhança estelar.
+493	Bem ao lado
+494	Conclua a vizinhança estelar e chegue à Via Láctea.
+495	Vigia galáctico
+496	Conclua a Via Láctea e chegue ao superaglomerado.
+497	Além dos campos estelares
+498	Conclua o superaglomerado e chegue ao universo observável.
+499	Além do horizonte
+500	Conclua o universo observável e chegue à Brana.
+501	A última luz
+502	Mantenha as dez linhas de defesa, além do próprio universo.
+503	Cem defesas
+504	Destrua 100 alvos em uma campanha.
+505	Dez mil faíscas
+506	Destrua 10.000 alvos em uma campanha.
+507	Avanço de ogiva
+508	Melhore o dano da ogiva até o nível 10.
+509	Poder de fogo extremo
+510	Melhore o dano da ogiva até o nível 50.
+511	Primeiro anel de torretas
+512	Implante pelo menos 12 torretas em uma campanha.
+513	Quarenta e oito defesas
+514	Implante todas as 48 torretas em uma campanha.
+515	Arsenal da civilização
+516	Possua as dez armas principais em uma campanha.
+517	A cidade é uma arma
+518	Converta os três prédios da cidade em uma campanha.
+519	A Lua atira por nós
+520	Converta a Lua em seu canhão orbital.
+521	Uma estrela nas mãos
+522	Converta o Sol numa arma de Dyson.
+523	Domar o abismo
+524	Converta o buraco negro central da galáxia num motor.
+525	Galáxias unidas
+526	Converta os seis corpos da fase Superaglomerado em uma campanha.
+527	Rede neural cósmica
+528	Converta os seis corpos da fase Universo observável em uma campanha.
+529	Dimensões enroladas
+530	Converta as seis dimensões enroladas da fase Brana em uma campanha.
+531	Tudo é defesa
+532	Converta os 50 corpos das dez fases em uma campanha.
+533	Alvorada nuclear
+534	Dispare o supremo nuclear.
+535	O peso da luz
+536	Dispare o supremo fotoide.
+537	Dobrar dimensões
+538	Dispare o supremo Folha dimensional.
+539	Julgamento primo
+540	Dispare o supremo dos números primos.
+541	A luz me obedece
+542	Dispare o supremo de redução da luz.
+543	Reescrever o círculo
+544	Dispare o supremo de reescrita de π.
+545	Num único instante
+546	Dispare o supremo Gota.
+547	Espectro zerado
+548	Dispare o supremo Decomposição de Fourier.
+549	Detalhe infinito
+550	Dispare o supremo Mandelbrot.
+551	Onze dimensões
+552	Dispare o supremo Ressonância dimensional.
+553	Especialista do apocalipse
+554	Dispare os dez supremos pelo menos uma vez, em qualquer campanha.
+555	Interrompido
+556	Interrompa uma habilidade interrompível de chefe durante a carga.
+557	Silenciar o canhão
+558	Interrompa o raio de cerco durante a carga.
+559	Recusar o vazio
+560	Interrompa Devorar durante a carga.
+561	Campanha salva · Neste computador
+562	Sua primeira linha de defesa aguarda.
+563	Detritos de meteoro
+564	Meteorito ferroso
+565	Lixo espacial
+566	Drone de reconhecimento
+567	Satélite abandonado
+568	Fragmentos de asteroide
+569	Interceptador alienígena
+570	Asteroide metálico
+571	Asteroide de entulho
+572	Blocos de gelo do anel
+573	Esquadrilha de interceptadores
+574	Nave blindada alienígena
+575	Cometa de núcleo duplo
+576	Nave de escudo de plasma
+577	Enxame de núcleos gelados
+578	Cometa de cauda longa
+579	Núcleo de gelo gigante
+580	Aglomerado de cristais de gelo
+581	Nave de casco de gelo
+582	Ninho de cometas
+583	Bolhas de plasma
+584	Disparo de erupção
+585	Anã marrom
+586	Estrela binária
+587	Nave de escudo coronal
+588	Arca interestelar
+589	Corrente estelar
+590	Estilhaço de pulsar
+591	Estrela de nêutrons
+592	Aglomerado globular
+593	Nave magnetosfera
+594	Nave-mãe galáctica
+595	Galáxias anãs
+596	Jato relativístico
+597	Galáxia elíptica
+598	Galáxias em fusão
+599	Halo de matéria escura
+600	Núcleo do aglomerado
+601	Pontos de quasar
+602	Explosão de raios gama
+603	Segmento da Grande Muralha
+604	Nó da teia cósmica
+605	Bolha de energia escura
+606	Buraco negro primordial
+607	Espuma quântica
+608	Táquion
+609	Nó de corda cósmica
+610	Universo bebê
+611	Bolha de brana
+612	Fenda para outro universo
+613	Urano
+614	Canhão de Urano
+615	Enxame
+616	Dardo
+617	Blindado
+618	Divisor
+619	Escudado
+620	Nave-mãe
+621	Rápido, voa em arco
+622	Resistente e lento; a blindagem se solta pedaço por pedaço
+623	Parte-se em dois ao ser destruído
+624	Quebre o escudo antes de conseguir ferir o núcleo
+625	Solta inimigos pequenos sem parar pelo caminho
+626	Elite ·
+627	Nova ameaça ·

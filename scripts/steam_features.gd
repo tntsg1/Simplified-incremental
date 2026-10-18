@@ -99,7 +99,7 @@ func unlock(id: String) -> void:
 	if game != null:
 		for item in CATALOG:
 			if item.id == id:
-				game.show_notice(("成就解锁："+item.name_zh) if game.language == "zh" else ("Achievement unlocked: "+item.name_en))
+				game.show_notice(game.words("成就解锁：", "Achievement unlocked: ") + game.words(item.name_zh, item.name_en))
 	# Queue remains durable until Steam acknowledges StoreStats.
 	retry = 29.5
 

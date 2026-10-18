@@ -22,6 +22,9 @@ var draw_usec := 0
 func setup(owner_game: Control) -> void:
 	game = owner_game
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# A hand-placed composition: Arabic text still shapes right-to-left inside each label,
+	# but the page itself must not mirror.
+	layout_direction = Control.LAYOUT_DIRECTION_LTR
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	rng.seed = 5427620
 	for i in range(65):
@@ -30,7 +33,7 @@ func setup(owner_game: Control) -> void:
 	refresh()
 
 func words(zh: String, en: String) -> String:
-	return en if game.language == "en" else zh
+	return game.words(zh, en)
 
 func text(value: String, point: Vector2, width: float, font_size: int, color := Color("ededed")) -> Label:
 	var l: Label = game.label(value, font_size, color)
@@ -57,9 +60,10 @@ func refresh() -> void:
 	nav.add_theme_stylebox_override("panel",game.panel_style(Color(.035,.035,.035,.85),Color(1,1,1,.11),0))
 	canvas.add_child(nav)
 	text("✦  S K Y G U A R D",Vector2(52,35),350,14)
-	var language: Button = game.button("中文   /   EN", game.toggle_language)
-	language.position = Vector2(739,30)
-	language.size = Vector2(122,36)
+	var language: Button = game.button(str(game.LANGUAGE_NAMES.get(game.language, game.language)) + "  ▸", game.toggle_language)
+	language.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	language.position = Vector2(720,30)
+	language.size = Vector2(160,36)
 	language.custom_minimum_size.y = 36
 	for state in ["normal","hover","pressed","disabled"]:
 		var style = language.get_theme_stylebox(state).duplicate()

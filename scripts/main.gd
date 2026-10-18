@@ -27,6 +27,11 @@ var camera_comfort: bool=false
 var reduced_effects: bool=false
 var ui_motion: bool=true
 var language: String = "zh"
+# Interface languages: Chinese is the source text, every other language has locales/<code>.json.
+const LANGUAGES: Array[String] = ["zh", "en", "ja", "ko", "zh_TW", "fr", "de", "es", "pt_BR", "ru", "ar"]
+const LANGUAGE_NAMES: Dictionary = {"zh": "简体中文", "en": "English", "ja": "日本語", "ko": "한국어", "zh_TW": "繁體中文", "fr": "Français", "de": "Deutsch", "es": "Español", "pt_BR": "Português", "ru": "Русский", "ar": "العربية"}
+# Windows system faces that draw each script natively; the shared Chinese face stays as fallback.
+const LANGUAGE_FONTS: Dictionary = {"ja": ["Yu Gothic UI", "Meiryo UI"], "ko": ["Malgun Gothic"], "zh_TW": ["Microsoft JhengHei UI", "Microsoft JhengHei"], "ar": ["Segoe UI", "Tahoma"]}
 var preferences_path := "user://skyguard_preferences.cfg"
 var title_screen: Control
 var language_button: Button
@@ -246,11 +251,21 @@ func stagger(container: Node, gap: float = .035) -> void:
 func _ready() -> void:
 	var preferences := ConfigFile.new()
 	if not OS.has_feature("web") and preferences.load(preferences_path) == OK:
-		language = str(preferences.get_value("ui", "language", "zh"))
+		language = str(preferences.get_value("ui", "language", language_code(OS.get_locale())))
+	elif not OS.has_feature("web"):
+		language = language_code(OS.get_locale())
 	apply_language(language, false)
 	mouse_filter=Control.MOUSE_FILTER_IGNORE
+	# The startup language picks the primary face; the fallbacks draw every other script, so a
+	# language switch never edits a live font (doing that blanked already-shaped title text).
 	var system_font := SystemFont.new()
-	system_font.font_names = PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC"])
+	system_font.font_names = PackedStringArray(LANGUAGE_FONTS.get(language, []) + ["Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC"])
+	var fallbacks: Array[Font] = []
+	for code in LANGUAGE_FONTS:
+		var face := SystemFont.new()
+		face.font_names = PackedStringArray(LANGUAGE_FONTS[code])
+		fallbacks.append(face)
+	system_font.fallbacks = fallbacks
 	font = load("res://assets/fonts/SkyguardSC.ttf") if OS.has_feature("web") else system_font
 	var skin := Theme.new()
 	skin.default_font = font
@@ -606,6 +621,8 @@ func layout() -> void:
 	pause.size = Vector2(167,46)
 	speed_button.position = Vector2(w-686,13)
 	speed_button.size = Vector2(166,46)
+	for fixed in [shop, pause, speed_button]:
+		fit_text(fixed, 16)
 	ult_button.position = Vector2(w-912,13)
 	ult_button.size = Vector2(210,46)
 	dev_bar.position = Vector2(36,h-150)
@@ -716,7 +733,7 @@ func export_campaign() -> void:
 	picker.access = FileDialog.ACCESS_FILESYSTEM
 	picker.filters = PackedStringArray(["*.json ; SKYGUARD campaign"])
 	picker.current_file = "skyguard-campaign.json"
-	picker.title = "导出存档" if language == "zh" else "Export campaign"
+	picker.title = words("导出存档", "Export campaign")
 	add_child(picker)
 	picker.file_selected.connect(func(path: String):
 		var file := FileAccess.open(path,FileAccess.WRITE)
@@ -725,7 +742,7 @@ func export_campaign() -> void:
 			file.close()
 		else:
 			var alert := AcceptDialog.new()
-			alert.dialog_text = "无法写入文件，请选择其他位置。" if language == "zh" else "Could not write the file. Choose another location."
+			alert.dialog_text = words("无法写入文件，请选择其他位置。", "Could not write the file. Choose another location.")
 			add_child(alert)
 			alert.popup_centered()
 		picker.queue_free())
@@ -761,7 +778,7 @@ func show_classic_title() -> void:
 		else:
 			confirm_new(),saved.is_empty()))
 	v.add_child(button(TranslationServer.translate("退出"),func():get_tree().quit()))
-	language_button = button("中文 / English", toggle_language)
+	language_button = button(str(LANGUAGE_NAMES.get(language, language)) + "  ▸", toggle_language)
 	v.add_child(language_button)
 	v.add_child(label(TranslationServer.translate("鼠标优先  ·  U 升级  ·  Esc 暂停  ·  F11 全屏"),13,Color("7f7f7f")))
 
@@ -933,6 +950,12 @@ func update_shop() -> void:
 	for c in cards:
 		var spec: Resource = sim.catalog.upgrades[int(c.index)]
 		c.title.text = TranslationServer.translate(spec.title)+"  Lv."+str(sim.levels[spec.key])
+		# Long upgrade names (German, Russian...) shrink to the card instead of widening the shop.
+		var title_room: float = (c.title.get_parent().get_parent() as Control).custom_minimum_size.x-28
+		var title_px := 19
+		while title_px > 13 and font.get_string_size(c.title.text, HORIZONTAL_ALIGNMENT_LEFT, -1, title_px).x > title_room:
+			title_px -= 1
+		c.title.add_theme_font_size_override("font_size", title_px)
 		var count: int = purchase_count
 		if count==1000:
 			var first: float = sim.upgrade_cost(int(c.index))
@@ -956,7 +979,7 @@ func open_pause() -> void:
 	var v: VBoxContainer = new_modal(510,TranslationServer.translate("防线暂停"),TranslationServer.translate("所有模拟与计时已停止 · 进度已保存"))
 	v.add_child(button(TranslationServer.translate("继续防御"),close_modal,true))
 	v.add_child(button(TranslationServer.translate("升级防线"),open_shop))
-	language_button = button("中文 / English", toggle_language)
+	language_button = button(str(LANGUAGE_NAMES.get(language, language)) + "  ▸", toggle_language)
 	v.add_child(language_button)
 	var audio_toggle := button(TranslationServer.translate("声音：开启") if sound_on else TranslationServer.translate("声音：关闭"),func():
 		sound_on = not sound_on
@@ -985,7 +1008,7 @@ func open_pause() -> void:
 		v.add_child(audio_row)
 	v.add_child(button(TranslationServer.translate("特效：柔和") if reduced_effects else TranslationServer.translate("特效：标准"),func():reduced_effects=not reduced_effects;open_pause();save_game()))
 	v.add_child(button(TranslationServer.translate("UI 动态效果：开启") if ui_motion else TranslationServer.translate("UI 动态效果：关闭"),func():ui_motion=not ui_motion;open_pause();save_game()))
-	v.add_child(button(("镜头运动：关闭" if camera_comfort else "镜头运动：开启") if language == "zh" else ("Camera motion: Off" if camera_comfort else "Camera motion: On"),func():camera_comfort=not camera_comfort;open_pause();save_game()))
+	v.add_child(button(words("镜头运动：关闭", "Camera motion: Off") if camera_comfort else words("镜头运动：开启", "Camera motion: On"),func():camera_comfort=not camera_comfort;open_pause();save_game()))
 	v.add_child(button(TranslationServer.translate("保存并返回主菜单"),func():
 		save_game()
 		saved = store.read_game()
@@ -1073,6 +1096,9 @@ func update_hud() -> void:
 		hint.add_theme_font_size_override("font_size",12)
 	else:
 		hint.add_theme_font_size_override("font_size",15)
+	# Long weapon lists end in an ellipsis before the ultimate button instead of running under it.
+	hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	hint.size.x = maxf(0.0, size.x-912-hint.position.x-14)
 
 const ARCH_LABEL: Dictionary = {"swarm": "蜂群", "dart": "飞镖", "armored": "重甲", "splitter": "分裂者", "shielded": "护盾者", "mother": "母舰"}
 const ARCH_HINT: Dictionary = {"dart": "速度快，走弧线", "armored": "血厚、行动慢，装甲会一块块剥落", "splitter": "打碎后会裂成两块", "shielded": "先打破护盾才能伤到本体", "mother": "途中会不断放出小型敌人"}
@@ -1081,7 +1107,8 @@ func on_arch_introduced(arch: String, title: String, id: int) -> void:
 	# A new kind of threat: a short tag, and a ring on the first one. No pause.
 	field.intro_id = id
 	field.intro_t = 3.0
-	show_notice(TranslationServer.translate("新威胁 · ") + TranslationServer.translate(title) + "（" + TranslationServer.translate(ARCH_LABEL.get(arch, arch)) + "）—— " + TranslationServer.translate(ARCH_HINT.get(arch, "")))
+	var cjk: bool = language in ["zh", "zh_TW", "ja"]
+	show_notice(TranslationServer.translate("新威胁 · ") + TranslationServer.translate(title) + ("（" if cjk else " (") + TranslationServer.translate(ARCH_LABEL.get(arch, arch)) + ("）—— " if cjk else ") — ") + TranslationServer.translate(ARCH_HINT.get(arch, "")))
 
 func show_notice(message: String) -> void:
 	toast.text = message
@@ -1103,7 +1130,7 @@ func update_ult_button() -> void:
 	else:
 		ult_button.text = "%s  %d%%" %[name,int(sim.ult_charge*100)]
 	var px := 16
-	while px > 10 and font.get_string_size(ult_button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > 166:
+	while px > 9 and font.get_string_size(ult_button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > 166:
 		px -= 1
 	ult_button.add_theme_font_size_override("font_size", px)
 	ult_button.disabled = not ready
@@ -1291,7 +1318,10 @@ func open_body_card(slot: int) -> void:
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.custom_minimum_size.x = 260
 	v.add_child(detail)
-	v.add_child(label(TranslationServer.translate("换章后缩入核心，继续开火"),12,Color("7f7f7f")))
+	var fold := label(TranslationServer.translate("换章后缩入核心，继续开火"),12,Color("7f7f7f"))
+	fold.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	fold.custom_minimum_size.x = 260
+	v.add_child(fold)
 	body_card_price = label("",15,Color("ffc94d"))
 	v.add_child(body_card_price)
 	var row := HBoxContainer.new()
@@ -1345,13 +1375,42 @@ func close_body_card() -> void:
 func settings_payload() -> Dictionary:
 	return {"sound":sound_on,"camera_comfort":camera_comfort,"reduced_effects":reduced_effects,"ui_motion":ui_motion,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed,"language":language}
 
+func available_languages() -> Array[String]:
+	# The web build ships one Chinese/Latin font subset, so it offers Chinese and English only.
+	return ["zh", "en"] if OS.has_feature("web") else LANGUAGES
+
+func language_code(value: String) -> String:
+	var v: String = value.replace("-", "_")
+	if v in LANGUAGES:
+		return v
+	if v.begins_with("zh_TW") or v.begins_with("zh_HK") or v.begins_with("zh_MO") or v.begins_with("zh_Hant"):
+		return "zh_TW"
+	var base: String = v.split("_")[0]
+	if base == "pt":
+		return "pt_BR"
+	return base if base in LANGUAGES else "en"
+
+func words(zh: String, en: String) -> String:
+	# Inline bilingual pairs: Chinese and English as written, other languages from the catalogue.
+	if language == "zh":
+		return zh
+	if language == "en":
+		return en
+	var translated: String = TranslationServer.translate(zh)
+	return en if translated == zh else translated
+
 func toggle_language() -> void:
-	apply_language("en" if language == "zh" else "zh")
+	var langs: Array[String] = available_languages()
+	apply_language(langs[(langs.find(language) + 1) % langs.size()])
 	save_game()
 
 func apply_language(value: String, rebuild: bool = true) -> void:
-	language = "en" if value.begins_with("en") else "zh"
+	language = language_code(value)
+	if not language in available_languages():
+		language = "en" if language != "zh" else "zh"
 	TranslationServer.set_locale(language)
+	if is_instance_valid(language_button):
+		language_button.text = str(LANGUAGE_NAMES.get(language, language)) + "  ▸"
 	if rebuild and store.enabled and not OS.has_feature("web"):
 		var preferences := ConfigFile.new()
 		preferences.load(preferences_path)
@@ -1363,6 +1422,8 @@ func apply_language(value: String, rebuild: bool = true) -> void:
 	# Refresh from Chinese message IDs so switching back works after a native restart too.
 	ui.get_node("Bottom/ShopButton").text = TranslationServer.translate("升级防线  [U]")
 	ui.get_node("Bottom/PauseButton").text = TranslationServer.translate("暂停  [Esc]")
+	fit_text(ui.get_node("Bottom/ShopButton"), 16)
+	fit_text(ui.get_node("Bottom/PauseButton"), 16)
 	ending_skip.text = TranslationServer.translate("跳过结局  Esc")
 	ult_button.tooltip_text = TranslationServer.translate("毁灭性打击：战斗时间与击毁共同充能  [Q]")
 	speed_button.tooltip_text = TranslationServer.translate("加速游戏：×1 / ×2 / ×4 / ×8" if OS.is_debug_build() else "加速游戏：×1 / ×2")
@@ -1546,6 +1607,14 @@ func dev_cycle_ult_kind() -> void:
 func refresh_speed_button() -> void:
 	if is_instance_valid(speed_button):
 		speed_button.text = TranslationServer.translate("加速 ×%d  [F]") %game_speed
+		fit_text(speed_button, 16)
+
+func fit_text(control: Control, px: int) -> void:
+	# Fixed-width HUD buttons: longer languages step the font down rather than spill over.
+	var room: float = control.size.x - 30
+	while px > 11 and font.get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > room:
+		px -= 1
+	control.add_theme_font_size_override("font_size", px)
 
 func save_game() -> void:
 	persist_preferences()

@@ -1,0 +1,628 @@
+0	Ogive
+1	Vélocité
+2	Rechargement
+3	Critique
+4	Zone
+5	Perforation
+6	Verrouillage
+7	Tourelles
+8	VAGUE %02d
+9	VAGUE 10 TERMINÉE
+10	Une menace colossale approche
+11	COMBO ×
+12	01  /  CONTRÔLE DE DÉFENSE
+13	Terre
+14	Soleil
+15	 en ligne
+16	  ·  Conversion céleste terminée
+17	Convertir
+18	 · Actif
+19	Salve
+20	Couverture
+21	 cibles
+22	Vaisseau d'élite
+23	Flotte extraterrestre
+24	Corps céleste d'élite
+25	Essaim de menaces
+26	Corps entrant
+27	Membres
+28	PV totaux
+29	Impact dans %.1f s
+30	Dégâts en vol
+31	Cliquer pour concentrer toutes les armes
+32	Cliquer / maintenir pour tirer
+33	Rayon 300 · Vaporisation totale
+34	Une particule à la vitesse de la lumière
+35	Dimensions 2 → 1
+36	Déploiement de la nouvelle défense  %.1f s
+37	Menaces masquées  %.1f s
+38	PHOTOÏDE
+39	Menace colossale en approche ·
+40	Noyau de la catastrophe dispersé · Toutes les défenses tiennent
+41	Saut d'échelle · Défense suivante :
+42	Défense percée · Fonds, améliorations et armes conservés
+43	Frappe nucléaire
+44	Frappe photoïde
+45	Feuille dimensionnelle
+46	Frappe première
+47	Ralentir la lumière
+48	Réécrire π
+49	Gratte-ciel Ouest
+50	Tourelle de toit
+51	Tour centrale
+52	Batterie de missiles de la tour
+53	Gratte-ciel Est
+54	Lune
+55	Canon lunaire
+56	Station proche de la Terre
+57	Batterie orbitale
+58	Satellite géostationnaire
+59	Satellite laser
+60	Mercure
+61	Canon de Mercure
+62	Vénus
+63	Canon de Vénus
+64	Mars
+65	Canon de Mars
+66	Jupiter
+67	Canon de Jupiter
+68	Saturne
+69	Canon des anneaux de Saturne
+70	Sphère de Dyson
+71	Sirius
+72	Canon de Sirius
+73	Bételgeuse
+74	Canon géante rouge
+75	Véga
+76	Canon de Véga
+77	Arcturus
+78	Canon d'Arcturus
+79	Trou noir galactique
+80	Moteur à trou noir
+81	Galaxie d'Andromède
+82	Réseau d'Andromède
+83	Galaxie du Triangle
+84	Réseau du Triangle
+85	Grand Nuage de Magellan
+86	Réseau de Magellan
+87	Petit Nuage de Magellan
+88	Sous-réseau de Magellan
+89	Naine du Sagittaire
+90	Réseau du Sagittaire
+91	Naine de la Grande Ourse
+92	Réseau de la Grande Ourse
+93	Naine du Dragon
+94	Réseau du Dragon
+95	Nœud de la Grande Muraille
+96	Moteur de la Grande Muraille
+97	Nœud de la Vierge
+98	Moteur de la Vierge
+99	Nœud de Coma
+100	Moteur de Coma
+101	Grand Attracteur
+102	Moteur du Grand Attracteur
+103	Laniakea
+104	Moteur du superamas
+105	Vide du Bouvier
+106	Moteur du vide
+107	 converti ·
+108	Vague %d terminée · Défense restaurée
+109	BRAS D'ORION
+110	GROUPE LOCAL
+111	TOILE COSMIQUE
+112	Vide intergalactique
+113	Nœud de défense en ligne
+114	Cliquer pour convertir  $
+115	La mort thermique s'est arrêtée.
+116	Toutes les distances convergent en un point.
+117	Zéro. Et l'infini.
+118	La lumière renaît.
+119	La gravité tisse une mer d'étoiles.
+120	Une planète apprend à grandir.
+121	L'univers est vaste. Nous sommes toujours là.
+122	La Voie lactée. Le Système solaire.
+123	La Terre. Cette ville familière.
+124	La dernière lumière appartient à la civilisation.
+125	Évolution des lanceurs · Taille de salve doublée
+126	Percée d'ogive · Lv.%d double les dégâts de toutes les armes
+127	Défense auto en ligne · Cliquez une cible pour concentrer le tir
+128	 en ligne · Améliorations globales héritées
+129	Ville
+130	Vague 01 / 10
+131	Défense 100%
+132	Menace colossale
+133	Activer la défense auto · $200
+134	Améliorer la défense  [U]
+135	Pause  [Échap]
+136	Frappe ultime : se charge avec le temps de combat et les éliminations  [Q]
+137	Vitesse : ×1 / ×2 / ×4 / ×8
+138	Dév : Fonds ×10
+139	Vague précédente
+140	Passer la vague
+141	Détruire le boss
+142	Chapitre précédent
+143	Chapitre suivant
+144	Invincible : Non
+145	Recharge ultime : Normale
+146	Ultime : Chapitre
+147	Passer la fin  Échap
+148	SKYGUARD
+149	SKYGUARD  /  Du premier missile à la dernière lumière de l'univers
+150	Ville → Terre → Système solaire → Galaxie → Amas → Univers
+151	Continuer la campagne ·
+152	Nouvelle campagne
+153	Quitter
+154	Souris · U Améliorations · Échap Pause · F11 Plein écran
+155	Commencer une nouvelle défense ?
+156	Une nouvelle campagne écrasera votre progression actuelle.
+157	Retour
+158	Cliquez ou maintenez sur les cibles pour tirer · Les améliorations mettent le combat en pause
+159	Campagne restaurée · Aucune progression hors ligne
+160	Sauvegarde illisible · Commencez une nouvelle campagne
+161	Améliorer la défense
+162	Combat, minuteurs d'impact et revenus en pause · Toutes les armes possédées partagent les améliorations
+163	Acheter ×1
+164	Acheter ×10
+165	Acheter max
+166	Défense auto  $200  ·  Ciblage automatique
+167	Déployer
+168	Reprendre la défense  [U / Échap]
+169	Toutes les percées d'ogive atteintes
+170	Ogive Lv.%d double les dégâts
+171	Taille maximale des lanceurs atteinte
+172	Rechargement Lv.%d double les lanceurs
+173	Prochaine percée :
+174	   ·   Les anciennes armes restent actives
+175	DPS mono-cible $d   ·   Lanceurs par salve $l   ·   Couverture $c cibles
+176	Défense en pause
+177	Simulation et minuteurs arrêtés · Progression sauvegardée
+178	Reprendre la défense
+179	Son : Oui
+180	Son : Non
+181	Musique
+182	Effets
+183	Effets de combat : Doux
+184	Effets de combat : Standard
+185	Animations d'interface : Oui
+186	Animations d'interface : Non
+187	Sauvegarder et revenir au menu
+188	Défense tenue %.1f minutes  ·  %s cibles détruites
+189	Défense percée
+190	CAMPAGNE TERMINÉE  /  SKYGUARD
+191	Recommencer l'étape · Fonds, améliorations et armes conservés
+192	La menace colossale a atteint la défense. Améliorez les dégâts et les critiques pour abréger le combat de boss.
+193	L'essaim a submergé vos défenses. Rechargement Lv.%d ajoute des lanceurs.
+194	\nLa zone et la perforation détruisent plus de membres. Déployez la nouvelle arme de cette étape.
+195	Les six défenses ont tenu.\nLe premier silo de votre ville a combattu jusqu'aux confins de l'univers.
+196	Durée %.1f min   ·   Détruits %s   ·   Essais %d
+197	Revoir · Un univers renaît
+198	Retour au menu
+199	Recommencer l'étape
+200	Améliorez d'abord la défense
+201	Vague %02d / 10
+202	Défense %.0f%%
+203	Compte à rebours d'impact  %.1f s
+204	 Réseau
+205	Défense auto débloquée · Achetez-la pour $200 pour automatiser toutes les armes
+206	Défense auto · $200 (manque $%d)
+207	Toutes les armes ciblent automatiquement. Cliquez une cible pour concentrer le tir.
+208	Disponible à l'achat · Active les attaques automatiques
+209	Cliquer / maintenir pour tirer · Défense auto à $200 dès la vague 6
+210	Nouvelle arme disponible :
+211	  ·  Ouvrir les améliorations
+212	Interception auto · Cliquer pour concentrer le tir    /
+213	Percée
+214	Évolution
+215	 · Tir en cours
+216	 · Prête  [Q]
+217	Prête · Appuyez sur Q ou cliquez pour tirer
+218	  ·  Tire toutes les 0,4 s ; +12 % de puissance totale
+219	Rejoint le noyau au chapitre suivant et continue de tirer
+220	Convertir
+221	Annuler
+222	Prix  $
+223	Manque $
+224	Dégâts / s  %s   ·   Éliminations / s  %s
+225	Mode développeur :
+226	Oui · Vitesse jusqu'à ×32
+227	Non
+228	Déjà à la première vague de ce chapitre
+229	Retour à la vague %d
+230	Déjà au premier chapitre
+231	Retour à :
+232	Aucun combat de boss en cours
+233	Déjà au dernier chapitre
+234	Invincible : Oui
+235	Recharge ultime : 0
+236	Ultime :
+237	Vitesse ×%d  [F]
+238	ALERTE   ·   MENACE COLOSSALE EN APPROCHE   ·
+239	MENACE COLOSSALE DÉTRUITE
+240	2D → 1D  ·  DÉPLIEMENT DIMENSIONNEL
+241	DOMAINE NOIR SCELLÉ
+242	SILLAGES LUMINIQUES EN POSE
+243	DÉCALAGE VERS LE ROUGE · S'ÉLOIGNE
+244	APPROCHE · DÉCALAGE VERS LE BLEU
+245	Défense de surface · 10 km
+246	Astéroïde tueur de villes · CHIRON
+247	Cliquez ou maintenez sur les météores pour tirer des missiles. Chaque interception rapporte des fonds pour améliorer vos défenses.
+248	Amas de galaxies
+249	Défense de l'amas · 100 Mal
+250	Vaisseau mégastructure extraterrestre · CATHEDRAL
+251	Les canons à quasar couvrent plusieurs flottes à la fois. Éliminez en priorité les élites isolées.
+252	Univers
+253	Défense cosmique · 93 Gal
+254	Noyau de catastrophe cosmique · THE SILENCE
+255	Six couches de puissance de feu convergent à l'ultime frontière. Détruisez le noyau de la catastrophe et apportez l'aube à chaque défense.
+256	Défense planétaire · 12 742 km
+257	Corps céleste errant · NOMAD
+258	La ville n'est plus qu'un point de lumière sur la Terre. Achetez un canon orbital pour intercepter les menaces venues de toutes parts.
+259	Voie lactée
+260	Défense galactique · 100 000 al
+261	Étoile en fuite · VESPER
+262	Les canons stellaires transpercent les trajectoires. Votre Système solaire n'est plus qu'un nœud de la galaxie.
+263	Système solaire
+264	Défense stellaire · 100 UA
+265	Porte-vaisseaux de siège extraterrestre · LEVIATHAN
+266	Nuages de météores et flottes extraterrestres attaquent ensemble. Les tirs de zone planétaires nettoient les essaims denses.
+267	Zone de feu
+268	+18 % de couverture de base par niveau. Lv.10 : l'éclatement d'essaim ajoute +30 %. Lv.25 : le bombardement de zone ajoute +25 %.
+269	Critique énergétique
+270	+2 % de chance critique par niveau. Critique garanti à 100 % ; chaque 1 % excédentaire ajoute 3 % de dégâts critiques. Multiplicateur critique +1 tous les 25 niveaux.
+271	Dégâts d'ogive
+272	+15 % de dégâts par niveau. Lv.10 / 25 / 50 doublent les dégâts. Les ogives avancées élargissent la couverture des essaims.
+273	Perforation
+274	+25 % de couverture par niveau. La puissance excédentaire touche les ennemis proches.
+275	Efficacité de rechargement
+276	+10 % de cadence par niveau. Les lanceurs doublent tous les 10 niveaux, augmentant la taille des salves.
+277	Vitesse d'interception
+278	+8 % de vitesse des projectiles par niveau, jusqu'à ×20. Des impacts plus rapides réduisent les dégâts perdus en vol.
+279	Verrouillage multiple
+280	+25 % de dégâts de salve et +30 % de couverture par niveau. Ajoute des ogives et des faisceaux d'attaque.
+281	Tourelles supplémentaires
+282	Ajoute une tourelle automatique par niveau. Chacune tire indépendamment toutes les 0,25 s ; chaque tourelle ajoute 5 % à la puissance de feu totale.
+283	Silo à missiles
+284	Interception rapide / Ogives en essaim
+285	Canon orbital
+286	Perforation lourde / Salve orbitale
+287	Réseau de canons planétaires
+288	Nettoyage de zone / Réseau planétaire
+289	Canon stellaire
+290	Perforation longue portée / Lance stellaire
+291	Canon à quasar
+292	Couverture multizone / Réseau de quasars
+293	Canon cosmique
+294	Balayage global / Résonance cosmique
+295	Langue
+296	中文
+297	English
+298	Défense de surface
+299	Astéroïde tueur de villes
+300	Défense de l'amas
+301	Vaisseau mégastructure extraterrestre
+302	Défense cosmique
+303	Noyau de catastrophe cosmique
+304	Défense planétaire
+305	Corps céleste errant
+306	Défense galactique
+307	Étoile en fuite
+308	Défense stellaire
+309	Porte-vaisseaux de siège extraterrestre
+310	Vitesse : ×1 / ×2
+311	Point froid du CMB
+312	Un instant, à travers tout
+313	Canon des Trois Corps
+314	Deux branes, toujours plus proches.
+315	CEINTURE PRINCIPALE
+316	Dégâts -70%
+317	Décomposition de Fourier
+318	Rupture résonante
+319	Système solaire interne
+320	Canon jumeau Pluton–Charon
+321	Pluton
+322	Des noyaux cométaires gelés affluent de la coquille la plus lointaine du Système solaire. Le lanceur cométaire transforme la glace en pluie d'éclats.
+323	Éclats de glace / Salve à longue traîne
+324	Moteur du point froid
+325	Les dix lignes ont tenu.\nDepuis le premier silo de la ville, vous avez combattu au-delà de l'univers lui-même.
+326	Alpha du Centaure
+327	Oméga du Centaure
+328	Invoquer la flotte
+329	Univers observable
+330	Amas de Coma
+331	Dévorer
+332	Sedna
+333	Canon de glace de Sedna
+334	Système solaire externe
+335	La flotte extraterrestre surgit de derrière Jupiter. Le canon gravitationnel emprunte l'attraction des géantes pour projeter des obus lourds.
+336	SOLEIL
+337	Lentille gravitationnelle solaire
+338	Nuage d'Oort
+339	NUAGE D'OORT
+340	Essaim de noyaux d'Oort
+341	Fond diffus cosmologique
+342	La Brane
+343	Amas de la Vierge
+344	Brane en collision · THE OTHER BRANE
+345	Des propulseurs extraterrestres agitent la ceinture d'astéroïdes. Le tir de balayage du réseau planétaire nettoie les essaims denses.
+346	Réseau de la ceinture
+347	Canon gravitationnel des géantes
+348	Ligne des géantes · 50 UA
+349	Étoile de Barnard
+350	Canon de l'étoile de Barnard
+351	Nuage de Hills
+352	Fronde gravitationnelle / Obus lourd
+353	Canon à lentille gravitationnelle
+354	Vibration de corde  ·  harmonique n =
+355	Vibration de corde / Résonance multidimensionnelle
+356	Matière à interaction forte  ·  une surface parfaitement lisse
+357	Canon à queue de comète
+358	Ligne du nuage cométaire · 1,6 al
+359	Lanceur de noyaux cométaires
+360	Réseau de noyaux cométaires
+361	Voisinage stellaire
+362	NOTRE BRANE
+363	Notre univers n'est qu'une membrane dans un espace à plus de dimensions. Une autre brane approche.
+364	Interrompu !
+365	LANIAKEA
+366	Compte à rebours d'impact -2.5s
+367	Rayon de siège
+368	Zoom ×%s  ·  itérations %d
+369	Toute la toile cosmique brûle. Le canon cosmique balaie chaque filament.
+370	Grand Mur de Sloan
+371	Voyager 1
+372	Balise Voyager
+373	Éjection coronale
+374	HÉLIOSPHÈRE
+375	Les galaxies suivent les flux de Laniakea vers le Grand Attracteur. Les jets du canon à quasar fendent des groupes entiers.
+376	Visiteur interstellaire · 'OUMUAMUA
+377	Mandelbrot
+378	Quasar le plus lointain
+379	BULLE LOCALE
+380	Les corps entrants arrivent de toutes parts. Déployez le canon orbital et cliquez la Lune et les satellites pour les convertir en armes.
+381	CEINTURE DE KUIPER
+382	Grand Mur Hercule–Couronne boréale
+383	Moteur du Mur d'Hercule
+384	Gouttelette
+385	Comète Hale–Bopp
+386	Neptune
+387	Canon de Neptune
+388	Bouclier de marée
+389	Vesta
+390	Cliquez les cibles entrantes pour tirer des missiles. La défense automatique s'achète dès la vague 6.
+391	ENRAGÉ
+392	Canon d'amas globulaire
+393	Composante continue → 0
+394	Étoile à neutrons · MAGNETAR
+395	Harmonique %d → 0
+396	7e dimension
+397	Résonateur de la 7e dimension
+398	9e dimension
+399	Résonateur de la 9e dimension
+400	5e dimension
+401	Résonateur de la 5e dimension
+402	8e dimension
+403	Résonateur de la 8e dimension
+404	6e dimension
+405	Résonateur de la 6e dimension
+406	10e dimension
+407	Résonateur de la 10e dimension
+408	Ligne tellurique · 3 UA
+409	Jet de quasar
+410	Horizon des particules · 46,5 Gal
+411	Résonance dimensionnelle
+412	Canon de rayonnement fossile
+413	Phare pulsar
+414	Résonateur de brane
+415	Ligne de la brane · 11e dimension
+416	Les branes entrent en collision. Toute distance retombe en un point.
+417	Canon du pulsar du Crabe
+418	Pulsar du Crabe
+419	Planète naine détournée · CERES
+420	%d cibles transpercées
+421	Superamas
+422	Ligne du superamas · 520 Mal
+423	VOISINAGE SOLAIRE
+424	L'espace entre les étoiles proches se met à bouillir. La lance du canon stellaire traverse des lignes entières.
+425	Ligne des étoiles proches · 50 al
+426	BRANE VOISINE
+427	Les menaces déferlent dans les bras de la Voie lactée. Le phare pulsar les balaie à un rythme effréné.
+428	Pluie de météores
+429	Concentrer le tir pour interrompre  %d%%
+430	Échantillonnage du spectre
+431	Dimensions supplémentaires en dépliement
+432	LE BULK
+433	Impulsions rapides / Rafale rythmée
+434	Détruisez les menaces pour gagner des fonds et faire évoluer votre défense.\nCliquez les cibles pour tirer au début ; une fois l'automatisation achetée, cliquez pour concentrer le tir.\nDix lignes de défense, dix menaces colossales, d'une ville jusqu'au-delà de l'univers.
+435	Deux univers, toujours plus proches.
+436	NOTRE UNIVERS
+437	Univers-bulles voisins
+438	Rejouer cette vague · Fonds, améliorations et armes conservés
+439	Rejouer la vague
+440	Déviation magnétique
+441	Champ magnétique · Projectiles déviés
+442	Échantillonnage
+443	Termes de Fourier %d  ·  transpercés %d / %d
+444	Exporter la campagne
+445	Impossible d'écrire le fichier. Choisissez un autre emplacement.
+446	Mouvements de caméra : Non
+447	Mouvements de caméra : Oui
+448	Succès débloqué :
+449	QUITTER  ↗
+450	SUCCÈS
+451	DÉFENSE ORBITALE
+452	Du premier missile à la dernière lumière de l'univers.
+453	Nouvelle campagne
+454	AUCUNE CAMPAGNE
+455	VAGUE %d
+456	Continuer la campagne
+457	Paramètres
+458	Manuel de terrain
+459	Cliquer / maintenir pour tirer · F vitesse · U améliorations · Échap pause · F11 plein écran
+460	Son
+461	Effets de combat adoucis
+462	Animations des menus et de l'interface
+463	Désactiver les mouvements de caméra
+464	Fenêtre / plein écran  [F11]
+465	Les préférences sont enregistrées sur cet ordinateur.
+466	DÉBLOQUÉS %d / %d
+467	Les succès sont enregistrés localement et resynchronisés quand Steam est disponible.
+468	La synchronisation des succès Steam n'est pas encore active. La progression locale est conservée.
+469	01  Cliquez ou maintenez sur les cibles entrantes pour tirer des missiles.\n\n02  Appuyez sur U pour améliorer. Le combat est en pause pendant les améliorations.\n\n03  Achetez l'automatisation dès qu'elle est disponible.\n      Cliquez ensuite les cibles pour concentrer vos défenses.\n\n04  Q déclenche une ultime chargée. F alterne la vitesse ×1 / ×2.\n\n05  Échap met en pause. F11 bascule le plein écran.\n\nVotre campagne est sauvegardée automatiquement. Continuez-la ou exportez une sauvegarde.
+470	RETOUR AU MENU  [Échap]
+471	Première lumière
+472	Détruisez votre première cible entrante.
+473	Mille interceptions
+474	Détruisez 1 000 cibles en une campagne.
+475	Défense évolutive
+476	Achetez votre première amélioration de défense.
+477	Défense autonome
+478	Achetez la défense automatique.
+479	Bouclier céleste
+480	Convertissez un corps céleste en arme de défense.
+481	Frappe ultime
+482	Déclenchez votre première ultime chargée.
+483	Ville sécurisée
+484	Terminez la défense de la ville et atteignez la Terre.
+485	La planète bleue
+486	Terminez la défense de la Terre et atteignez le Système solaire interne.
+487	Sentinelle tellurique
+488	Terminez la défense du Système solaire interne et atteignez le Système solaire externe.
+489	Au-delà des géantes
+490	Terminez la défense du Système solaire externe et atteignez le nuage d'Oort.
+491	Par-delà la coquille de glace
+492	Terminez la défense du nuage d'Oort et atteignez le voisinage stellaire.
+493	La porte d'à côté
+494	Terminez la défense du voisinage stellaire et atteignez la Voie lactée.
+495	Veille galactique
+496	Terminez la défense de la Voie lactée et atteignez le superamas.
+497	Au-delà des champs d'étoiles
+498	Terminez la défense du superamas et atteignez l'univers observable.
+499	Au-delà de l'horizon
+500	Terminez la défense de l'univers observable et atteignez la Brane.
+501	La dernière lumière
+502	Tenez les dix lignes de défense, jusqu'au-delà de l'univers.
+503	Cent défenses
+504	Détruisez 100 cibles en une campagne.
+505	Dix mille étincelles
+506	Détruisez 10 000 cibles en une campagne.
+507	Percée d'ogive
+508	Améliorez les dégâts d'ogive jusqu'au niveau 10.
+509	Puissance extrême
+510	Améliorez les dégâts d'ogive jusqu'au niveau 50.
+511	Premier anneau de tourelles
+512	Déployez au moins 12 tourelles en une campagne.
+513	Quarante-huit défenses
+514	Déployez les 48 tourelles en une campagne.
+515	Arsenal de la civilisation
+516	Possédez les dix armes principales en une campagne.
+517	La ville est une arme
+518	Convertissez les trois bâtiments de la ville en une campagne.
+519	La Lune tire pour nous
+520	Convertissez la Lune en canon orbital.
+521	Une étoile à portée de main
+522	Convertissez le Soleil en arme de Dyson.
+523	Dompter l'abîme
+524	Convertissez le trou noir central de la galaxie en moteur.
+525	Galaxies unies
+526	Convertissez les six corps de l'étape Superamas en une campagne.
+527	Réseau neuronal cosmique
+528	Convertissez les six corps de l'étape Univers observable en une campagne.
+529	Dimensions enroulées
+530	Convertissez les six dimensions enroulées de l'étape Brane en une campagne.
+531	Tout est défense
+532	Convertissez les 50 corps des dix étapes en une campagne.
+533	Aube nucléaire
+534	Déclenchez l'ultime nucléaire.
+535	Le poids de la lumière
+536	Déclenchez l'ultime photoïde.
+537	Plier les dimensions
+538	Déclenchez l'ultime feuille dimensionnelle.
+539	Jugement premier
+540	Déclenchez l'ultime des nombres premiers.
+541	La lumière m'obéit
+542	Déclenchez l'ultime de ralentissement de la lumière.
+543	Réécrire le cercle
+544	Déclenchez l'ultime de réécriture de π.
+545	En un seul instant
+546	Déclenchez l'ultime Gouttelette.
+547	Spectre à zéro
+548	Déclenchez l'ultime Décomposition de Fourier.
+549	Détail infini
+550	Déclenchez l'ultime Mandelbrot.
+551	Onze dimensions
+552	Déclenchez l'ultime Résonance dimensionnelle.
+553	Spécialiste de l'apocalypse
+554	Déclenchez les dix ultimes au moins une fois, toutes campagnes confondues.
+555	Interrompu
+556	Interrompez une compétence de boss interruptible pendant sa charge.
+557	Faire taire le canon
+558	Interrompez le rayon de siège pendant sa charge.
+559	Refuser le néant
+560	Interrompez Dévorer pendant sa charge.
+561	Campagne sauvegardée · Sur cet ordinateur
+562	Votre première ligne de défense vous attend.
+563	Débris de météore
+564	Météorite ferreuse
+565	Débris spatiaux
+566	Drone de reconnaissance
+567	Satellite abandonné
+568	Fragments d'astéroïde
+569	Intercepteur extraterrestre
+570	Astéroïde métallique
+571	Astéroïde agrégat
+572	Blocs de glace des anneaux
+573	Escadrille d'intercepteurs
+574	Vaisseau blindé extraterrestre
+575	Comète à double noyau
+576	Vaisseau à bouclier plasma
+577	Essaim de noyaux glacés
+578	Comète à longue queue
+579	Noyau de glace géant
+580	Amas de cristaux de glace
+581	Vaisseau à coque de glace
+582	Nid de comètes
+583	Bulles de plasma
+584	Tir d'éruption
+585	Naine brune
+586	Étoile binaire
+587	Vaisseau à bouclier coronal
+588	Arche interstellaire
+589	Courant stellaire
+590	Éclat de pulsar
+591	Étoile à neutrons
+592	Amas globulaire
+593	Vaisseau magnétosphère
+594	Vaisseau-mère galactique
+595	Galaxies naines
+596	Jet relativiste
+597	Galaxie elliptique
+598	Galaxies en fusion
+599	Halo de matière noire
+600	Cœur d'amas
+601	Points de quasar
+602	Sursaut gamma
+603	Segment de Grande Muraille
+604	Nœud de la toile cosmique
+605	Bulle d'énergie noire
+606	Trou noir primordial
+607	Écume quantique
+608	Tachyon
+609	Nœud de corde cosmique
+610	Univers nouveau-né
+611	Bulle de brane
+612	Faille vers un autre univers
+613	Uranus
+614	Canon d'Uranus
+615	Essaim
+616	Fléchette
+617	Blindé
+618	Diviseur
+619	Bouclier
+620	Vaisseau-mère
+621	Rapide, vole en arc
+622	Robuste et lent ; son blindage se détache morceau par morceau
+623	Se brise en deux quand on le détruit
+624	Brisez le bouclier avant de pouvoir toucher le cœur
+625	Libère sans cesse de petits ennemis en chemin
+626	Élite ·
+627	Nouvelle menace ·

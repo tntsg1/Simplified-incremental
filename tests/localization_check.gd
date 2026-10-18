@@ -16,9 +16,11 @@ func check(ok: bool, description: String) -> void:
 		push_error("LOCALIZATION: " + description)
 
 func english_tree(node: Node) -> void:
+	if node == null:
+		return
 	if node is Label or node is Button:
 		var text: String = node.text
-		check(han.search(text) == null or text == "中文 / English", "English control: " + text)
+		check(han.search(text) == null or text == "English  ▸", "English control: " + text)
 	for child in node.get_children():
 		english_tree(child)
 
