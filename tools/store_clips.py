@@ -18,6 +18,10 @@ CLIPS = {  # name: (scenario, seconds)
 }
 args = sys.argv[1:]
 lang = ""
+size = "1280x720"
+if args[:1] == ["--size"]:
+    # Trailer footage renders at 1920x1080; store-page clips stay at 1280x720.
+    size, args = args[1], args[2:]
 if args[:1] == ["--lang"]:
     lang, args = args[1], args[2:]
     OUT = os.path.join(OUT, lang)
@@ -26,7 +30,7 @@ for name in (args or CLIPS):
     scenario, seconds = CLIPS[name]
     avi = os.path.join(OUT, name + ".avi")
     for attempt in range(2):
-        run = subprocess.run([GODOT, "--path", ROOT, "--write-movie", avi, "--fixed-fps", "30", "--resolution", "1280x720",
+        run = subprocess.run([GODOT, "--path", ROOT, "--write-movie", avi, "--fixed-fps", "30", "--resolution", size,
                               "--position", "5000,5000", "--script", "res://tests/store_clip.gd", "--", scenario, str(seconds)] + ([lang] if lang else []),
                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
         m = re.search(r"CLIP_START (\d+)", run.stdout)
@@ -34,7 +38,7 @@ for name in (args or CLIPS):
             start = int(m.group(1)) / 30.0
             mp4 = os.path.join(OUT, ("skyguard_" if lang else "") + name + ".mp4")
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "%.3f" % start, "-i", avi, "-t", str(seconds),
-                            "-vf", "scale=1280:720:flags=lanczos", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "25" if lang else "21",
+                            "-vf", "scale=%s:flags=lanczos" % size.replace("x", ":"), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "25" if lang and size == "1280x720" else "19",
                             "-preset", "slow", "-an", "-movflags", "+faststart", mp4], check=True)
             os.remove(avi)
             print("CLIP", name, "%.0f KB" % (os.path.getsize(mp4) / 1024), run.stdout.strip().splitlines()[-1][:120])
