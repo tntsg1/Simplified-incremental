@@ -123,34 +123,41 @@ func run() -> void:
 	await process_frame
 	click=click.duplicate(); click.pressed=false; Input.parse_input_event(click)
 	await process_frame
-	check(not is_instance_valid(game.body_card) and game.menu=="", "City installation click no longer opens a floating configuration card")
-	game.ui.get_node("Bottom/PauseButton").pressed.emit()
-	await create_timer(.7).timeout
-	check(game.menu=="city_settings" and game.sim.paused, "Settings button opens the centralized paused city page")
-	check(game.city_tactics.rows.size()==3, "Settings lists all three city installations")
-	var old_shots: int=game.sim.shots.size()
-	game.city_tactics.rows[2].triple.pressed.emit()
-	check(game.sim.body_modes.count(0,2)==3 and game.sim.body_modes.count(0,0)==1 and game.sim.body_modes.count(0,1)==1, "Central settings changes only the selected installation")
-	check(game.sim.shots.size()==old_shots and game.sim.body_modes.pending.is_empty(), "Configuration cannot generate an extra attack")
-	check(game.city_tactics.rows[2].triple.disabled, "Settings confirms the selected mode")
-	var pinned: Vector2=game.modal.position
-	game.field.position+=Vector2(-20,0)
-	check(game.modal.position.is_equal_approx(pinned), "Settings never follows a moving installation")
-	var rect: Rect2=game.modal.get_global_rect()
-	check(rect.position.x>=10 and rect.end.x<=1270 and rect.position.y>=10 and rect.end.y<=710, "Settings fits 720p")
-	DirAccess.make_dir_recursive_absolute("res://build/body-fire-modes")
-	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://build/body-fire-modes/city-settings.png")
-	game.city_tactics.rows[2].single.pressed.emit()
-	check(game.sim.body_modes.count(0,2)==1, "Settings restores only this installation to single fire")
-	game.close_modal(); game.sim.paused=true
+	check(is_instance_valid(game.body_card) and game.body_card_stage==0 and game.body_card_slot==2, "Mouse click opens only the right city installation")
+	if is_instance_valid(game.body_card):
+		check(game.body_card_modes.size()==2, "Individual page offers single and triple fire")
+		var old_shots: int=game.sim.shots.size()
+		game.body_card_modes[1].pressed.emit()
+		check(game.sim.body_modes.count(0,2)==3 and game.sim.body_modes.count(0,0)==1 and game.sim.body_modes.count(0,1)==1, "UI changes only the selected installation")
+		check(game.sim.shots.size()==old_shots and game.sim.body_modes.pending.is_empty(), "Clicking mode does not immediately generate attacks")
+		check(game.body_card_details.text.contains("3") and game.body_card_modes[1].disabled, "UI confirms selected mode and real stats")
+		var pinned: Vector2=game.body_card.position
+		game.field.position+=Vector2(-20,0)
+		game.refresh_body_card()
+		check(game.body_card.position.is_equal_approx(pinned), "Page stays still while the battlefield moves")
+		var rect: Rect2=game.body_card.get_global_rect()
+		check(rect.position.x>=20 and rect.end.x<=1260 and rect.position.y>=124 and rect.end.y<=610, "Configuration page stays inside 720p play area")
+		DirAccess.make_dir_recursive_absolute("res://build/body-fire-modes")
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png("res://build/body-fire-modes/city-right.png")
+		game.body_card_modes[0].pressed.emit()
+		check(game.sim.body_modes.count(0,2)==1, "UI can restore just this installation to single fire")
+	game.close_body_card()
 	game.sim.stage=1; game.sim.start_wave(); game.sim.paused=true
-	game.open_body_details(0,1); await process_frame
-	check(is_instance_valid(game.body_card) and game.menu=="", "Other chapters retain the original inspection page")
+	game.sim.set_body_shots(0,1,3)
+	game.open_body_details(0,1)
+	await process_frame
+	game.refresh_body_card()
+	check(game.body_card_modes.is_empty(), "Other chapters retain the original details page")
 	game.close_body_card(); game.sim.stage=0; game.sim.start_wave(); game.sim.paused=true
-	game.language="en"; game.open_pause(); await create_timer(.7).timeout
-	check(game.city_tactics.rows[1].triple.text.contains("Triple"), "Central controls have readable English labels")
-	game.close_modal(); game.sim.paused=true
+	game.sim.set_body_shots(0,1,3)
+	game.language="en"; game.open_body_details(0,1)
+	await process_frame
+	game.refresh_body_card()
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png("res://build/body-fire-modes/city-en.png")
+	check(game.body_card_modes[1].text.contains("Three-shot"), "New controls have readable English labels")
+	game.close_body_card()
 	game.language="zh"; game.set_process(false)
 	game.sim.stage=0; game.sim.start_wave(); game.sim.bodies[0]=2
 	game.sim.spawn_left=1; game.sim.spawn_clock=10000
