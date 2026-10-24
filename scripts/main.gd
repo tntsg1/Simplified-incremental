@@ -124,6 +124,7 @@ var body_card_stage: int=-1
 var body_card_readonly: bool=false
 var body_card_silo: bool=false
 var silo_card_modes: Array[Button]=[]
+var silo_card_options: VBoxContainer
 var body_card_modes: Array[Button] = []
 var body_card_pinned: bool=false
 var body_card_details: Label
@@ -1431,6 +1432,7 @@ func open_silo_card() -> void:
 	close_body_card()
 	body_card_silo=true
 	body_card=PanelContainer.new()
+	body_card.custom_minimum_size.x=328
 	body_card.add_theme_stylebox_override("panel",panel_style(Color("1a1a1a"),Color("ffc94d"),10))
 	var column:=VBoxContainer.new()
 	column.add_theme_constant_override("separation",8)
@@ -1440,9 +1442,12 @@ func open_silo_card() -> void:
 	body_card_details=label("",14)
 	body_card_details.custom_minimum_size.x=270
 	column.add_child(body_card_details)
+	silo_card_options=VBoxContainer.new()
+	silo_card_options.add_theme_constant_override("separation",8)
+	column.add_child(silo_card_options)
 	var row:=HBoxContainer.new()
 	row.add_theme_constant_override("separation",8)
-	column.add_child(row)
+	silo_card_options.add_child(row)
 	for value in range(2):
 		var selected: int=value
 		var choice: Button=button("",func():sim.set_city_mode(selected); refresh_body_card(); save_game())
@@ -1451,7 +1456,7 @@ func open_silo_card() -> void:
 	var note:=label(words("重点：集中目标。分路：最多三目标，各得 1/3 火力。战斗中修改，下波生效。","Focus: one target. Split: up to three targets, 1/3 payload each. Combat changes apply next wave."),13,Color("b4b4b4"))
 	note.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size.x=270
-	column.add_child(note)
+	silo_card_options.add_child(note)
 	column.add_child(button(words("关闭","Close"),close_body_card))
 	ui.add_child(body_card)
 	refresh_body_card()
@@ -1469,7 +1474,11 @@ func refresh_body_card() -> void:
 		return
 	if body_card_silo:
 		body_card_details.text=words("基础齐射  ","Base volley  ")+Catalog.number(sim.shot_damage(0))+"\n"+words("攻击间隔  ","Attack interval  ")+("%.2f s" % sim.shot_interval(0))
-		if sim.wave<6: body_card_details.text+="\n"+words("第六波解锁模式","Modes unlock at wave six")
+		if silo_card_options.visible!=(sim.wave>=6):
+			silo_card_options.visible=sim.wave>=6
+			body_card.reset_size()
+			body_card.call_deferred("reset_size")
+			body_card_pinned=false
 		for i in range(silo_card_modes.size()):
 			silo_card_modes[i].text=("● " if sim.city_mode_next==i else "")+(words("重点拦截","Focused") if i==0 else words("分路拦截","Split"))
 			silo_card_modes[i].disabled=sim.wave<6 or sim.city_mode_next==i
@@ -1516,6 +1525,7 @@ func close_body_card() -> void:
 	body_card = null
 	body_card_silo=false
 	silo_card_modes.clear()
+	silo_card_options=null
 	body_card_slot = -1
 	body_card_stage = -1
 	body_card_readonly = false

@@ -83,6 +83,18 @@ func run() -> void:
 	check(absf(game.body_card.size.x-tower_width)<2 and game.body_card.size.x<=350, "Silo card matches the other installation card width")
 	var silo_rect: Rect2=game.body_card.get_global_rect()
 	check(silo_rect.position.x>=20 and silo_rect.end.x<=1260 and silo_rect.position.y>=124 and silo_rect.end.y<=610, "Silo card fits 720p play area")
+	game.sim.paused=true
+	for wave in range(1,6):
+		game.sim.wave=wave; game.refresh_body_card(); await process_frame
+		check(not game.silo_card_options.is_visible_in_tree() and not game.silo_card_modes[0].is_visible_in_tree() and not game.silo_card_modes[1].is_visible_in_tree(), "Wave %d hides locked mode options" % wave)
+		check(not game.body_card_details.text.contains("解锁") and not game.body_card_details.text.contains("unlock"), "No locked-feature placeholder")
+	check(game.body_card.size.y<240, "Locked modes leave no empty space in the card")
+	await capture("silo-before-wave6")
+	game.sim.wave=6; game.refresh_body_card(); await process_frame
+	check(game.silo_card_options.is_visible_in_tree() and game.silo_card_modes[1].is_visible_in_tree() and not game.silo_card_modes[1].disabled, "Wave six reveals available modes in the already-open card")
+	var expanded: Rect2=game.body_card.get_global_rect()
+	check(expanded.end.y<=610, "Card expansion stays inside the play area")
+	game.sim.paused=false
 	var elapsed: float=game.sim.elapsed; await create_timer(.1).timeout
 	check(game.sim.elapsed>elapsed, "Combat keeps running just like other small cards")
 	var cooldown: float=game.sim.cooldowns[0]
