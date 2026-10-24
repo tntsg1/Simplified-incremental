@@ -2316,11 +2316,15 @@ func draw_weapon_inspector() -> void:
 		if not sim.owned[index] or hover.distance_to(point) >= 30:
 			continue
 		var panel: Vector2 = point + Vector2(-115, -96)
-		draw_rect(Rect2(panel, Vector2(230, 65)), Color("1a1a1a"))
-		draw_rect(Rect2(panel, Vector2(230, 65)), DARK, false, 1)
+		var panel_height: float=85 if index==0 and sim.stage==0 and sim.wave>=6 else 65
+		draw_rect(Rect2(panel, Vector2(230, panel_height)), Color("1a1a1a"))
+		draw_rect(Rect2(panel, Vector2(230, panel_height)), DARK, false, 1)
 		ink(TranslationServer.translate(sim.catalog.weapons[index].title) + TranslationServer.translate(" · 在役"), panel + Vector2(10, 19), INK, 13)
 		ink(TranslationServer.translate("齐射 ") + sim.Catalog.number(sim.shot_damage(index)) + " / " + ("%.2f s" % sim.shot_interval(index)), panel + Vector2(10, 38), GREY, 11)
 		ink(TranslationServer.translate("每次覆盖 ") + sim.Catalog.number(sim.coverage(index)) + TranslationServer.translate(" 成员"), panel + Vector2(10, 55), DIM, 11)
+		if panel_height>65:
+			var hint: String = "点击设置这座武器" if TranslationServer.get_locale().begins_with("zh") else "Click to configure this weapon"
+			ink(hint,panel+Vector2(10,75),ACCENT,11)
 		return
 
 func boss_silhouette(p: Vector2, radius: float, kind: String, flash: float) -> void:

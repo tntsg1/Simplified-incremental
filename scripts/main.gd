@@ -121,6 +121,8 @@ var body_card: PanelContainer
 var body_card_slot: int=-1
 var body_card_stage: int=-1
 var body_card_readonly: bool=false
+var body_card_modes: Array[Button] = []
+var body_card_pinned: bool=false
 var body_card_details: Label
 var body_card_button: Button
 var body_card_price: Label
@@ -583,6 +585,7 @@ func build_hud() -> void:
 	city_tactics.setup(self)
 
 func layout() -> void:
+	body_card_pinned = false
 	if field == null:
 		return
 	var w: float = size.x
@@ -1374,9 +1377,30 @@ func open_body_details(body_stage: int, slot: int) -> void:
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size.x = 270
 	v.add_child(note)
+	if sim.stage==0 and body_stage==0:
+		var caption := label(words("这座炮台的射击方式", "This installation's fire mode"),16)
+		v.add_child(caption)
+		var modes := HBoxContainer.new()
+		modes.add_theme_constant_override("separation",8)
+		v.add_child(modes)
+		for shots in [1,3]:
+			var count: int=shots
+			var choice: Button = button("",func():configure_body_shots(count))
+			choice.custom_minimum_size=Vector2(140,42)
+			modes.add_child(choice)
+			body_card_modes.append(choice)
+		var explanation := label(words("只修改这座炮台。每发保留原伤害和特效，三连发间隔 0.12 秒。下一轮攻击起生效。", "Only this installation changes. Each shot keeps its damage and effects; burst shots are 0.12 s apart. Applies from the next volley."),13,Color("b4b4b4"))
+		explanation.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+		explanation.custom_minimum_size.x=270
+		v.add_child(explanation)
 	v.add_child(button(words("关闭","CLOSE"),close_body_card))
 	ui.add_child(body_card)
 	refresh_body_card()
+
+func configure_body_shots(count: int) -> void:
+	if body_card_readonly and sim.set_body_shots(body_card_stage,body_card_slot,count):
+		refresh_body_card()
+		save_game()
 
 func refresh_body_card() -> void:
 	if not is_instance_valid(body_card):
@@ -1386,20 +1410,35 @@ func refresh_body_card() -> void:
 		return
 	if body_card_readonly:
 		var stats: Dictionary = sim.body_weapon_stats(body_card_stage,body_card_slot)
-		body_card_details.text = words("基础齐射  ","Base volley  ") + Catalog.number(stats.damage) + "\n" + words("攻击间隔  ","Attack interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每次覆盖  ","Coverage  ") + Catalog.number(stats.coverage)
+		if not body_card_modes.is_empty():
+			body_card_details.text = words("单发基础伤害  ","Base damage per shot  ") + Catalog.number(stats.damage) + "\n" + words("每轮发射  ","Shots per volley  ") + str(stats.shots) + "\n" + words("每轮基础伤害  ","Base damage per volley  ") + Catalog.number(stats.volley_damage) + "\n" + words("攻击间隔  ","Volley interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每发覆盖  ","Coverage per shot  ") + Catalog.number(stats.coverage)
+			for i in range(body_card_modes.size()):
+				var shots: int=1 if i==0 else 3
+				body_card_modes[i].text=("● " if int(stats.shots)==shots else "") + (words("单发", "Single shot") if shots==1 else words("三连发", "Three-shot burst"))
+				body_card_modes[i].disabled=int(stats.shots)==shots
+		else:
+			body_card_details.text = words("基础齐射  ","Base volley  ") + Catalog.number(stats.damage) + "\n" + words("攻击间隔  ","Attack interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每次覆盖  ","Coverage  ") + Catalog.number(stats.coverage)
 	else:
 		var price: float = sim.body_cost()
 		var missing: float = price - sim.money
 		body_card_price.text = TranslationServer.translate("价格  $") + Catalog.number(price)
 		body_card_button.disabled = missing > 0
 		body_card_button.text = TranslationServer.translate("改造") if missing <= 0 else TranslationServer.translate("还差 $") + Catalog.number(missing)
+	if not body_card_modes.is_empty() and body_card_pinned:
+		var settled: Vector2 = body_card.get_combined_minimum_size()
+		body_card.position.x=clampf(body_card.position.x,20,maxf(20,size.x-settled.x-20))
+		body_card.position.y=clampf(body_card.position.y,124,maxf(124,size.y-110-settled.y))
+		return
 	var anchor: Vector2 = field.to_global(sim.body_position(body_card_stage,body_card_slot))
 	var card_size: Vector2 = body_card.get_combined_minimum_size()
 	var place: Vector2 = anchor + Vector2(28,-card_size.y*.5)
 	if place.x + card_size.x > size.x - 20:
 		place.x = anchor.x - 28 - card_size.x
 	place.y = clampf(place.y,124,size.y-110-card_size.y)
-	body_card.position = body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place
+	body_card.position = place if not body_card_modes.is_empty() else (body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place)
+	if not body_card_modes.is_empty():
+		body_card.position.x = clampf(body_card.position.x,20,size.x-card_size.x-20)
+		body_card_pinned = true
 
 func confirm_body_card() -> void:
 	if not body_card_readonly and body_card_slot >= 0 and sim.convert_body(body_card_slot):
@@ -1414,6 +1453,8 @@ func close_body_card() -> void:
 	body_card_stage = -1
 	body_card_readonly = false
 	body_card_details = null
+	body_card_modes.clear()
+	body_card_pinned = false
 
 func settings_payload() -> Dictionary:
 	return {"sound":sound_on,"camera_comfort":camera_comfort,"reduced_effects":reduced_effects,"ui_motion":ui_motion,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed,"language":language}
@@ -1844,6 +1885,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				open_body_details(converted.x,converted.y)
 				return
 			close_body_card()
+			if sim.stage==0 and sim.owned[0] and sim.wave>=6 and point.distance_to(sim.weapon_origin(0))<=30.0:
+				city_tactics.open_modes()
+				return
 			var selected: int = sim.select_target(point)
 			if selected>=0 and not sim.automation:
 				sim.manual_held = true

@@ -1,7 +1,6 @@
 extends PanelContainer
 # Stable screen-space controls: no need to chase a moving weak point.
 var game: Control
-var modes: Button
 var body: Button
 var rift: Button
 var status: Label
@@ -18,8 +17,6 @@ func setup(owner_game: Control) -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 7)
 	add_child(column)
-	modes = game.button("", open_modes)
-	column.add_child(modes)
 	boss_controls = VBoxContainer.new()
 	boss_controls.add_theme_constant_override("separation", 7)
 	column.add_child(boss_controls)
@@ -59,14 +56,10 @@ func open_modes() -> void:
 
 func refresh() -> void:
 	var sim = game.sim
-	visible = game.menu == "" and sim.mode in ["wave", "boss", "intermission"] and (sim.stage > 0 or sim.wave >= 6)
-	if not visible: return
-	modes.text = game.words("导弹 · ", "Missiles · ") + mode_name(sim.city_mode)
-	if sim.city_mode != sim.city_mode_next:
-		modes.text += "\n" + game.words("下波：", "Next: ") + mode_name(sim.city_mode_next)
 	var boss: Dictionary = sim.boss_actor()
-	boss_controls.visible = sim.CityBoss.available(boss)
-	if not boss_controls.visible: return
+	visible = game.menu == "" and sim.mode == "boss" and sim.CityBoss.available(boss)
+	if not visible: return
+	boss_controls.visible = true
 	var intact: bool = float(boss.rift_hp) > 0.0
 	var selected: bool = bool(boss.rift_selected) and sim.priority_id == int(boss.id)
 	body.text = ("● " if not selected and (sim.priority_id == int(boss.id) or sim.priority_id < 0) else "") + game.words("攻击本体 · 尽快击杀", "Body · destroy it sooner")

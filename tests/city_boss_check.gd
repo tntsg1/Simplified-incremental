@@ -143,8 +143,15 @@ func run() -> void:
 		await process_frame
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://build/city-boss/charging-%d.png" % resolution.x)
-	game.city_tactics.modes.pressed.emit()
-	check(game.menu=="city_modes" and game.sim.paused, "Mode picker pauses battle")
+	var silo_click:=InputEventMouseButton.new()
+	silo_click.button_index=MOUSE_BUTTON_LEFT; silo_click.pressed=true
+	silo_click.position=root.get_final_transform()*game.field.to_global(game.sim.weapon_origin(0))
+	silo_click.global_position=silo_click.position
+	Input.parse_input_event(silo_click)
+	await process_frame
+	silo_click=silo_click.duplicate(); silo_click.pressed=false; Input.parse_input_event(silo_click)
+	await process_frame
+	check(game.menu=="city_modes" and game.sim.paused, "Clicking the silo opens only its own mode page and pauses battle")
 	await create_timer(.7).timeout
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("res://build/city-boss/modes-1280.png")

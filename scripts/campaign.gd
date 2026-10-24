@@ -131,6 +131,7 @@ static func finish_boss(ctx: RefCounted) -> void:
 
 
 static func fail_stage(ctx: RefCounted) -> void:
+	ctx.body_modes.pending.clear()
 	ctx.mode = "failed"
 	ctx.manual_held = false
 	ctx.attempts += 1

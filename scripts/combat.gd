@@ -1,4 +1,6 @@
 extends RefCounted
+const BodyFireModes = preload("res://scripts/body_fire_modes.gd")
+var body_modes = BodyFireModes.new()
 const CityBoss = preload("res://scripts/city_boss.gd")
 var city_mode: int = 0
 var city_mode_next: int = 0
@@ -283,6 +285,7 @@ func stage_data() -> Resource:
 func start_new(seed_value: int = 4262026) -> void:
 	city_mode = 0
 	city_mode_next = 0
+	body_modes.reset()
 	Campaign.start_new(self, seed_value)
 
 func defense_position() -> Vector2:
@@ -344,6 +347,7 @@ func buy_weapon() -> bool:
 	return Growth.buy_weapon(self)
 
 func clear_battle() -> void:
+	body_modes.pending.clear()
 	pending_splits.clear()
 	pending_minions.clear()
 	enemies_by_id.clear()
@@ -1207,9 +1211,19 @@ func body_attack(body_stage: int, slot: int) -> String:
 func body_weapon_stats(body_stage: int, slot: int) -> Dictionary:
 	var attack: String = body_attack(body_stage, slot)
 	var every: int = int(ATTACK_EVERY.get(attack, 1))
-	return {"attack": attack, "damage": body_shot_damage() * every, "interval": BODY_PERIOD * every, "coverage": body_coverage()}
+	var stats: Dictionary = {"attack": attack, "damage": body_shot_damage() * every, "interval": BODY_PERIOD * every, "coverage": body_coverage()}
+	if stage==0 and body_stage==0:
+		stats.merge({"shots":body_modes.count(body_stage,slot),"volley_damage":body_shot_damage()*every*body_modes.count(body_stage,slot)})
+	return stats
+
+func set_body_shots(body_stage: int, slot: int, count: int) -> bool:
+	return body_modes.configure(self,body_stage,slot,count)
 
 func fire_body(body_stage: int, slot: int, target: Dictionary, lanes: Array[Dictionary] = [], beat: int = 0) -> void:
+	fire_body_once(body_stage,slot,target,lanes,beat)
+	body_modes.enqueue(self,body_stage,slot,int(target.id),beat)
+
+func fire_body_once(body_stage: int, slot: int, target: Dictionary, lanes: Array[Dictionary] = [], beat: int = 0) -> void:
 	var attack: String = body_attack(body_stage, slot)
 	if attack not in ["shell", "cluster"]:
 		fire_body_special(attack, body_stage, slot, target, lanes, beat)
@@ -2098,6 +2112,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 				fire_weapon(i, target)
 				cooldowns[i] = shot_interval(i)
 				manual_queued = false
+	body_modes.advance(self)
 	# Stateless staggered beat: turret k fires when its phase crosses a period
 	# boundary, so saves need no turret cooldowns and replay deterministically.
 	# Turrets are automatic and always busy: turret k takes the k-th soonest
@@ -2261,6 +2276,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 		Campaign.next_wave(self)
 	elif mode == "wave" and spawn_left == 0 and enemies.is_empty():
 		mode = "intermission"
+		body_modes.pending.clear()
 		mode_time = 0.0
 		# The field is empty and the sim stops ticking rounds until the boss: anything
 		# still in flight would hang mid-air, so retire it now.
@@ -2314,7 +2330,7 @@ func snapshot() -> Dictionary:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"city_mode": city_mode, "city_mode_next": city_mode_next, "boss_skill_state": skill.duplicate(true), "boss_skill_clock": skill_clock, "boss_enraged": enraged, "escort_clock": escort_clock, "reward_batches": loot, "boss_reward_queued": boss_reward_queued, "game": "skyguard", "version": SAVE_VERSION, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "boss_penalty": boss_penalty, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "flood_paid": flood_paid, "introduced": introduced.duplicate(), "enemies": actors, "shots": projectiles}
+	return {"body_fire_modes": body_modes.snapshot(), "city_mode": city_mode, "city_mode_next": city_mode_next, "boss_skill_state": skill.duplicate(true), "boss_skill_clock": skill_clock, "boss_enraged": enraged, "escort_clock": escort_clock, "reward_batches": loot, "boss_reward_queued": boss_reward_queued, "game": "skyguard", "version": SAVE_VERSION, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "boss_penalty": boss_penalty, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "flood_paid": flood_paid, "introduced": introduced.duplicate(), "enemies": actors, "shots": projectiles}
 
 # Version 2: ten chapters. Version 1 saves (six chapters) are migrated on load.
 const SAVE_VERSION: int = 2
@@ -2401,6 +2417,8 @@ func restore(data: Dictionary) -> bool:
 		data = migrate_v1(data)
 	if int(data.get("stage", -1)) not in range(STAGE_COUNT) or int(data.get("wave", 0)) not in range(1, 11):
 		return false
+	var saved_modes: Variant = data.get("body_fire_modes", {})
+	if data.has("body_fire_modes") and not body_modes.accepts(self,saved_modes,int(data.stage),float(data.get("elapsed",0))): return false
 	var saved_skill: Variant = data.get("boss_skill_state", {})
 	if not saved_skill is Dictionary: return false
 	if not saved_skill.is_empty():
@@ -2518,6 +2536,7 @@ func restore(data: Dictionary) -> bool:
 		enemies_by_id[int(restored_enemy.id)] = restored_enemy
 	for p in data.get("shots", []):
 		shots.append(decode_entity(p))
+	body_modes.restore(saved_modes)
 	paused = false
 	manual_held = false
 	if bool(data.get("migrated", false)):
