@@ -23,6 +23,7 @@ const Catalog = preload("res://scripts/catalog.gd")
 const AudioDirector=preload("res://scripts/audio_director.gd")
 var audio: Node
 var steam_features: Node
+var city_combat_hints: bool=false
 var camera_comfort: bool=false
 var reduced_effects: bool=false
 var ui_motion: bool=true
@@ -121,8 +122,6 @@ var body_card: PanelContainer
 var body_card_slot: int=-1
 var body_card_stage: int=-1
 var body_card_readonly: bool=false
-var body_card_modes: Array[Button] = []
-var body_card_pinned: bool=false
 var body_card_details: Label
 var body_card_button: Button
 var body_card_price: Label
@@ -395,6 +394,7 @@ func _ready() -> void:
 		if not OS.has_feature("web") and not preferences.has_section_key("ui", "language"):
 			apply_language(str(saved.get("settings", {}).get("language", language)), false)
 		sound_on = bool(saved.get("settings",{}).get("sound",true))
+		city_combat_hints=bool(saved.get("settings",{}).get("city_combat_hints",false))
 		camera_comfort=bool(saved.get("settings",{}).get("camera_comfort",false))
 		reduced_effects=bool(saved.get("settings",{}).get("reduced_effects",false))
 		ui_motion=bool(saved.get("settings",{}).get("ui_motion",true))
@@ -405,6 +405,7 @@ func _ready() -> void:
 			game_speed=1
 		if not OS.has_feature("web") and preferences.has_section("ui"):
 			sound_on = bool(preferences.get_value("ui","sound",sound_on))
+			city_combat_hints=bool(preferences.get_value("ui","city_combat_hints",city_combat_hints))
 			camera_comfort = bool(preferences.get_value("ui","camera_comfort",camera_comfort))
 			reduced_effects = bool(preferences.get_value("ui","reduced_effects",reduced_effects))
 			ui_motion = bool(preferences.get_value("ui","ui_motion",ui_motion))
@@ -585,7 +586,6 @@ func build_hud() -> void:
 	city_tactics.setup(self)
 
 func layout() -> void:
-	body_card_pinned = false
 	if field == null:
 		return
 	var w: float = size.x
@@ -981,14 +981,29 @@ func update_shop() -> void:
 	if is_instance_valid(weapon_button):
 		weapon_button.disabled = sim.money<float(sim.stage_data().weapon_price)
 
-func open_pause() -> void:
+func open_pause(general: bool=false) -> void:
 	if sim.mode=="title":
 		return
-	menu = "pause"
+	if sim.stage==0 and not general:
+		city_tactics.open_settings()
+		return
+	menu = "city_general" if sim.stage==0 else "pause"
 	sim.paused = true
 	sim.manual_held = false
 	sim.manual_queued = false
-	var v: VBoxContainer = new_modal(510,TranslationServer.translate("防线暂停"),TranslationServer.translate("所有模拟与计时已停止 · 进度已保存"))
+	var v: VBoxContainer = new_modal(510,words("设置","Settings") if sim.stage==0 else TranslationServer.translate("防线暂停"),TranslationServer.translate("所有模拟与计时已停止 · 进度已保存"))
+	if sim.stage==0:
+		v.add_theme_constant_override("separation",10)
+		city_tactics.tabs(v,"general")
+		var scroll:=ScrollContainer.new()
+		scroll.custom_minimum_size=Vector2(0,minf(400,size.y-280))
+		scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+		v.add_child(scroll)
+		var content:=VBoxContainer.new()
+		content.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		content.add_theme_constant_override("separation",10)
+		scroll.add_child(content)
+		v=content
 	v.add_child(button(TranslationServer.translate("继续防御"),close_modal,true))
 	v.add_child(button(TranslationServer.translate("升级防线"),open_shop))
 	language_button = button(str(LANGUAGE_NAMES.get(language, language)) + "  ▸", toggle_language)
@@ -996,7 +1011,7 @@ func open_pause() -> void:
 	var audio_toggle := button(TranslationServer.translate("声音：开启") if sound_on else TranslationServer.translate("声音：关闭"),func():
 		sound_on = not sound_on
 		audio.set_enabled(sound_on)
-		open_pause()
+		open_pause(sim.stage==0)
 		save_game())
 	v.add_child(audio_toggle)
 	for setting in ["music_level","effects_level"]:
@@ -1018,9 +1033,9 @@ func open_pause() -> void:
 		var key: String=setting
 		slider.value_changed.connect(func(value: float):audio.set(key,value/100);audio.set_enabled(sound_on);value_label.text="%.0f%%"%value)
 		v.add_child(audio_row)
-	v.add_child(button(TranslationServer.translate("特效：柔和") if reduced_effects else TranslationServer.translate("特效：标准"),func():reduced_effects=not reduced_effects;open_pause();save_game()))
-	v.add_child(button(TranslationServer.translate("UI 动态效果：开启") if ui_motion else TranslationServer.translate("UI 动态效果：关闭"),func():ui_motion=not ui_motion;open_pause();save_game()))
-	v.add_child(button(words("镜头运动：关闭", "Camera motion: Off") if camera_comfort else words("镜头运动：开启", "Camera motion: On"),func():camera_comfort=not camera_comfort;open_pause();save_game()))
+	v.add_child(button(TranslationServer.translate("特效：柔和") if reduced_effects else TranslationServer.translate("特效：标准"),func():reduced_effects=not reduced_effects;open_pause(sim.stage==0);save_game()))
+	v.add_child(button(TranslationServer.translate("UI 动态效果：开启") if ui_motion else TranslationServer.translate("UI 动态效果：关闭"),func():ui_motion=not ui_motion;open_pause(sim.stage==0);save_game()))
+	v.add_child(button(words("镜头运动：关闭", "Camera motion: Off") if camera_comfort else words("镜头运动：开启", "Camera motion: On"),func():camera_comfort=not camera_comfort;open_pause(sim.stage==0);save_game()))
 	v.add_child(button(TranslationServer.translate("保存并返回主菜单"),func():
 		save_game()
 		saved = store.read_game()
@@ -1055,6 +1070,9 @@ func buy_automation_from_hud() -> void:
 		update_hud()
 
 func update_hud() -> void:
+	ui.get_node("Bottom/PauseButton").text = words("设置  [Esc]","Settings  [Esc]") if sim.stage==0 else TranslationServer.translate("暂停  [Esc]")
+	dev_bar.visible=dev_mode and sim.stage!=0
+	city_tactics.refresh()
 	stage_label.text = "%02d   %s" %[sim.stage+1,TranslationServer.translate(sim.stage_data().title)]
 	scale_label.text = TranslationServer.translate(sim.stage_data().subtitle)+"     /     "+TranslationServer.translate(sim.stage_data().scale_label)
 	wave_label.text = TranslationServer.translate("巨型威胁") if sim.mode=="boss" else TranslationServer.translate("第 %02d / 10 波") %sim.wave
@@ -1356,6 +1374,9 @@ func open_body_card(slot: int) -> void:
 	tween.tween_property(body_card,"modulate:a",1.0,.14)
 
 func open_body_details(body_stage: int, slot: int) -> void:
+	if sim.stage==0 and body_stage==0:
+		city_tactics.open_settings()
+		return
 	close_body_card()
 	body_card_stage = body_stage
 	body_card_slot = slot
@@ -1376,30 +1397,9 @@ func open_body_details(body_stage: int, slot: int) -> void:
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size.x = 270
 	v.add_child(note)
-	if sim.stage==0 and body_stage==0:
-		var caption := label(words("这座炮台的射击方式", "This installation's fire mode"),16)
-		v.add_child(caption)
-		var modes := HBoxContainer.new()
-		modes.add_theme_constant_override("separation",8)
-		v.add_child(modes)
-		for shots in [1,3]:
-			var count: int=shots
-			var choice: Button = button("",func():configure_body_shots(count))
-			choice.custom_minimum_size=Vector2(140,42)
-			modes.add_child(choice)
-			body_card_modes.append(choice)
-		var explanation := label(words("只修改这座炮台。每发保留原伤害和特效，三连发间隔 0.12 秒。下一轮攻击起生效。", "Only this installation changes. Each shot keeps its damage and effects; burst shots are 0.12 s apart. Applies from the next volley."),13,Color("b4b4b4"))
-		explanation.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
-		explanation.custom_minimum_size.x=270
-		v.add_child(explanation)
 	v.add_child(button(words("关闭","CLOSE"),close_body_card))
 	ui.add_child(body_card)
 	refresh_body_card()
-
-func configure_body_shots(count: int) -> void:
-	if body_card_readonly and sim.set_body_shots(body_card_stage,body_card_slot,count):
-		refresh_body_card()
-		save_game()
 
 func refresh_body_card() -> void:
 	if not is_instance_valid(body_card):
@@ -1409,35 +1409,20 @@ func refresh_body_card() -> void:
 		return
 	if body_card_readonly:
 		var stats: Dictionary = sim.body_weapon_stats(body_card_stage,body_card_slot)
-		if not body_card_modes.is_empty():
-			body_card_details.text = words("单发基础伤害  ","Base damage per shot  ") + Catalog.number(stats.damage) + "\n" + words("每轮发射  ","Shots per volley  ") + str(stats.shots) + "\n" + words("每轮基础伤害  ","Base damage per volley  ") + Catalog.number(stats.volley_damage) + "\n" + words("攻击间隔  ","Volley interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每发覆盖  ","Coverage per shot  ") + Catalog.number(stats.coverage)
-			for i in range(body_card_modes.size()):
-				var shots: int=1 if i==0 else 3
-				body_card_modes[i].text=("● " if int(stats.shots)==shots else "") + (words("单发", "Single shot") if shots==1 else words("三连发", "Three-shot burst"))
-				body_card_modes[i].disabled=int(stats.shots)==shots
-		else:
-			body_card_details.text = words("基础齐射  ","Base volley  ") + Catalog.number(stats.damage) + "\n" + words("攻击间隔  ","Attack interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每次覆盖  ","Coverage  ") + Catalog.number(stats.coverage)
+		body_card_details.text = words("基础齐射  ","Base volley  ") + Catalog.number(stats.damage) + "\n" + words("攻击间隔  ","Attack interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每次覆盖  ","Coverage  ") + Catalog.number(stats.coverage)
 	else:
 		var price: float = sim.body_cost()
 		var missing: float = price - sim.money
 		body_card_price.text = TranslationServer.translate("价格  $") + Catalog.number(price)
 		body_card_button.disabled = missing > 0
 		body_card_button.text = TranslationServer.translate("改造") if missing <= 0 else TranslationServer.translate("还差 $") + Catalog.number(missing)
-	if not body_card_modes.is_empty() and body_card_pinned:
-		var settled: Vector2 = body_card.get_combined_minimum_size()
-		body_card.position.x=clampf(body_card.position.x,20,maxf(20,size.x-settled.x-20))
-		body_card.position.y=clampf(body_card.position.y,124,maxf(124,size.y-110-settled.y))
-		return
 	var anchor: Vector2 = field.to_global(sim.body_position(body_card_stage,body_card_slot))
 	var card_size: Vector2 = body_card.get_combined_minimum_size()
 	var place: Vector2 = anchor + Vector2(28,-card_size.y*.5)
 	if place.x + card_size.x > size.x - 20:
 		place.x = anchor.x - 28 - card_size.x
 	place.y = clampf(place.y,124,size.y-110-card_size.y)
-	body_card.position = place if not body_card_modes.is_empty() else (body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place)
-	if not body_card_modes.is_empty():
-		body_card.position.x = clampf(body_card.position.x,20,size.x-card_size.x-20)
-		body_card_pinned = true
+	body_card.position = body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place
 
 func confirm_body_card() -> void:
 	if not body_card_readonly and body_card_slot >= 0 and sim.convert_body(body_card_slot):
@@ -1452,11 +1437,9 @@ func close_body_card() -> void:
 	body_card_stage = -1
 	body_card_readonly = false
 	body_card_details = null
-	body_card_modes.clear()
-	body_card_pinned = false
 
 func settings_payload() -> Dictionary:
-	return {"sound":sound_on,"camera_comfort":camera_comfort,"reduced_effects":reduced_effects,"ui_motion":ui_motion,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed,"language":language}
+	return {"city_combat_hints":city_combat_hints,"sound":sound_on,"camera_comfort":camera_comfort,"reduced_effects":reduced_effects,"ui_motion":ui_motion,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed,"language":language}
 
 func available_languages() -> Array[String]:
 	# The web build ships one Chinese/Latin font subset, so it offers Chinese and English only.
@@ -1526,6 +1509,10 @@ func apply_language(value: String, rebuild: bool = true) -> void:
 	match menu:
 		"title": show_title()
 		"pause": open_pause()
+		"city_general": open_pause(true)
+		"city_settings": city_tactics.open_settings()
+		"city_controls": city_tactics.open_settings("help")
+		"city_debug": city_tactics.open_settings("debug")
 		"shop": open_shop()
 		"result":
 			menu = ""
@@ -1592,7 +1579,7 @@ func toggle_dev_mode() -> void:
 	if not OS.is_debug_build():
 		return
 	dev_mode = not dev_mode
-	dev_bar.visible = dev_mode
+	dev_bar.visible = dev_mode and sim.stage!=0
 	if not dev_mode:
 		dev_god = false
 		dev_god_button.text = TranslationServer.translate("无敌：关")
@@ -1777,6 +1764,7 @@ func _process_frame(delta: float) -> void:
 	var speed: float=advanced / maxf(delta, .000001) if not sim.paused else 1.0
 	field.clock += delta*speed
 	field.reduced_effects=reduced_effects
+	field.city_combat_hints=city_combat_hints
 	field.animate(delta*speed, delta)
 	# Camera punch: a quick zoom kick around the field centre on big moments.
 	var kick: float=(1.0+field.punch*field.punch*.035)*cam_zoom
@@ -1866,7 +1854,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode==KEY_ESCAPE and is_instance_valid(body_card):
 			close_body_card()
 		elif event.keycode in [KEY_U,KEY_ESCAPE] and sim.mode!="title" and menu!="title":
-			if menu!="":
+			if event.keycode==KEY_ESCAPE and menu in ["city_general","city_controls","city_debug"]:
+				city_tactics.open_settings()
+			elif menu!="":
 				close_modal()
 			elif event.keycode==KEY_U:
 				open_shop()
@@ -1882,16 +1872,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			field.on_click(point)
 			var body: int = field.body_at(point)
 			if body >= 0:
-				open_body_card(body)
+				if sim.stage!=0: open_body_card(body)
 				return
 			var converted: Vector2i = field.converted_body_at(point)
 			if converted.x >= 0:
-				open_body_details(converted.x,converted.y)
+				if sim.stage!=0: open_body_details(converted.x,converted.y)
 				return
 			close_body_card()
-			if sim.stage==0 and sim.owned[0] and sim.wave>=6 and point.distance_to(sim.weapon_origin(0))<=30.0:
-				city_tactics.open_modes()
-				return
 			var selected: int = sim.select_target(point)
 			if selected>=0 and (not sim.automation or (sim.stage==0 and sim.CityBoss.available(sim.boss_actor()))):
 				sim.manual_held = true

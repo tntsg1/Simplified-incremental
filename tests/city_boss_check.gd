@@ -158,7 +158,9 @@ func run() -> void:
 	await process_frame
 	silo_click=silo_click.duplicate(); silo_click.pressed=false; Input.parse_input_event(silo_click)
 	await process_frame
-	check(game.menu=="city_modes" and game.sim.paused, "Clicking the silo opens only its own mode page and pauses battle")
+	check(game.menu=="", "Clicking the silo no longer opens a configuration popup")
+	game.ui.get_node("Bottom/PauseButton").pressed.emit()
+	check(game.menu=="city_settings" and game.sim.paused, "City modes live in Settings")
 	await create_timer(.7).timeout
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("res://build/city-boss/modes-1280.png")

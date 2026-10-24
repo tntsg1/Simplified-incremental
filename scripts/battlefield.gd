@@ -20,6 +20,7 @@ var scene_transform := Transform2D.IDENTITY
 var miniature_stroke_scale: float = 1.0
 var draw_ms: float = 0
 var reduced_effects: bool = false
+var city_combat_hints: bool = false
 var trauma: float = 0
 var labels_left: int = 24
 # Key-art captures (store capsules) draw the battle without any text on the field.
@@ -2309,6 +2310,7 @@ func weapon(index: int, point: Vector2, small: bool = false, visual_scale: float
 		ink(TranslationServer.translate(sim.catalog.weapons[index].title), point + Vector2(-26, radius + 24), DIM, 10)
 
 func draw_weapon_inspector() -> void:
+	if sim.stage==0: return
 	if sim.mode in ["title", "transition"] or body_at(hover) >= 0:
 		return
 	for index in range(WEAPONS):
@@ -3980,7 +3982,7 @@ func draw_city_rift(boss: Dictionary, rendered: Vector2) -> void:
 		for j in range(4):
 			var offset: Vector2=Vector2.from_angle(j*PI*.5)*(28+sin(clock*8)*2)
 			draw_line(point+offset,point+offset*.78,INK,2.0,true)
-	if near or bool(boss.rift_selected) or active:
+	if city_combat_hints and (near or bool(boss.rift_selected) or active):
 		var label_at: Vector2=point+Vector2(55,42)
 		draw_line(point+Vector2(25,10),label_at+Vector2(-5,-17),Color(GREY,.7),1.0,true)
 		var title: String=sim.CityBoss.words("裂隙", "Fissure")
