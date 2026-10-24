@@ -59,6 +59,7 @@ var wave_label: Label
 var health_label: Label
 var hint: Label
 var scale_label: Label
+var city_tactics: PanelContainer
 var boss_box: Control
 var boss_title: Label
 var boss_timer: Label
@@ -577,6 +578,9 @@ func build_hud() -> void:
 	ending_skip.custom_minimum_size = Vector2(154,36)
 	ending_skip.visible = false
 	cinema.add_child(ending_skip)
+	city_tactics = preload("res://scripts/city_tactics.gd").new()
+	ui.add_child(city_tactics)
+	city_tactics.setup(self)
 
 func layout() -> void:
 	if field == null:
@@ -610,7 +614,9 @@ func layout() -> void:
 	wave_bar.size = Vector2(340,4)
 	var line: Control = ui.get_child(0)
 	line.size.x = w-72
-	boss_box.position = Vector2(36+(360 if hud_auto_button.visible else 24),h-101+14)
+	# Give the boss its own space; the bottom row already contains five controls.
+	boss_fx.size.x = clampf(w * .34, 360.0, 640.0)
+	boss_box.position = Vector2(w - boss_fx.size.x - 40, 132)
 	var bottom: Control = ui.get_node("Bottom")
 	bottom.position = Vector2(36,h-101)
 	bottom.size = Vector2(w-72,72)
@@ -1046,6 +1052,7 @@ func buy_automation_from_hud() -> void:
 		update_hud()
 
 func update_hud() -> void:
+	if is_instance_valid(city_tactics): city_tactics.refresh()
 	stage_label.text = "%02d   %s" %[sim.stage+1,TranslationServer.translate(sim.stage_data().title)]
 	scale_label.text = TranslationServer.translate(sim.stage_data().subtitle)+"     /     "+TranslationServer.translate(sim.stage_data().scale_label)
 	wave_label.text = TranslationServer.translate("巨型威胁") if sim.mode=="boss" else TranslationServer.translate("第 %02d / 10 波") %sim.wave
@@ -1086,7 +1093,7 @@ func update_hud() -> void:
 	hint.position.x = 360 if auto_available else 24
 	hint.visible = sim.mode!="boss" and size.x>1500
 	update_ult_button()
-	boss_box.position.x = 36+(360 if auto_available else 24)
+	boss_box.position.x = size.x - boss_fx.size.x - 40
 	if auto_available:
 		hint.text = TranslationServer.translate("已开放购买 · 开启后自动攻击")
 	elif not sim.automation:

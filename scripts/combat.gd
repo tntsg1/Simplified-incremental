@@ -1,4 +1,8 @@
 extends RefCounted
+const CityBoss = preload("res://scripts/city_boss.gd")
+var city_mode: int = 0
+var city_mode_next: int = 0
+
 const Guidance = preload("res://scripts/projectile_guidance.gd")
 
 signal members_removed(point: Vector2, weapon: int, members: int, kind: String)
@@ -277,6 +281,8 @@ func stage_data() -> Resource:
 	return catalog.stages[stage]
 
 func start_new(seed_value: int = 4262026) -> void:
+	city_mode = 0
+	city_mode_next = 0
 	Campaign.start_new(self, seed_value)
 
 func defense_position() -> Vector2:
@@ -569,7 +575,25 @@ func find_enemy(id: int) -> Dictionary:
 		return e
 	return {}
 
+func select_city_part(rift: bool) -> bool:
+	var boss: Dictionary = boss_actor()
+	if not CityBoss.available(boss) or (rift and float(boss.rift_hp) <= 0.0):
+		return false
+	boss.rift_selected = rift
+	priority_id = int(boss.id)
+	if not automation: manual_queued = true
+	return true
+
+func set_city_mode(value: int) -> void:
+	city_mode_next = clampi(value, 0, 1)
+	if mode not in ["wave", "boss"]:
+		city_mode = city_mode_next
+
 func select_target(point: Vector2) -> int:
+	var city: Dictionary = boss_actor()
+	if CityBoss.available(city) and float(city.rift_hp) > 0.0 and point.distance_to(CityBoss.point(city)) <= maxf(30.0, float(city.radius) * .4):
+		select_city_part(true)
+		return int(city.id)
 	var nearest: float = INF
 	var result: int = -1
 	for e in enemies:
@@ -580,6 +604,7 @@ func select_target(point: Vector2) -> int:
 			nearest = distance
 			result = int(e.id)
 	if result >= 0:
+		if CityBoss.available(city): city.rift_selected = false
 		priority_id = result
 		focus_shots(find_enemy(result))
 	return result
@@ -603,7 +628,7 @@ func focus_shots(target: Dictionary) -> void:
 	if target.is_empty():
 		return
 	for p in shots:
-		if int(p.target) == int(target.id) or bool(p.get("stray", false)) or int(p.get("turns", 0)) >= MAX_RETARGETS or not shot_can_follow(p, target):
+		if bool(p.get("distributed", false)) or int(p.target) == int(target.id) or bool(p.get("stray", false)) or int(p.get("turns", 0)) >= MAX_RETARGETS or not shot_can_follow(p, target):
 			continue
 		var old: Dictionary = find_enemy(int(p.target))
 		if not old.is_empty():
@@ -650,6 +675,10 @@ func spawn_escorts(count: int, opening: bool) -> void:
 		enemies.append(e)
 		enemies_by_id[int(e.id)] = e
 
+func boss_skill_windup(kind: String) -> float:
+	# The first boss gives enough time to read and try the optional fissure.
+	return 2.6 if stage == 0 and kind == "meteor_rain" and CityBoss.available(boss_actor()) else float(SKILL_WINDUP[kind])
+
 func update_boss_skill(delta: float) -> void:
 	var boss: Dictionary = boss_actor()
 	if boss.is_empty():
@@ -673,7 +702,7 @@ func update_boss_skill(delta: float) -> void:
 			boss_skill.emit("broken", kind, boss.pos)
 			end_skill()
 			return
-		if float(skill.age) >= float(SKILL_WINDUP[kind]):
+		if float(skill.age) >= boss_skill_windup(kind):
 			skill.phase = "active"
 			skill.age = 0.0
 			fire_boss_skill(kind, boss)
@@ -690,10 +719,11 @@ func fire_boss_skill(kind: String, boss: Dictionary) -> void:
 		"meteor_rain":
 			# Fast fragments drop from across the sky straight at the defenses.
 			var core: Vector2 = defense_position()
-			for i in range(10):
+			var rain: int = CityBoss.rain_count(boss)
+			for i in range(rain):
 				spawn_escorts(1, false)
 				var e: Dictionary = enemies.back()
-				e.start = Vector2(lerpf(spawn_rect.position.x + 60, spawn_rect.end.x - 60, (i + .5) / 10.0), spawn_rect.position.y + 10)
+				e.start = Vector2(lerpf(spawn_rect.position.x + 60, spawn_rect.end.x - 60, (i + .5) / float(rain)), spawn_rect.position.y + 10)
 				e.pos = e.start
 				e.end = Vector2(core.x + (e.start.x - core.x) * .15, core.y)
 				e.lifetime = rng.randf_range(4.5, 6.0)
@@ -818,21 +848,34 @@ func fire_weapon(index: int, target: Dictionary) -> void:
 	if mode != "missile":
 		fire_special(mode, index, target)
 		return
+	if city_mode == 1:
+		var targets: Array[Dictionary] = [target]
+		for candidate in turret_lanes():
+			if targets.size() >= 3: break
+			if int(candidate.id) != int(target.id): targets.append(candidate)
+		for chosen in targets:
+			fire_city_missile(index, chosen, 1.0 / 3.0)
+	else:
+		fire_city_missile(index, target, 1.0)
+
+func fire_city_missile(index: int, target: Dictionary, share: float) -> void:
 	var p: Dictionary = shot_pool.pop_back() if not shot_pool.is_empty() else {}
 	p.clear()
-	var amount: float = shot_damage(index)
+	var amount: float = shot_damage(index) * share
 	var critical: bool = rng.randf() < crit_chance()
 	if critical:
 		amount *= crit_multiplier()
-	var cap: int = coverage(index)
+	var cap: int = maxi(1, int(ceil(coverage(index) * share)))
 	var effective: float = amount if bool(target.boss) else minf(amount, cap * float(target.unit_hp))
 	var origin: Vector2 = weapon_origin(index)
-	var destination: Vector2 = target.pos
+	var destination: Vector2 = CityBoss.point(target) if CityBoss.available(target) and bool(target.rift_selected) else Vector2(target.pos)
 	var speed: float = PROJECTILE_SPEED
 	var duration: float = origin.distance_to(destination) / speed
 	if bool(catalog.weapons[index].beam):
 		duration = 0.12
 	p.merge({"target": int(target.id), "from": origin, "pos": origin, "end": destination, "age": 0.0, "duration": maxf(0.035, duration), "damage": amount, "effective": effective, "coverage": cap, "weapon": index, "crit": critical, "beam": bool(catalog.weapons[index].beam)})
+	p["distributed"] = share < 1.0
+	p["city_rift"] = CityBoss.available(target) and bool(target.rift_selected)
 	target.reserved = float(target.reserved) + effective
 	shots.append(p)
 	fired.emit(index,origin,destination,critical)
@@ -1864,16 +1907,19 @@ func add_effect(point: Vector2, kind: String, amount: float = 0.0, weapon: int =
 	f.merge({"pos": point, "kind": kind, "age": 0.0, "duration": 0.8 if kind != "reward" else 1.3, "amount": amount, "weapon": weapon})
 	effects.append(f)
 
-func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, critical: bool=false, defer_reward: bool=false) -> float:
+func apply_damage(e: Dictionary, amount: float, cap: int, weapon_index: int, critical: bool=false, defer_reward: bool=false, target_part: bool=false) -> float:
 	if bool(e.dead):
 		return 0.0
 	if bool(e.boss):
+		if target_part:
+			amount = CityBoss.damage(self, e, amount)
 		if not skill.is_empty() and str(skill.kind) == "tidal_shield" and str(skill.phase) == "active":
 			amount *= .3
 		var used: float = minf(float(e.hp), amount)
 		e.hp = maxf(0.0, float(e.hp) - amount)
 		e["flash"]=.09
-		hit.emit(e.pos,weapon_index,used,critical,true,str(e.kind))
+		var impact: Vector2 = CityBoss.point(e) if target_part and CityBoss.available(e) else Vector2(e.pos)
+		hit.emit(impact,weapon_index,used,critical,true,str(e.kind))
 		weapon_damage[weapon_index] += used
 		if float(e.hp) <= 0.0:
 			e.dead = true
@@ -2069,7 +2115,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 					lanes = turret_lanes()
 					lanes_built = true
 				var explicit: Dictionary = find_enemy(priority_id)
-				if not explicit.is_empty():
+				if not explicit.is_empty() and not (stage == 0 and bool(explicit.boss)):
 					target = explicit
 				elif not lanes.is_empty():
 					target = lanes[k % lanes.size()]
@@ -2094,7 +2140,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 						body_lanes = turret_lanes()
 						body_lanes_built = true
 					var focus: Dictionary = find_enemy(priority_id)
-					if not focus.is_empty():
+					if not focus.is_empty() and not (stage == 0 and bool(focus.boss)):
 						fire_body(s, k, focus, body_lanes, beat)
 					elif not body_lanes.is_empty():
 						fire_body(s, k, body_lanes[(beat * 3) % body_lanes.size()], body_lanes, beat)
@@ -2127,7 +2173,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 				target.reserved = maxf(0.0, float(target.reserved) - float(p.effective))
 				make_stray(p)
 				continue
-			p.end = target.pos
+			p.end = CityBoss.point(target) if bool(p.get("city_rift", false)) and CityBoss.available(target) and float(target.rift_hp) > 0.0 else Vector2(target.pos)
 			# Magnetar field: a round entering it is likely bent away from the boss.
 			var field: float = magnet_field_radius() if bool(target.boss) else 0.0
 			if field > 0.0 and not p.has("field_checked") and Vector2(p.pos).distance_to(target.pos) <= field:
@@ -2146,7 +2192,7 @@ func advance(delta: float, visuals: bool = true) -> void:
 				target.reserved = maxf(0.0, float(target.reserved) - float(p.effective))
 				# Who landed this hit, for listeners of `hit` (turret rounds carry weapon 0).
 				landing_source = "turret" if p.has("turret") else ("body" if p.has("body") else "main")
-				var spent: float = apply_damage(target, float(p.damage), int(p.coverage), int(p.weapon),bool(p.crit))
+				var spent: float = apply_damage(target, float(p.damage), int(p.coverage), int(p.weapon),bool(p.crit),false,bool(p.get("city_rift",false)))
 				landing_source = "main"
 				source_damage["turret" if p.has("turret") else ("body" if p.has("body") else "main")] += spent
 				if p.has("mode"):
@@ -2268,7 +2314,7 @@ func snapshot() -> Dictionary:
 		actors.append(encode_entity(e))
 	for p in shots:
 		projectiles.append(encode_entity(p))
-	return {"reward_batches": loot, "boss_reward_queued": boss_reward_queued, "game": "skyguard", "version": SAVE_VERSION, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "boss_penalty": boss_penalty, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "flood_paid": flood_paid, "introduced": introduced.duplicate(), "enemies": actors, "shots": projectiles}
+	return {"city_mode": city_mode, "city_mode_next": city_mode_next, "boss_skill_state": skill.duplicate(true), "boss_skill_clock": skill_clock, "boss_enraged": enraged, "escort_clock": escort_clock, "reward_batches": loot, "boss_reward_queued": boss_reward_queued, "game": "skyguard", "version": SAVE_VERSION, "stage": stage, "wave": wave, "mode": mode, "money": money, "health": health, "levels": levels.duplicate(), "owned": owned.duplicate(), "automation": automation, "elapsed": elapsed, "wave_elapsed": wave_elapsed, "mode_time": mode_time, "spawn_clock": spawn_clock, "bodies": bodies.duplicate(), "ult_charge": ult_charge, "spawn_left": spawn_left, "wave_total": wave_total, "wave_killed": wave_killed, "kills": kills, "attempts": attempts, "stage_bosses": stage_bosses, "boss_spawned": boss_spawned, "serial": serial, "boss_remaining": boss_remaining, "boss_penalty": boss_penalty, "transition_from": transition_from, "priority_id": priority_id, "cooldowns": cooldowns.duplicate(), "weapon_damage": weapon_damage.duplicate(), "rng_state": str(rng.state), "flood_paid": flood_paid, "introduced": introduced.duplicate(), "enemies": actors, "shots": projectiles}
 
 # Version 2: ten chapters. Version 1 saves (six chapters) are migrated on load.
 const SAVE_VERSION: int = 2
@@ -2355,6 +2401,14 @@ func restore(data: Dictionary) -> bool:
 		data = migrate_v1(data)
 	if int(data.get("stage", -1)) not in range(STAGE_COUNT) or int(data.get("wave", 0)) not in range(1, 11):
 		return false
+	var saved_skill: Variant = data.get("boss_skill_state", {})
+	if not saved_skill is Dictionary: return false
+	if not saved_skill.is_empty():
+		if str(saved_skill.get("kind", "")) not in SKILL_WINDUP or str(saved_skill.get("phase", "")) not in ["windup", "active"]: return false
+		for key in ["age", "hp"]:
+			if not is_finite(float(saved_skill.get(key, -1))) or float(saved_skill.get(key, -1)) < 0: return false
+	for key in ["boss_skill_clock", "escort_clock"]:
+		if not is_finite(float(data.get(key, 0))): return false
 	if str(data.get("mode", "")) not in ["wave", "intermission", "boss", "transition", "failed", "victory"]:
 		return false
 	if not data.get("levels", {}) is Dictionary or not data.get("owned", []) is Array or data.get("owned", []).size() != STAGE_COUNT:
@@ -2400,6 +2454,11 @@ func restore(data: Dictionary) -> bool:
 					return false
 			if key=="shots" and int(entity.weapon) not in range(STAGE_COUNT):
 				return false
+			if key=="enemies" and entity.has("rift_hp"):
+				if not entity.has("rift_max") or not entity.has("rift_selected"): return false
+				var part_hp: float = float(entity.rift_hp)
+				var part_max: float = float(entity.rift_max)
+				if not is_finite(part_hp) or not is_finite(part_max) or part_max <= 0 or part_hp < 0 or part_hp > part_max: return false
 			if key=="enemies" and (float(entity.lifetime)<=0 or int(entity.members)<0):
 				return false
 	clear_battle()
@@ -2444,7 +2503,12 @@ func restore(data: Dictionary) -> bool:
 	serial = int(data.serial)
 	boss_remaining = float(data.boss_remaining)
 	boss_penalty = float(data.get("boss_penalty", 0.0))
-	escort_clock = 1.0
+	escort_clock = float(data.get("escort_clock",1.0))
+	city_mode = clampi(int(data.get("city_mode",0)),0,1)
+	city_mode_next = clampi(int(data.get("city_mode_next",city_mode)),0,1)
+	skill = data.get("boss_skill_state",{}).duplicate(true)
+	skill_clock = float(data.get("boss_skill_clock",6.0))
+	enraged = bool(data.get("boss_enraged",false))
 	transition_from = int(data.transition_from)
 	priority_id = int(data.priority_id)
 	rng.state = int(str(data.rng_state))

@@ -53,6 +53,7 @@ static func advance_phase(ctx: RefCounted) -> bool:
 
 static func start_wave(ctx: RefCounted) -> void:
 	ctx.clear_battle()
+	ctx.city_mode = ctx.city_mode_next
 	ctx.mode = "wave"
 	ctx.mode_time = 0.0
 	ctx.wave_elapsed = 0.0
@@ -68,8 +69,11 @@ static func start_wave(ctx: RefCounted) -> void:
 
 
 static func next_wave(ctx: RefCounted) -> void:
+	ctx.city_mode = ctx.city_mode_next
 	# Seamless: the field is not cleared, the defense heals, spawning continues.
 	ctx.wave += 1
+	if ctx.stage == 0 and ctx.wave == 6:
+		ctx.notice.emit(TranslationServer.translate("导弹射击模式已开放：重点拦截打强敌，分路拦截应付多路来袭"))
 	ctx.health = 100.0
 	ctx.wave_elapsed = 0.0
 	ctx.wave_total = ctx.wave_size()
@@ -83,6 +87,7 @@ static func next_wave(ctx: RefCounted) -> void:
 static func start_boss(ctx: RefCounted) -> void:
 	ctx.clear_battle()
 	ctx.boss_reward_queued = false
+	ctx.city_mode = ctx.city_mode_next
 	ctx.mode = "boss"
 	ctx.mode_time = 0.0
 	ctx.wave_elapsed = 0.0
@@ -100,6 +105,7 @@ static func start_boss(ctx: RefCounted) -> void:
 	var origin := Vector2(500.0, 52.0)
 	var end: Vector2 = Vector2(500.0, 525.0) if ctx.stage == 0 else Vector2(500.0, 225.0)
 	e.merge({"id": ctx.serial, "pos": origin, "start": origin, "end": end, "age": 0.0, "lifetime": float(ctx.stage_data().boss_window), "members": 1, "initial_members": 1, "unit_hp": hp, "hp": hp, "kind": ctx.stage_data().boss_kind, "elite": true, "seed": 995 + ctx.stage * 17, "reserved": 0.0, "radius": 68.0 + ctx.stage * 4.0, "boss": true, "dead": false})
+	if ctx.stage == 0: ctx.CityBoss.setup(e, hp)
 	ctx.enemies.append(e)
 	ctx.enemies_by_id[int(e.id)] = e
 	ctx.notice.emit(TranslationServer.translate("巨型威胁接近 · ") + TranslationServer.translate(ctx.stage_data().boss_title))

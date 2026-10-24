@@ -504,7 +504,8 @@ func spawn_barrage(index: int, point: Vector2, destination: Vector2, critical: b
 		b_age.append(-delay)
 		b_dur.append(travel)
 		b_style.append(index)
-		b_crit.append(1 if critical else 0)
+		var distributed: bool = index == 0 and not sim.shots.is_empty() and bool(sim.shots.back().get("distributed", false))
+		b_crit.append((1 if critical else 0) | (8 if distributed else 0))
 		b_value.append(share)
 		b_target.append(target_id)
 		b_turns.append(0)
@@ -527,7 +528,8 @@ func on_fire(index: int, point: Vector2, destination: Vector2, critical: bool) -
 	var muzzle: Vector2 = point + Vector2.from_angle(aims[index]) * ((17 + index * 1.2) * scale - (3 + index))
 	# Only the silo fires a cosmetic barrage; every later weapon has its own attack art.
 	if index == 0:
-		spawn_barrage(index, muzzle, destination, critical)
+		var count: int = maxi(1, barrage_size(index) / 3) if sim.city_mode == 1 else barrage_size(index)
+		spawn_barrage(index, muzzle, destination, critical, count)
 	core_pulse = 1.0
 	if muzzle_limits[index] > 0:
 		return
@@ -915,7 +917,7 @@ func on_focused(target_id: int) -> void:
 	if target.is_empty():
 		return
 	for i in range(b_age.size()):
-		if b_target[i] != target_id and b_target[i] >= 0 and b_turns[i] < sim.MAX_RETARGETS and b_age[i] < b_dur[i]:
+		if b_crit[i] & 8 == 0 and b_target[i] != target_id and b_target[i] >= 0 and b_turns[i] < sim.MAX_RETARGETS and b_age[i] < b_dur[i]:
 			swerve(i, target)
 	add_feedback("focus", target.pos, 0, float(target.radius), .55)
 	add_wave(target.pos, 14.0, .9)
@@ -2735,6 +2737,7 @@ func enemy(e: Dictionary) -> void:
 		ultimate_art.draw_string_threat(self, p, radius, int(e.seed), string_u, int(e.members))
 	elif boss:
 		boss_shape(p, radius * (1 + flash * .04), str(e.kind), flash, true)
+		if sim.CityBoss.available(e): draw_city_rift(e, p)
 	elif bool(e.get("fragment", false)):
 		# A small body thrown off by the droplet: a tumbling shard with a hot edge.
 		var spin_f: float = clock * (2.0 + float(int(e.seed) % 5)) + int(e.seed)
@@ -3940,6 +3943,31 @@ func on_boss_skill(event: String, kind: String, point: Vector2) -> void:
 			trauma = maxf(trauma, .7)
 			add_wave(point, 55.0, 1.6)
 
+func draw_city_rift(boss: Dictionary, rendered: Vector2) -> void:
+	var point: Vector2 = rendered + Vector2(.32, .12) * float(boss.radius)
+	var broken: bool = float(boss.rift_hp) <= 0.0
+	var active: bool = sim.CityBoss.charging(sim) and not broken
+	var col: Color = ACCENT if not broken else GREY
+	var crack := PackedVector2Array([point + Vector2(-18,-25), point + Vector2(-4,-11), point + Vector2(-10,0), point + Vector2(8,10), point + Vector2(3,24)])
+	if broken:
+		# A persistent dark scar remains after the eruption source is removed.
+		draw_polyline(crack, Color(0,0,0,.95), 10.0, true)
+		draw_polyline(crack, Color(GREY,.8), 1.5, true)
+		for side in [-1.0,1.0]:
+			draw_line(point + Vector2(side * 10,-12), point + Vector2(side * 24,-20), Color(GREY,.65), 1.5, true)
+	else:
+		draw_polyline(crack, Color(col,.2), 10.0 if active else 6.0, true)
+		draw_polyline(crack, col, 2.5, true)
+		if active:
+			for j in range(5):
+				var phase: float = fposmod(clock * .9 + j * .2, 1.0)
+				var direction := Vector2.from_angle(j * 2.4)
+				draw_line(point + direction * (12 + phase * 30), point + direction * (18 + phase * 30), Color(col,1.0-phase), 2.0, true)
+		if bool(boss.rift_selected):
+			for j in range(4):
+				var angle: float = j * PI * .5 + clock * .25
+				draw_arc(point, 30, angle, angle+.65, 8, INK, 2.0, true)
+
 func draw_boss_skill() -> void:
 	var boss: Dictionary = sim.boss_actor()
 	if boss.is_empty():
@@ -3959,7 +3987,7 @@ func draw_boss_skill() -> void:
 	if not sk.is_empty():
 		var kind: String = sk.kind
 		var windup: bool = str(sk.phase) == "windup"
-		var dur: float = float(sim.SKILL_WINDUP[kind]) if windup else float(sim.SKILL_ACTIVE[kind])
+		var dur: float = sim.boss_skill_windup(kind) if windup else float(sim.SKILL_ACTIVE[kind])
 		var k: float = clampf(float(sk.age) / dur, 0, 1)
 		if windup:
 			# Charge ring round the boss; breakable skills show how much damage breaks them.
@@ -3972,8 +4000,9 @@ func draw_boss_skill() -> void:
 		match kind:
 			"meteor_rain":
 				if windup:
-					for i in range(10):
-						var x: float = lerpf(sim.spawn_rect.position.x + 60, sim.spawn_rect.end.x - 60, (i + .5) / 10.0)
+					var rain: int = sim.CityBoss.rain_count(boss)
+					for i in range(rain):
+						var x: float = lerpf(sim.spawn_rect.position.x + 60, sim.spawn_rect.end.x - 60, (i + .5) / float(rain))
 						var target := Vector2(core.x + (x - core.x) * .15, core.y)
 						var blink: float = .4 + .6 * absf(sin(t * 10.0 + i))
 						draw_line(Vector2(x, sim.spawn_rect.position.y + 10), target, Color(WARN, .12 * k), 1.0, true)
