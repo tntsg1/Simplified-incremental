@@ -17,6 +17,7 @@ var font: Font
 var clock: float = 0.0
 var hover: Vector2 = Vector2(-1000, -1000)
 var scene_transform := Transform2D.IDENTITY
+var miniature_stroke_scale: float = 1.0
 var draw_ms: float = 0
 var reduced_effects: bool = false
 var trauma: float = 0
@@ -257,7 +258,7 @@ func shape(center: Vector2, radius: float, sides: int, rotation: float, fill: Co
 		draw_colored_polygon(points, fill)
 	if outline.a > 0:
 		points.append(points[0])
-		draw_polyline(points, outline, width, true)
+		draw_polyline(points, outline, width * miniature_stroke_scale, true)
 
 func begin_batch() -> void:
 	batching = true
@@ -270,7 +271,7 @@ func flush_batch() -> void:
 	if not tri_indices.is_empty():
 		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), tri_indices, tri_points, tri_colors)
 	if not seg_points.is_empty():
-		draw_multiline_colors(seg_points, seg_colors, 1.4)
+		draw_multiline_colors(seg_points, seg_colors, 1.4 * miniature_stroke_scale)
 	seg_points.clear()
 	seg_colors.clear()
 	tri_points.clear()
@@ -339,13 +340,15 @@ func stroke(a: Vector2, b: Vector2, color: Color, width: float = 1.5) -> void:
 		seg_points.append(b)
 		seg_colors.append(color)
 	else:
-		draw_line(a, b, color, width, true)
+		draw_line(a, b, color, width * miniature_stroke_scale, true)
 
 func ring(center: Vector2, radius: float, color: Color, width: float = 1.0) -> void:
+	if miniature_stroke_scale > 1.0 and color == DARK:
+		color = Color(GREY, .45)
 	if batching and width <= 2.0:
 		arc_segments(center, radius, 0, TAU, color)
 		return
-	draw_arc(center, radius, 0, TAU, maxi(32, int(radius * .6)), color, width, true)
+	draw_arc(center, radius, 0, TAU, maxi(32, int(radius * .6)), color, width * miniature_stroke_scale, true)
 
 func pop(age: float) -> float:
 	# Ease-out-back from 0 to 1 over ~0.28 s for spawns.
@@ -1083,7 +1086,6 @@ func draw_bullets() -> void:
 	var hot := PackedVector2Array()
 	var heads := PackedVector2Array()
 	var needles := PackedVector2Array()
-	var round_look: int = sim.stage if sim != null else 0
 	sr_trails.clear()
 	sr_hot.clear()
 	sr_heads.clear()
@@ -1095,6 +1097,7 @@ func draw_bullets() -> void:
 			continue
 		var t: float = age / b_dur[i]
 		var style: int = b_style[i]
+		var round_look: int = sim.stage if style == TURRET_STYLE else style
 		var pos: Vector2 = round_position(i, t)
 		var dir: Vector2 = round_heading(i, t)
 		# Fixed-length tracer that grows out of the muzzle: a glowing pellet,
@@ -1752,11 +1755,12 @@ func on_body_fired(body_stage: int, slot: int, origin: Vector2, destination: Vec
 	body_flash[key] = BODY_KICK_TIME
 	body_aim[key] = (destination - origin).angle()
 	var style: int = int(sim.BODIES[body_stage][slot].get("style", body_stage % 6))
-	var radius: float = (float(sim.BODIES[body_stage][slot].size) + 7.0) * 1.5 if body_stage == sim.stage else 6.0
+	var radius: float = body_visual_radius(body_stage, slot)
+	var scale: float = body_visual_scale(body_stage, slot)
 	var build_t: float = 1.0 - float(body_build.get(key, 0.0)) / BODY_BUILD_TIME
 	if not reduced_effects:
 		radius *= 1.0 + sin(build_t * PI * 3.0) * pow(1.0 - build_t, 2.0) * .15
-	var muzzle: Vector2 = origin + (destination - origin).normalized() * (radius + 7)
+	var muzzle: Vector2 = origin + (destination - origin).normalized() * (radius + 7 * scale)
 	add_feedback("muzzle", muzzle, style, 7.0 if body_stage == sim.stage else 4.0, .18)
 
 const SHELL_SIDES: Dictionary = {"twin": 4, "pods": 3, "panels": 4, "dish": 4, "tri": 3, "penta": 5, "octa": 8, "dyson": 6, "node": 6}
@@ -1780,11 +1784,6 @@ func draw_shells_batched() -> void:
 		var at: Vector2 = p.pos
 		var dir: Vector2 = (Vector2(p.end) - Vector2(p.from)).normalized()
 		var col: Color = ACCENT if bool(p.crit) else INK
-		if bs != sim.stage:
-			# Earlier chapters' cannons: a bright pellet with a short tail.
-			shape(at, 2.6, 4, clock * 5.0 + slot, col)
-			stroke(at, at - dir * 12.0, Color(col, .45))
-			continue
 		var r: float = 6.5 if bs == sim.stage else 5.0
 		var spin: float = clock * 5.0 + slot
 		for g in range(3, 0, -1):
@@ -1840,31 +1839,48 @@ func on_body_converted(body_stage: int, slot: int) -> void:
 	trauma = minf(.55, trauma + .25)
 	show_banner(TranslationServer.translate(str(sim.BODIES[body_stage][slot].weapon)) + TranslationServer.translate("上线"), TranslationServer.translate(str(sim.BODIES[body_stage][slot].name)) + TranslationServer.translate("  ·  天体改造完成"), 1.9)
 
+func body_visual_radius(body_stage: int, slot: int, view_stage: int = -1) -> float:
+	var original: float = (float(sim.BODIES[body_stage][slot].size) + 7.0) * 1.5
+	var viewed: int = sim.stage if view_stage < 0 else view_stage
+	return original if body_stage == viewed else clampf(original * .45, 10.0, 18.0)
+
+func body_visual_scale(body_stage: int, slot: int, view_stage: int = -1) -> float:
+	return body_visual_radius(body_stage, slot, view_stage) / ((float(sim.BODIES[body_stage][slot].size) + 7.0) * 1.5)
+
+# Converted bodies remain inspectable after they join the inherited orbit.
+# body_at() deliberately continues to select only unconverted purchase targets.
+func converted_body_at(point: Vector2) -> Vector2i:
+	var found := Vector2i(-1, -1)
+	var nearest: float = INF
+	for s in range(sim.stage + 1):
+		for k in range(sim.BODIES[s].size()):
+			if not sim.body_converted_at(s, k):
+				continue
+			var distance: float = point.distance_to(sim.body_position(s, k))
+			if distance < body_visual_radius(s, k) + 7.0 and distance < nearest:
+				nearest = distance
+				found = Vector2i(s, k)
+	return found
+
 func draw_bodies() -> void:
 	if sim.mode == "transition":
 		return
 	var stage_now: int = sim.stage
 	body_hover = body_at(hover)
-	# Bodies from earlier chapters orbit the core as small trophies: one batched
-	# glyph each (silhouette by form, a barrel along their aim, a flash on fire).
-	begin_batch()
+	var inherited: int = 0
 	for s in range(stage_now):
-		for k in range(sim.BODIES[s].size()):
-			if not sim.body_converted_at(s, k):
-				continue
-			var key_small: int = s * 16 + k
-			var lit_small: float = pow(clampf(float(body_flash.get(key_small, 0.0)) / BODY_KICK_TIME, 0, 1), 3.0)
-			var at_small: Vector2 = sim.body_position(s, k)
-			var aim_small: float = float(body_aim.get(key_small, -PI * .5))
-			var sides: int = int(SHELL_SIDES.get(str(sim.BODIES[s][k].get("form", "node")), 3 + (k + s) % 5))
-			shape(at_small, 4.2 + lit_small * 1.6, sides, aim_small, Color(INK.lerp(Color.WHITE, lit_small), .2 + lit_small * .5), Color(INK, .9), 1.0)
-			stroke(at_small, at_small + Vector2.from_angle(aim_small) * (8.0 + lit_small * 4.0), Color(INK, .8))
-	flush_batch()
-	for s in range(stage_now, stage_now + 1):
+		inherited += sim.converted_count(s)
+	if inherited > 0:
+		ring(sim.defense_position(), sim.body_orbit_radius(), Color(DIM, .25), .8)
+	# Use the original geometry and motion at both scales. A transform scales
+	# even the internal collars, rails and rotors, rather than replacing the gun.
+	for s in range(stage_now + 1):
 		for k in range(sim.BODIES[s].size()):
 			var converted: bool = sim.body_converted_at(s, k)
+			if s < stage_now and not converted:
+				continue
 			var at: Vector2 = sim.body_position(s, k)
-			var size: float = float(sim.BODIES[s][k].size) if s == stage_now else 5.0
+			var size: float = float(sim.BODIES[s][k].size)
 			var key: int = s * 16 + k
 			var kick_t: float = 1.0 - clampf(float(body_flash.get(key, 0.0)) / BODY_KICK_TIME, 0, 1)
 			var lit: float = pow(1.0 - kick_t, 3.0)
@@ -1877,19 +1893,22 @@ func draw_bodies() -> void:
 				if not converted and s >= 2 and s != 7:
 					natural_glyph(str(sim.BODIES[s][k].get("form", "node")), at, size, k)
 			if converted:
-				var scale: float = 1.5 if s == stage_now else .5
-				var radius: float = (size + 7.0) * scale
+				var scale: float = body_visual_scale(s, k)
+				var radius: float = (size + 7.0) * 1.5
 				var aim := Vector2.from_angle(float(body_aim.get(key, -PI * .5)))
 				# Fast mechanical recoil, then a small damped return; no simulation movement.
 				var kick: float = sin(kick_t * PI * 2.0) * exp(-kick_t * 5.0) * 9.0
 				var build_t: float = 1.0 - float(body_build.get(key, 0.0)) / BODY_BUILD_TIME
 				var settle: float = 1.0 if reduced_effects else 1.0 + sin(build_t * PI * 3.0) * pow(1.0 - build_t, 2.0) * .15
-				var mount: Vector2 = at - aim * kick * scale * (.2 if reduced_effects else 1.0)
-				draw_form(str(sim.BODIES[s][k].get("form", "node")), mount, radius * settle, lit, k, s == stage_now, aim, build_t)
+				var mount: Vector2 = at - aim * kick * 1.5 * scale * (.2 if reduced_effects else 1.0)
+				draw_form(str(sim.BODIES[s][k].get("form", "node")), mount, radius * settle, lit, k, s == stage_now, aim, build_t, scale)
 				if build_t < 1.0:
-					draw_body_assembly(at, radius, build_t, k)
+					draw_body_assembly(at, radius * scale, build_t, k)
 				if lit > .01 and build_t > .35:
-					draw_body_muzzle(mount, radius, aim, lit, int(sim.BODIES[s][k].get("style", s)))
+					draw_body_muzzle(mount, radius * scale, aim, lit, int(sim.BODIES[s][k].get("style", s)))
+				if s < stage_now and hover.distance_to(at) < radius * scale + 7:
+					ring(at, radius * scale + 5, Color(ACCENT, .6), 1.0)
+					ink(TranslationServer.translate(str(sim.BODIES[s][k].weapon)), at + Vector2(-24, -radius * scale - 12), INK, 11)
 				if s == stage_now and s not in atlas.MAPPED and hover.distance_to(at) < size + 16:
 					ink(TranslationServer.translate(str(sim.BODIES[s][k].weapon)), at + Vector2(-24, -size - 22), INK, 12)
 			elif s == stage_now:
@@ -1901,9 +1920,9 @@ func draw_bodies() -> void:
 				if hovered and s not in atlas.MAPPED:
 					ink(TranslationServer.translate("改造 ") + TranslationServer.translate(str(sim.BODIES[s][k].name)) + "  $" + sim.Catalog.number(sim.body_cost()), at + Vector2(-40, -dash_r - 10), ACCENT, 12)
 
-func draw_form(form: String, at: Vector2, r: float, lit: float, k: int, big: bool, aim: Vector2 = Vector2.UP, build: float = 1.0) -> void:
+func draw_form(form: String, at: Vector2, r: float, lit: float, k: int, big: bool, aim: Vector2 = Vector2.UP, build: float = 1.0, visual_scale: float = 1.0) -> void:
 	# All geometry shares the same local firing axis; only interior rotors spin.
-	glyph_base = scene_transform * Transform2D(aim.angle(), at)
+	glyph_base = scene_transform * Transform2D(aim.angle(), Vector2.ONE * visual_scale, 0.0, at)
 	draw_set_transform_matrix(glyph_base)
 	at = Vector2.ZERO
 	aim = Vector2.RIGHT
@@ -2218,25 +2237,52 @@ func draw_incoming_bodies(view_stage: int, reveal: float) -> void:
 
 func draw_transition_bodies(outgoing: Transform2D, t: float) -> void:
 	# Collected bodies visibly travel into the next chapter's legacy orbit.
-	var global_slot: int = 0
 	for s in range(sim.stage + 1):
 		for k in range(sim.BODIES[s].size()):
-			var index: int = global_slot
-			global_slot += 1
 			if not sim.body_converted_at(s, k):
 				continue
-			var angle: float = index * .71 + sim.elapsed * .25
-			var destination: Vector2 = Vector2(500, 325) + Vector2.from_angle(angle) * (150.0 + index % 3 * 14.0)
+			var destination: Vector2 = sim.body_position_at(s, k, sim.stage + 1)
 			var from: Vector2 = outgoing * sim.body_position(s, k)
 			var gather: float = smoothstep(.35, 1.0, t)
 			var at: Vector2 = from.lerp(destination, gather)
-			var original: float = (float(sim.BODIES[s][k].size) + 7) * 1.5 if s == sim.stage else 6.0
-			var radius: float = lerpf(maxf(3, original * pow(.04, t)), 6.0, gather)
+			var original: float = body_visual_radius(s, k)
+			var destination_radius: float = body_visual_radius(s, k, sim.stage + 1)
+			var radius: float = lerpf(maxf(3, original * pow(.04, t)), destination_radius, gather)
 			var aim := Vector2.from_angle(float(body_aim.get(s * 16 + k, -PI * .5)))
-			draw_form(str(sim.BODIES[s][k].get("form", "node")), at, radius, 0, k, false, aim)
+			var full_radius: float = (float(sim.BODIES[s][k].size) + 7) * 1.5
+			draw_form(str(sim.BODIES[s][k].get("form", "node")), at, full_radius, 0, k, false, aim, 1.0, radius / full_radius)
 
-func weapon(index: int, point: Vector2, small: bool = false, visual_scale: float = 1.0) -> void:
-	# Turret i is a (3+i)-gon, so older weapons stay recognisable at larger scales.
+func draw_legacy_weapon_model(index: int, point: Vector2, size: float) -> void:
+	# Keep the same scene used by the chapter handoff. Do not replace the folded
+	# Earth/system/galaxy with a generic polygon once the transition finishes.
+	var previous_transform: Transform2D = scene_transform
+	var previous_glyph: Transform2D = glyph_base
+	var previous_outer: float = core_outer
+	var previous_quiet: bool = quiet_text
+	var previous_pulse: float = core_pulse
+	var previous_stroke: float = miniature_stroke_scale
+	var factor: float = (.065 if index == 0 else .16) * size
+	var center: Vector2 = sim.defense_position_at(index)
+	scene_transform = previous_transform * Transform2D(0.0, Vector2.ONE * factor, 0.0, point - center * factor)
+	draw_set_transform_matrix(scene_transform)
+	quiet_text = true
+	# Keep thin structural strokes legible after scaling; topology stays intact.
+	miniature_stroke_scale = maxf(1.0, .35 / maxf(factor, .001))
+	core_pulse = maxf(core_pulse, recoil[index])
+	stage_scene(index, 1.0)
+	draw_incoming_bodies(index, 1.0)
+	core_pulse = previous_pulse
+	miniature_stroke_scale = previous_stroke
+	core_outer = previous_outer
+	quiet_text = previous_quiet
+	glyph_base = previous_glyph
+	scene_transform = previous_transform
+	draw_set_transform_matrix(scene_transform)
+	if recoil[index] > .01:
+		var direction := Vector2.from_angle(aims[index])
+		draw_body_muzzle(point, 14.0 * size, direction, clampf(recoil[index], 0, 1), index)
+
+func weapon(index: int, point: Vector2, small: bool = false, visual_scale: float = 1.0, folded_model: bool = false) -> void:
 	var s: float = (.7 if small else 1.0) * visual_scale
 	if dock_age[index] >= 0 and not small and sim.mode != "transition":
 		# A newly deployed turret flies out of the core and snaps into place.
@@ -2249,20 +2295,31 @@ func weapon(index: int, point: Vector2, small: bool = false, visual_scale: float
 	var direction := Vector2(cos(aims[index]), sin(aims[index]))
 	var p: Vector2 = point - direction * recoil[index] * (3 + index)
 	var radius: float = (10 + index * 1.2) * s
-	shape(p, radius, 3 + index, aims[index], BG, INK, 1.6)
-	draw_line(p, p + direction * (radius + 7 * s), INK, 2.0 * s, true)
-	var tier: int = mini(5, int(sim.levels.reload) / 10)
-	for j in range(tier):
-		draw_circle(p + Vector2(-radius + j * 4.5, radius + 6), 1.3, GREY)
+	if small or folded_model:
+		draw_legacy_weapon_model(index, p, s)
+	else:
+		shape(p, radius, 3 + index, aims[index], BG, INK, 1.6)
+		draw_line(p, p + direction * (radius + 7 * s), INK, 2.0 * s, true)
+		var tier: int = mini(5, int(sim.levels.reload) / 10)
+		for j in range(tier):
+			draw_circle(p + Vector2(-radius + j * 4.5, radius + 6), 1.3, GREY)
 	if sim.mode != "transition" and not small and (index == sim.stage or hover.distance_to(point) < 48):
 		ink(TranslationServer.translate(sim.catalog.weapons[index].title), point + Vector2(-26, radius + 24), DIM, 10)
-	if sim.mode != "transition" and hover.distance_to(point) < 30 and body_at(hover) < 0:
+
+func draw_weapon_inspector() -> void:
+	if sim.mode in ["title", "transition"] or body_at(hover) >= 0:
+		return
+	for index in range(WEAPONS):
+		var point: Vector2 = sim.weapon_origin(index)
+		if not sim.owned[index] or hover.distance_to(point) >= 30:
+			continue
 		var panel: Vector2 = point + Vector2(-115, -96)
 		draw_rect(Rect2(panel, Vector2(230, 65)), Color("1a1a1a"))
 		draw_rect(Rect2(panel, Vector2(230, 65)), DARK, false, 1)
 		ink(TranslationServer.translate(sim.catalog.weapons[index].title) + TranslationServer.translate(" · 在役"), panel + Vector2(10, 19), INK, 13)
 		ink(TranslationServer.translate("齐射 ") + sim.Catalog.number(sim.shot_damage(index)) + " / " + ("%.2f s" % sim.shot_interval(index)), panel + Vector2(10, 38), GREY, 11)
 		ink(TranslationServer.translate("每次覆盖 ") + sim.Catalog.number(sim.coverage(index)) + TranslationServer.translate(" 成员"), panel + Vector2(10, 55), DIM, 11)
+		return
 
 func boss_silhouette(p: Vector2, radius: float, kind: String, flash: float) -> void:
 	# The shader paints the light; underneath sits only a dark body in the boss's
@@ -2838,7 +2895,7 @@ func _draw_field() -> void:
 		for i in range(WEAPONS):
 			if sim.owned[i]:
 				var pose: Dictionary = transition_weapon_pose(i, outgoing, t)
-				weapon(i, pose.point, false, pose.scale)
+				weapon(i, pose.point, false, pose.scale, true)
 		draw_transition_bodies(outgoing, t)
 	else:
 		var prof: int = Time.get_ticks_usec()
@@ -2943,6 +3000,7 @@ func _draw_field() -> void:
 	if ult_flash > 0.001:
 		draw_rect(Rect2(-400, -400, 1800, 1450), Color(1, 1, 1, minf(1.0, ult_flash)))
 	inspector()
+	draw_weapon_inspector()
 	draw_reticle()
 	draw_ms = (Time.get_ticks_usec() - started) / 1000.0
 
@@ -3208,15 +3266,6 @@ func draw_strikes_batched() -> void:
 		var t: float = float(st.age) / float(st.dur)
 		if t < 0 or t > 1:
 			continue
-		if not bool(st.big):
-			# Earlier chapters' bodies strike in shorthand: a short streak into the
-			# target and the hits, never a line across the whole field.
-			var c_small: Color = ACCENT if bool(st.crit) else INK
-			var into: Vector2 = (Vector2(st.to) - Vector2(st.from)).normalized()
-			stroke(Vector2(st.to) - into * 34.0, st.to, Color(c_small, .6 * (1.0 - t)))
-			for q in st.points:
-				shape(q, 2.2 * (1.0 - t) + .6, 4, .785, Color(c_small, 1.0 - t))
-			continue
 		var a: Vector2 = st.from
 		var b: Vector2 = st.to
 		var col: Color = ACCENT if bool(st.crit) else INK
@@ -3297,12 +3346,6 @@ func draw_strikes_batched() -> void:
 	for w in sim.wells:
 		var age: float = float(w.age)
 		var at: Vector2 = w.pos
-		if int(w.get("slot", -1)) >= 0 and int(w.get("stage", sim.stage)) != sim.stage:
-			# Earlier chapters' bodies: just a small flash where the effect lands.
-			var k_small: float = clampf(age / maxf(.01, float(w.dur)), 0, 1)
-			if age >= 0.0:
-				shape(at, 2.6 * (1.0 - k_small) + .6, 4, .785, Color(INK, .7 * (1.0 - k_small)))
-			continue
 		match str(w.get("kind", "gravity")):
 			"burn":
 				# The lance's track keeps burning: a heat shimmer along the line.
@@ -3374,8 +3417,7 @@ func draw_swarm_batched() -> void:
 		var curve := func(u: float) -> Vector2: return Vector2(p.from).lerp(p.end, u) + n * side * sin(u * PI) * (24.0 + j * 9.0)
 		var head: Vector2 = curve.call(t)
 		var back: Vector2 = curve.call(maxf(0, t - .04))
-		var legacy: bool = int(p.get("body_stage", sim.stage)) != sim.stage
-		for k in range(1, 3 if legacy else 6):
+		for k in range(1, 3 if reduced_effects else 6):
 			var puff: Vector2 = curve.call(maxf(0, t - k * .035))
 			shape(puff, 1.6 + k * .35, 5, k, Color(GREY, .28 - k * .045))
 		var heading: Vector2 = (head - back).normalized() if head != back else dir

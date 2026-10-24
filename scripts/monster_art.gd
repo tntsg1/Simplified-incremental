@@ -10,6 +10,20 @@ const ACCENT := Color("ffc94d")
 const DEEP := Color("161616")
 const ICE := Color("cfe4f2")
 
+# Reuse local vertices; Transform2D maps the whole packed array in native code.
+# Bound the cache even if a future effect requests continuously varying counts.
+static var unit_rings: Dictionary = {}
+
+static func unit_ring(n: int) -> PackedVector2Array:
+	if unit_rings.has(n):
+		return unit_rings[n]
+	var points := PackedVector2Array()
+	for i in range(n):
+		points.append(Vector2.from_angle(i * TAU / n))
+	if n > 0 and n <= 128:
+		unit_rings[n] = points
+	return points
+
 
 static func body(f: Node2D, pts: PackedVector2Array, a: float, line: Color = INK, fill: Color = DEEP, w: float = 1.3) -> void:
 	if pts.size() < 3:
@@ -21,19 +35,24 @@ static func body(f: Node2D, pts: PackedVector2Array, a: float, line: Color = INK
 
 
 static func ring_pts(c: Vector2, r: float, n: int, rot: float = 0.0, jitter: float = 0.0, seed: int = 0) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	for i in range(n):
-		var k: float = 1.0 + (jitter * sin(i * 2.7 + seed * .37) if jitter > 0.0 else 0.0)
-		out.append(c + Vector2.from_angle(rot + i * TAU / n) * r * k)
-	return out
+	# Seeded art can pass very large angles. Keep its original float rounding:
+	# distributing that angle over a transform changes the rim at large seeds.
+	if absf(rot) > 128.0:
+		var out := PackedVector2Array()
+		for i in range(n):
+			var k: float = 1.0 + (jitter * sin(i * 2.7 + seed * .37) if jitter > 0.0 else 0.0)
+			out.append(c + Vector2.from_angle(rot + i * TAU / n) * r * k)
+		return out
+	var points: PackedVector2Array = unit_ring(n)
+	if jitter > 0.0:
+		points = points.duplicate()
+		for i in range(points.size()):
+			points[i] *= 1.0 + jitter * sin(i * 2.7 + seed * .37)
+	return Transform2D(rot, Vector2.ONE * r, 0.0, c) * points
 
 
 static func oval(c: Vector2, rx: float, ry: float, rot: float, n: int = 20) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	for i in range(n):
-		var a: float = i * TAU / n
-		out.append(c + Vector2(cos(a) * rx, sin(a) * ry).rotated(rot))
-	return out
+	return Transform2D(rot, Vector2(rx, ry), 0.0, c) * unit_ring(n)
 
 
 static func star_pts(c: Vector2, r_out: float, r_in: float, n: int, rot: float) -> PackedVector2Array:

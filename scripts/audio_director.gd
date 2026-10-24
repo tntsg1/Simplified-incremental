@@ -8,9 +8,9 @@ const LEVEL := {"ult": -5.0, "ult_event": -9.0, "boss": -5.0, "flow": -5.0, "bod
 const PENTA: Array[int]=[0,2,4,7,9]
 # How many copies of one sound may ring at once.
 const CAP := {"turret": 2, "coin": 3, "ui_click": 2}
-# Chapter -> score (assets/audio/<name>.ogg). One main theme for now; chapter
-# themes from SUNO_PROMPTS.md slot in here as they are made.
-const TRACKS: Array[String]=["bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main","bgm_main"]
+# Local music trial: keep the original title theme, use the selected recordings
+# for chapter ambience, boss combat, enrage and the scale transition.
+const TRACKS: Array[String]=["music/ch01_city","music/solar_wind","music/solar_wind","music/dockside","music/dockside","music/dockside","music/glass","music/glass","music/dockside","music/glass"]
 var voices: Array[AudioStreamPlayer]=[]
 var priority_voices: Array[AudioStreamPlayer]=[]
 var priority_cursor: int=0
@@ -18,6 +18,10 @@ var voice_cursor: int=0
 var music: Array[AudioStreamPlayer]=[]
 var tension: AudioStreamPlayer
 var current_track: int=-1
+var current_music_key: String=""
+var active_music: int=1
+var music_gains: Array[float]=[0.0,0.0]
+var music_resume: Dictionary={}
 var streams: Dictionary={}
 var fire_limits: Array[float]=[0,0,0,0,0,0,0,0,0,0]
 var hit_limits: Array[float]=[0,0,0,0,0,0,0,0,0,0]
@@ -323,6 +327,44 @@ func minion_launched(_point: Vector2) -> void:
 func ui(key: String) -> void:
 	sfx(key,LEVEL.ui,1.0,true)
 
+func music_cue(sim: RefCounted) -> String:
+	if sim.mode == "title":
+		return "bgm_main"
+	if sim.mode == "transition":
+		return "music/scale_jump"
+	if sim.mode == "boss":
+		return "music/boss_fury" if sim.enraged else "music/boss_tactical"
+	if sim.mode in ["failed", "victory"] and current_music_key != "":
+		return current_music_key
+	return TRACKS[clampi(sim.stage,0,TRACKS.size()-1)]
+
+func update_music(sim: RefCounted, delta: float) -> void:
+	current_track = sim.stage
+	var key: String = music_cue(sim)
+	if key != current_music_key:
+		active_music = 1 - active_music
+		var player: AudioStreamPlayer = music[active_music]
+		if player.playing:
+			music_resume[player.stream.resource_path] = player.get_playback_position()
+		player.stop()
+		player.stream = get_stream(key)
+		player.stream.loop = key != "music/scale_jump"
+		music_gains[active_music] = 0.0
+		player.volume_db = -80.0
+		var resume: float = float(music_resume.get(player.stream.resource_path,0.0)) if key in TRACKS or key == "bgm_main" else 0.0
+		player.play(resume)
+		current_music_key = key
+	# Linear-amplitude crossfades avoid a dip through inaudible dB values.
+	var level: float = -16.0 + ult_duck * .5
+	if sim.paused or sim.mode == "failed":
+		level -= 7.0
+	for i in range(music.size()):
+		music_gains[i] = move_toward(music_gains[i],1.0 if i == active_music else 0.0,delta / 1.2)
+		music[i].volume_db = level + linear_to_db(maxf(.0001,music_gains[i] * music_level))
+		if i != active_music and music_gains[i] <= 0.0 and music[i].playing:
+			music_resume[music[i].stream.resource_path] = music[i].get_playback_position()
+			music[i].stop()
+
 func update(sim: RefCounted, delta: float) -> void:
 	if not enabled:return
 	if cinematic_cut:
@@ -357,32 +399,7 @@ func update(sim: RefCounted, delta: float) -> void:
 		if sim.owned[i]:
 			focus_weapon=i
 			break
-	if current_track!=sim.stage:
-		var same_theme: bool=current_track>=0 and TRACKS[current_track]==TRACKS[sim.stage]
-		var previous: int=current_track
-		current_track=sim.stage
-		if same_theme:
-			# Same theme in the next chapter: keep it rolling on the player it is on.
-			if music[previous%2]!=music[sim.stage%2]:
-				var from: AudioStreamPlayer=music[previous%2]
-				var to: AudioStreamPlayer=music[sim.stage%2]
-				to.stream=from.stream
-				to.volume_db=from.volume_db
-				to.play(from.get_playback_position())
-				from.stop()
-		else:
-			var player: AudioStreamPlayer=music[sim.stage%2]
-			player.stream=get_stream(TRACKS[sim.stage])
-			player.stream.loop=true
-			player.volume_db=-55
-			player.play()
-	var target_db: float=-16 if sim.mode!="boss" else -21
-	if sim.paused:target_db-=7
-	for i in range(2):
-		var desired: float=target_db if i==sim.stage%2 else -60
-		desired+=linear_to_db(maxf(.01,music_level))
-		music[i].volume_db=move_toward(music[i].volume_db,desired,delta*18)
-		if desired<=-60 and music[i].volume_db<=-59:music[i].stop()
+	update_music(sim,delta)
 	# Boss pulse is intentionally silent; retain the chapter's background music.
 	var tension_target: float=(-29+linear_to_db(maxf(.001,music_level))) if sim.mode=="boss" and not sim.paused else -60
 	tension.volume_db=move_toward(tension.volume_db,tension_target,delta*25)

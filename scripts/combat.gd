@@ -55,6 +55,9 @@ const TURRET_RINGS: Array[int] = [12, 16, 20]
 # share of the arsenal and keeps firing (from orbit round the core) in later scales.
 const BODY_PERIOD: float = 0.4
 const BODY_SHARE: float = 0.12
+# One inherited orbit per chapter, in the clear bands between existing scene
+# orbits. Late chapters keep enough circumference for the full inherited fleet.
+const BODY_ORBIT_RADII: Array[float] = [0.0, 280.0, 245.0, 176.0, 215.0, 240.0, 208.0, 290.0, 290.0, 290.0]
 const BODY_PRICE_GROWTH: float = 2.2
 # Celestial cannons lob slow heavy shells that burst over a whole area —
 # their job is suppression: every threat in the blast takes the hit.
@@ -1119,16 +1122,33 @@ func scene_body_position(body_stage: int, slot: int) -> Vector2:
 	return c + Vector2(cos(a), sin(a)) * float(spec.orbit)
 
 func body_position(body_stage: int, slot: int) -> Vector2:
-	if body_stage == stage:
+	return body_position_at(body_stage, slot, stage)
+
+func body_orbit_radius(view_stage: int = -1) -> float:
+	return BODY_ORBIT_RADII[stage if view_stage < 0 else view_stage]
+
+func body_position_at(body_stage: int, slot: int, view_stage: int) -> Vector2:
+	if body_stage == view_stage:
 		return scene_body_position(body_stage, slot)
-	# Bodies from smaller scales have shrunk into an orbit round the core.
-	var index: int = 0
-	for s in range(body_stage):
-		index += BODIES[s].size()
-	index += slot
-	var a: float = index * 0.71 + elapsed * 0.25
-	var radius: float = 150.0 + (index % 3) * 14.0
-	return defense_position() + Vector2(cos(a), sin(a) * (0.55 if stage == 0 else 1.0)) * radius
+	# Rank only the guns actually inherited. A fixed angular increment wrapped
+	# every nine slots and put later guns beside earlier ones, leaving large gaps.
+	var index: int = -1
+	var count: int = 0
+	for s in range(view_stage):
+		for k in range(BODIES[s].size()):
+			if not body_converted_at(s, k):
+				continue
+			if s == body_stage and k == slot:
+				index = count
+			count += 1
+	# Also allow a read-only position query before a body has been converted.
+	if index < 0:
+		index = count
+		count += 1
+	var step: float = TAU / maxi(1, count)
+	var rotation: float = fposmod(elapsed * .25, TAU)
+	var a: float = fposmod(index * step + rotation, TAU)
+	return defense_position_at(view_stage) + Vector2.from_angle(a) * body_orbit_radius(view_stage)
 
 func body_shot_damage() -> float:
 	return BODY_SHARE * arsenal_rate(shot_damage) * BODY_PERIOD
@@ -1138,6 +1158,13 @@ func body_coverage() -> int:
 
 func body_attack(body_stage: int, slot: int) -> String:
 	return str(BODIES[body_stage][slot].get("attack", "shell"))
+
+# Read-only base volley values shared with the inspection card. Special attacks
+# keep their existing splash/chaining multipliers and crits in fire_body_special.
+func body_weapon_stats(body_stage: int, slot: int) -> Dictionary:
+	var attack: String = body_attack(body_stage, slot)
+	var every: int = int(ATTACK_EVERY.get(attack, 1))
+	return {"attack": attack, "damage": body_shot_damage() * every, "interval": BODY_PERIOD * every, "coverage": body_coverage()}
 
 func fire_body(body_stage: int, slot: int, target: Dictionary, lanes: Array[Dictionary] = [], beat: int = 0) -> void:
 	var attack: String = body_attack(body_stage, slot)

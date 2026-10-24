@@ -1,0 +1,86 @@
+[
+  {
+    "key": "orbital",
+    "source": "Orbital Defense Ostinato.mp3",
+    "source_sha256": "066d9ad5697e0f0f845ad8a2128d1c22ba823a57cf0674d528768604ec5acbab",
+    "start": 12.0,
+    "source_duration": 198.0,
+    "loop": true,
+    "prepared_duration": 197.0,
+    "file": "res://assets/audio/music/orbital.ogg"
+  },
+  {
+    "key": "dockside",
+    "source": "Dockside Star Map.mp3",
+    "source_sha256": "81d2eab310129d1d1095efec0e44aa873d77d67e444567eab8617ff988bb032c",
+    "start": 8.0,
+    "source_duration": 376.0,
+    "loop": true,
+    "prepared_duration": 375.0,
+    "file": "res://assets/audio/music/dockside.ogg"
+  },
+  {
+    "key": "glass",
+    "source": "Glass Tide.mp3",
+    "source_sha256": "00d21dc997a21e13e8f2779df8d36a3c9a1e474c8d7a10386f392e490c71c742",
+    "start": 0.0,
+    "source_duration": 147.0,
+    "loop": true,
+    "prepared_duration": 146.0,
+    "file": "res://assets/audio/music/glass.ogg"
+  },
+  {
+    "key": "boss_tactical",
+    "source": "Tactical Interference.mp3",
+    "source_sha256": "ed38a6f4fbaa29447ad263f780f20655ee776754a7db4166911d8bc675e3ffa8",
+    "start": 20.0,
+    "source_duration": 101.0,
+    "loop": true,
+    "prepared_duration": 100.0,
+    "file": "res://assets/audio/music/boss_tactical.ogg"
+  },
+  {
+    "key": "boss_fury",
+    "source": "Tactical Interference (1).mp3",
+    "source_sha256": "859d1572b06c22d11cd9b835e8d5cd09efe19b31276c5b8bb93b06e6a1d0e113",
+    "start": 140.0,
+    "source_duration": 48.0,
+    "loop": true,
+    "prepared_duration": 47.0,
+    "file": "res://assets/audio/music/boss_fury.ogg"
+  },
+  {
+    "key": "scale_jump",
+    "source": "Expanding Scale.mp3",
+    "source_sha256": "ac7d39df19c08976f8f472dc4112767e6ee5ae70c7f9ea8caeef55f0a4a059d9",
+    "start": 0.0,
+    "source_duration": 9.8,
+    "loop": false,
+    "prepared_duration": 9.8,
+    "file": "res://assets/audio/music/scale_jump.ogg"
+  },
+  {
+    "key": "ch01_city",
+    "source": "D F# A C.mp3",
+    "source_sha256": "e4b41cbe8505e41d61e2f101bab7ebb27bd25d46128ba26df33fec16923e3ff4",
+    "start": 0.0,
+    "source_duration": 208.416,
+    "loop": true,
+    "file": "res://assets/audio/music/ch01_city.ogg",
+    "preparation": "Full recording, Vorbis quality 5; no trimming, crossfade or loudness processing."
+  },
+  {
+    "key": "solar_wind",
+    "source": "Solar Wind Arpeggio.mp3",
+    "source_sha256": "e4ff9f5b90ce29b7c54ff6a40556e45eb858ced9cbe2f970bdb1d69c2b595d42",
+    "start": 0.0,
+    "source_duration": 224.016,
+    "loop": true,
+    "stages": [
+      1,
+      2
+    ],
+    "file": "res://assets/audio/music/solar_wind.ogg",
+    "preparation": "Full recording, Vorbis quality 5; no trimming, crossfade or loudness processing."
+  }
+]

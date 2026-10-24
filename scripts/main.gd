@@ -118,6 +118,9 @@ var dev_mode: bool=false
 # Celestial conversion card: opens beside a clicked body, battle keeps running.
 var body_card: PanelContainer
 var body_card_slot: int=-1
+var body_card_stage: int=-1
+var body_card_readonly: bool=false
+var body_card_details: Label
 var body_card_button: Button
 var body_card_price: Label
 # Boss kills play in slow motion for a moment (real seconds left).
@@ -1307,6 +1310,7 @@ func animate_hud(delta: float) -> void:
 func open_body_card(slot: int) -> void:
 	close_body_card()
 	body_card_slot = slot
+	body_card_stage = sim.stage
 	var spec: Dictionary = sim.BODIES[sim.stage][slot]
 	body_card = PanelContainer.new()
 	body_card.add_theme_stylebox_override("panel",panel_style(Color("1a1a1a"),Color("ffc94d"),10))
@@ -1342,18 +1346,47 @@ func open_body_card(slot: int) -> void:
 	tween.tween_property(body_card,"scale",Vector2.ONE,.24).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(body_card,"modulate:a",1.0,.14)
 
+func open_body_details(body_stage: int, slot: int) -> void:
+	close_body_card()
+	body_card_stage = body_stage
+	body_card_slot = slot
+	body_card_readonly = true
+	var spec: Dictionary = sim.BODIES[body_stage][slot]
+	body_card = PanelContainer.new()
+	body_card.add_theme_stylebox_override("panel",panel_style(Color("1a1a1a"),Color("ffc94d"),10))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation",8)
+	body_card.add_child(v)
+	v.add_child(label(TranslationServer.translate(str(spec.weapon)),20))
+	v.add_child(label(TranslationServer.translate(str(spec.name)) + words(" · 在役"," · ACTIVE"),13,Color("b4b4b4")))
+	body_card_details = label("",14,Color("ededed"))
+	body_card_details.custom_minimum_size.x = 270
+	v.add_child(body_card_details)
+	var inherited: String = words("保留原攻击方式 · 全局升级继续生效","Original attack · Global upgrades apply")
+	var note := label(inherited,12,Color("b4b4b4"))
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size.x = 270
+	v.add_child(note)
+	v.add_child(button(words("关闭","CLOSE"),close_body_card))
+	ui.add_child(body_card)
+	refresh_body_card()
+
 func refresh_body_card() -> void:
 	if not is_instance_valid(body_card):
 		return
-	if body_card_slot < 0 or sim.mode in ["title","transition","victory","failed"] or sim.body_converted_at(sim.stage,body_card_slot):
+	if body_card_slot < 0 or sim.mode in ["title","transition","victory","failed"] or (not body_card_readonly and sim.body_converted_at(sim.stage,body_card_slot)):
 		close_body_card()
 		return
-	var price: float = sim.body_cost()
-	var missing: float = price - sim.money
-	body_card_price.text = TranslationServer.translate("价格  $") + Catalog.number(price)
-	body_card_button.disabled = missing > 0
-	body_card_button.text = TranslationServer.translate("改造") if missing <= 0 else TranslationServer.translate("还差 $") + Catalog.number(missing)
-	var anchor: Vector2 = field.to_global(sim.body_position(sim.stage,body_card_slot))
+	if body_card_readonly:
+		var stats: Dictionary = sim.body_weapon_stats(body_card_stage,body_card_slot)
+		body_card_details.text = words("基础齐射  ","Base volley  ") + Catalog.number(stats.damage) + "\n" + words("攻击间隔  ","Attack interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每次覆盖  ","Coverage  ") + Catalog.number(stats.coverage)
+	else:
+		var price: float = sim.body_cost()
+		var missing: float = price - sim.money
+		body_card_price.text = TranslationServer.translate("价格  $") + Catalog.number(price)
+		body_card_button.disabled = missing > 0
+		body_card_button.text = TranslationServer.translate("改造") if missing <= 0 else TranslationServer.translate("还差 $") + Catalog.number(missing)
+	var anchor: Vector2 = field.to_global(sim.body_position(body_card_stage,body_card_slot))
 	var card_size: Vector2 = body_card.get_combined_minimum_size()
 	var place: Vector2 = anchor + Vector2(28,-card_size.y*.5)
 	if place.x + card_size.x > size.x - 20:
@@ -1362,7 +1395,7 @@ func refresh_body_card() -> void:
 	body_card.position = body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place
 
 func confirm_body_card() -> void:
-	if body_card_slot >= 0 and sim.convert_body(body_card_slot):
+	if not body_card_readonly and body_card_slot >= 0 and sim.convert_body(body_card_slot):
 		play_tone("buy")
 		close_body_card()
 
@@ -1371,6 +1404,9 @@ func close_body_card() -> void:
 		body_card.queue_free()
 	body_card = null
 	body_card_slot = -1
+	body_card_stage = -1
+	body_card_readonly = false
+	body_card_details = null
 
 func settings_payload() -> Dictionary:
 	return {"sound":sound_on,"camera_comfort":camera_comfort,"reduced_effects":reduced_effects,"ui_motion":ui_motion,"music_level":audio.music_level,"effects_level":audio.effects_level,"game_speed":game_speed,"language":language}
@@ -1795,6 +1831,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			var body: int = field.body_at(point)
 			if body >= 0:
 				open_body_card(body)
+				return
+			var converted: Vector2i = field.converted_body_at(point)
+			if converted.x >= 0:
+				open_body_details(converted.x,converted.y)
 				return
 			close_body_card()
 			var selected: int = sim.select_target(point)
