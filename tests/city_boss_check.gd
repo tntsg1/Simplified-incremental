@@ -197,4 +197,3 @@ func run() -> void:
 	await process_frame
 	print("CITY_BOSS_CHECK checks=",checks," failures=",failures)
 	quit(1 if failures else 0)
-
