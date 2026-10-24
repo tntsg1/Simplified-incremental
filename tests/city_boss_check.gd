@@ -158,11 +158,11 @@ func run() -> void:
 	await process_frame
 	silo_click=silo_click.duplicate(); silo_click.pressed=false; Input.parse_input_event(silo_click)
 	await process_frame
-	check(game.menu=="city_silo" and game.sim.paused, "Only clicking the silo opens its own mode page")
+	check(game.menu=="" and game.body_card_silo and is_instance_valid(game.body_card), "Only clicking the silo opens its own small card")
 	await create_timer(.7).timeout
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("res://build/city-boss/modes-1280.png")
-	game.close_modal(); game.sim.paused=true
+	game.close_body_card(); game.sim.paused=true
 	await create_timer(.6).timeout
 	game.sim.apply_damage(game.sim.boss_actor(),game.sim.boss_max_hp()*.1,1,0,false,false,true)
 	game.sim.boss_actor()["flash"]=0.0

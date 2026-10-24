@@ -33,21 +33,4 @@ func refresh() -> void:
 	pass
 
 func open_silo() -> void:
-	if game.sim.stage!=0: return
-	game.close_body_card()
-	game.menu="city_silo"
-	game.sim.paused=true
-	game.sim.manual_held=false; game.sim.manual_queued=false
-	var column: VBoxContainer=game.new_modal(minf(590,game.size.x-64),game.words("导弹发射井","Missile silo"),game.words("只调整这座发射井 · 战斗中修改，下波生效","This silo only · Combat changes apply next wave"))
-	var unlocked: bool=game.sim.wave>=6
-	for value in range(2):
-		var selected: int=value
-		var title: String=game.words("重点拦截","Focused fire") if value==0 else game.words("分路拦截","Split fire")
-		var choice: Button=game.button(("● " if game.sim.city_mode_next==value else "")+title,func():game.sim.set_city_mode(selected); game.save_game(); open_silo())
-		choice.disabled=not unlocked or game.sim.city_mode_next==value
-		column.add_child(choice)
-		var explanation: Label=game.label(game.words("集中攻击所选目标。","Concentrate fire on the selected target.") if value==0 else game.words("最多攻击三个目标，每路得到三分之一火力。","Hit up to three targets with one third of the payload each."),14)
-		explanation.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
-		column.add_child(explanation)
-	if not unlocked: column.add_child(game.label(game.words("第六波解锁射击模式","Fire modes unlock at wave six"),14))
-	column.add_child(game.button(game.words("关闭","Close"),game.close_modal))
+	if game.sim.stage==0: game.open_silo_card()

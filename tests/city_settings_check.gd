@@ -70,15 +70,32 @@ func run() -> void:
 		game.body_card_modes[1].pressed.emit()
 		check(game.sim.body_modes.count(0,2)==3 and game.sim.body_modes.count(0,0)==1, "Individual setting leaves neighbors alone")
 		await capture("right-tower")
+	var tower_width: float=game.body_card.size.x if is_instance_valid(game.body_card) else 328
 	game.close_body_card()
 	await process_frame
+	game.sim.paused=false
 	await click(root.get_final_transform()*game.field.to_global(game.sim.weapon_origin(0)))
 	await create_timer(.7).timeout
-	check(game.menu=="city_silo" and game.sim.paused, "Click silo opens its own mode page")
-	text=all_text(game.modal)
+	check(game.menu=="" and game.body_card_silo and not game.sim.paused, "Silo opens a small non-pausing card")
+	text=all_text(game.body_card)
 	check(text.contains("导弹发射井") and text.contains("重点拦截") and text.contains("分路拦截") and not text.contains("摩天楼"), "Silo page contains only silo modes")
+	check(not is_instance_valid(game.modal) and not game.shade.visible, "No centered modal or background dimming for silo")
+	check(absf(game.body_card.size.x-tower_width)<2 and game.body_card.size.x<=350, "Silo card matches the other installation card width")
+	var silo_rect: Rect2=game.body_card.get_global_rect()
+	check(silo_rect.position.x>=20 and silo_rect.end.x<=1260 and silo_rect.position.y>=124 and silo_rect.end.y<=610, "Silo card fits 720p play area")
+	var elapsed: float=game.sim.elapsed; await create_timer(.1).timeout
+	check(game.sim.elapsed>elapsed, "Combat keeps running just like other small cards")
+	var cooldown: float=game.sim.cooldowns[0]
+	game.silo_card_modes[1].pressed.emit()
+	check(game.sim.city_mode==0 and game.sim.city_mode_next==1 and is_equal_approx(game.sim.cooldowns[0],cooldown), "Small card preserves next-wave switching without reload reset")
 	await capture("silo")
-	game.close_modal(); game.sim.paused=true
+	root.size=Vector2i(1600,900); await process_frame; game.layout(); game.refresh_body_card(); await process_frame
+	var large_rect: Rect2=game.body_card.get_global_rect()
+	check(game.body_card.size.x<=350 and large_rect.end.x<=1580 and large_rect.end.y<=790, "Silo remains a small anchored card at 1600x900")
+	await capture("silo-1600")
+	await key(KEY_ESCAPE)
+	check(not is_instance_valid(game.body_card) and game.menu=="", "Esc closes silo card like other cards")
+	game.sim.paused=true
 	game.open_pause(); game.apply_language("en"); await create_timer(.7).timeout
 	buttons=primary(game)
 	check(buttons.size()==3 and buttons[0].text=="Continue" and buttons[1].text=="Settings" and buttons[2].text=="Quit", "Hierarchy persists across language switch")

@@ -122,6 +122,8 @@ var body_card: PanelContainer
 var body_card_slot: int=-1
 var body_card_stage: int=-1
 var body_card_readonly: bool=false
+var body_card_silo: bool=false
+var silo_card_modes: Array[Button]=[]
 var body_card_modes: Array[Button] = []
 var body_card_pinned: bool=false
 var body_card_details: Label
@@ -1425,6 +1427,35 @@ func open_body_details(body_stage: int, slot: int) -> void:
 	ui.add_child(body_card)
 	refresh_body_card()
 
+func open_silo_card() -> void:
+	close_body_card()
+	body_card_silo=true
+	body_card=PanelContainer.new()
+	body_card.add_theme_stylebox_override("panel",panel_style(Color("1a1a1a"),Color("ffc94d"),10))
+	var column:=VBoxContainer.new()
+	column.add_theme_constant_override("separation",8)
+	body_card.add_child(column)
+	column.add_child(label(words("导弹发射井","Missile silo"),20))
+	column.add_child(label(words("城市 · 在役","City · ACTIVE"),13,Color("b4b4b4")))
+	body_card_details=label("",14)
+	body_card_details.custom_minimum_size.x=270
+	column.add_child(body_card_details)
+	var row:=HBoxContainer.new()
+	row.add_theme_constant_override("separation",8)
+	column.add_child(row)
+	for value in range(2):
+		var selected: int=value
+		var choice: Button=button("",func():sim.set_city_mode(selected); refresh_body_card(); save_game())
+		choice.custom_minimum_size=Vector2(140,42)
+		row.add_child(choice); silo_card_modes.append(choice)
+	var note:=label(words("重点：集中目标。分路：最多三目标，各得 1/3 火力。战斗中修改，下波生效。","Focus: one target. Split: up to three targets, 1/3 payload each. Combat changes apply next wave."),13,Color("b4b4b4"))
+	note.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size.x=270
+	column.add_child(note)
+	column.add_child(button(words("关闭","Close"),close_body_card))
+	ui.add_child(body_card)
+	refresh_body_card()
+
 func configure_body_shots(count: int) -> void:
 	if body_card_readonly and sim.set_body_shots(body_card_stage,body_card_slot,count):
 		refresh_body_card()
@@ -1433,10 +1464,16 @@ func configure_body_shots(count: int) -> void:
 func refresh_body_card() -> void:
 	if not is_instance_valid(body_card):
 		return
-	if body_card_slot < 0 or sim.mode in ["title","transition","victory","failed"] or (not body_card_readonly and sim.body_converted_at(sim.stage,body_card_slot)):
+	if (body_card_slot < 0 and not body_card_silo) or (body_card_silo and sim.stage!=0) or sim.mode in ["title","transition","victory","failed"] or (not body_card_silo and not body_card_readonly and sim.body_converted_at(sim.stage,body_card_slot)):
 		close_body_card()
 		return
-	if body_card_readonly:
+	if body_card_silo:
+		body_card_details.text=words("基础齐射  ","Base volley  ")+Catalog.number(sim.shot_damage(0))+"\n"+words("攻击间隔  ","Attack interval  ")+("%.2f s" % sim.shot_interval(0))
+		if sim.wave<6: body_card_details.text+="\n"+words("第六波解锁模式","Modes unlock at wave six")
+		for i in range(silo_card_modes.size()):
+			silo_card_modes[i].text=("● " if sim.city_mode_next==i else "")+(words("重点拦截","Focused") if i==0 else words("分路拦截","Split"))
+			silo_card_modes[i].disabled=sim.wave<6 or sim.city_mode_next==i
+	elif body_card_readonly:
 		var stats: Dictionary = sim.body_weapon_stats(body_card_stage,body_card_slot)
 		if not body_card_modes.is_empty():
 			body_card_details.text = words("单发基础伤害  ","Base damage per shot  ") + Catalog.number(stats.damage) + "\n" + words("每轮发射  ","Shots per volley  ") + str(stats.shots) + "\n" + words("每轮基础伤害  ","Base damage per volley  ") + Catalog.number(stats.volley_damage) + "\n" + words("攻击间隔  ","Volley interval  ") + ("%.2f s" % stats.interval) + "\n" + words("每发覆盖  ","Coverage per shot  ") + Catalog.number(stats.coverage)
@@ -1452,19 +1489,19 @@ func refresh_body_card() -> void:
 		body_card_price.text = TranslationServer.translate("价格  $") + Catalog.number(price)
 		body_card_button.disabled = missing > 0
 		body_card_button.text = TranslationServer.translate("改造") if missing <= 0 else TranslationServer.translate("还差 $") + Catalog.number(missing)
-	if not body_card_modes.is_empty() and body_card_pinned:
+	if (body_card_silo or not body_card_modes.is_empty()) and body_card_pinned:
 		var settled: Vector2 = body_card.get_combined_minimum_size()
 		body_card.position.x=clampf(body_card.position.x,20,maxf(20,size.x-settled.x-20))
 		body_card.position.y=clampf(body_card.position.y,124,maxf(124,size.y-110-settled.y))
 		return
-	var anchor: Vector2 = field.to_global(sim.body_position(body_card_stage,body_card_slot))
+	var anchor: Vector2 = field.to_global(sim.weapon_origin(0) if body_card_silo else sim.body_position(body_card_stage,body_card_slot))
 	var card_size: Vector2 = body_card.get_combined_minimum_size()
 	var place: Vector2 = anchor + Vector2(28,-card_size.y*.5)
 	if place.x + card_size.x > size.x - 20:
 		place.x = anchor.x - 28 - card_size.x
 	place.y = clampf(place.y,124,size.y-110-card_size.y)
-	body_card.position = place if not body_card_modes.is_empty() else (body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place)
-	if not body_card_modes.is_empty():
+	body_card.position = place if body_card_silo or not body_card_modes.is_empty() else (body_card.position.lerp(place,.35) if body_card.modulate.a > .5 else place)
+	if body_card_silo or not body_card_modes.is_empty():
 		body_card.position.x = clampf(body_card.position.x,20,size.x-card_size.x-20)
 		body_card_pinned = true
 
@@ -1477,6 +1514,8 @@ func close_body_card() -> void:
 	if is_instance_valid(body_card):
 		body_card.queue_free()
 	body_card = null
+	body_card_silo=false
+	silo_card_modes.clear()
 	body_card_slot = -1
 	body_card_stage = -1
 	body_card_readonly = false
@@ -1557,7 +1596,6 @@ func apply_language(value: String, rebuild: bool = true) -> void:
 		"pause": open_pause()
 		"city_general": open_pause(true)
 		"city_pause": city_tactics.open_pause_root()
-		"city_silo": city_tactics.open_silo()
 		"shop": open_shop()
 		"result":
 			menu = ""
