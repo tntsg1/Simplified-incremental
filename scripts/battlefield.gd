@@ -2840,7 +2840,7 @@ func inspector() -> void:
 		if d < distance and d < float(e.radius) + 13:
 			selected = e
 			distance = d
-	if selected.is_empty():
+	if selected.is_empty() or sim.CityBoss.available(selected):
 		return
 	var p := Vector2(-120 if hover.x > 500 else 865, 35)
 	draw_rect(Rect2(p, Vector2(250, 190)), Color("1a1a1a"))
@@ -3951,7 +3951,8 @@ func draw_city_rift(boss: Dictionary, rendered: Vector2) -> void:
 	var point: Vector2 = rendered + Vector2(.32, .12) * float(boss.radius)
 	var broken: bool = float(boss.rift_hp) <= 0.0
 	var active: bool = sim.CityBoss.charging(sim) and not broken
-	var col: Color = ACCENT if not broken else GREY
+	var exposed: bool = sim.CityBoss.exposed(sim,boss)
+	var col: Color = INK if exposed else ACCENT if not broken else GREY
 	var crack := PackedVector2Array([point + Vector2(-18,-25), point + Vector2(-4,-11), point + Vector2(-10,0), point + Vector2(8,10), point + Vector2(3,24)])
 	if broken:
 		# A persistent dark scar remains after the eruption source is removed.
@@ -3971,6 +3972,32 @@ func draw_city_rift(boss: Dictionary, rendered: Vector2) -> void:
 			for j in range(4):
 				var angle: float = j * PI * .5 + clock * .25
 				draw_arc(point, 30, angle, angle+.65, 8, INK, 2.0, true)
+
+	var near: bool=hover.distance_to(point)<=sim.CityBoss.hit_radius(boss)+14
+	if exposed:
+		var track: float=float(boss.get("rift_track",0.0))/sim.CityBoss.TRACK_TIME
+		draw_arc(point,23,-PI*.5,-PI*.5+TAU*maxf(.015,track),40,INK,3.0,true)
+		for j in range(4):
+			var offset: Vector2=Vector2.from_angle(j*PI*.5)*(28+sin(clock*8)*2)
+			draw_line(point+offset,point+offset*.78,INK,2.0,true)
+	if near or bool(boss.rift_selected) or active:
+		var label_at: Vector2=point+Vector2(55,42)
+		draw_line(point+Vector2(25,10),label_at+Vector2(-5,-17),Color(GREY,.7),1.0,true)
+		var title: String=sim.CityBoss.words("裂隙", "Fissure")
+		if broken:
+			title=sim.CityBoss.words("裂隙已破坏 · 陨石雨 ×4", "Fissure broken · 4 meteors")
+		else:
+			title+="  %d%%" % int(ceil(float(boss.rift_hp)/float(boss.rift_max)*100))
+		ink_outlined(title,label_at,col,16)
+		if not broken:
+			var prompt: String=sim.CityBoss.words("点击裂隙集火", "Click fissure to focus")
+			if exposed: prompt=sim.CityBoss.words("按住跟瞄 · 打断喷发", "Hold aim here to interrupt")
+			elif active and not bool(boss.get("rift_aim_used",false)): prompt=sim.CityBoss.words("裂隙即将暴露", "Fissure about to open")
+			elif bool(boss.get("rift_aim_used",false)): prompt=sim.CityBoss.words("已压制一次 · 火力破坏可削弱", "Interrupt spent · destroy to weaken")
+			ink_outlined(prompt,label_at+Vector2(0,20),INK,14)
+			var width: float=90.0*float(boss.rift_hp)/float(boss.rift_max)
+			draw_line(label_at+Vector2(0,27),label_at+Vector2(90,27),DARK,2.0,true)
+			draw_line(label_at+Vector2(0,27),label_at+Vector2(width,27),col,2.0,true)
 
 func draw_boss_skill() -> void:
 	var boss: Dictionary = sim.boss_actor()

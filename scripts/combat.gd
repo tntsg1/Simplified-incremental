@@ -2,6 +2,8 @@ extends RefCounted
 const BodyFireModes = preload("res://scripts/body_fire_modes.gd")
 var body_modes = BodyFireModes.new()
 const CityBoss = preload("res://scripts/city_boss.gd")
+var city_aim_point: Vector2 = Vector2.INF
+var city_aim_held: bool = false
 var city_mode: int = 0
 var city_mode_next: int = 0
 
@@ -348,6 +350,8 @@ func buy_weapon() -> bool:
 
 func clear_battle() -> void:
 	body_modes.pending.clear()
+	city_aim_point = Vector2.INF
+	city_aim_held = false
 	pending_splits.clear()
 	pending_minions.clear()
 	enemies_by_id.clear()
@@ -595,7 +599,7 @@ func set_city_mode(value: int) -> void:
 
 func select_target(point: Vector2) -> int:
 	var city: Dictionary = boss_actor()
-	if CityBoss.available(city) and float(city.rift_hp) > 0.0 and point.distance_to(CityBoss.point(city)) <= maxf(30.0, float(city.radius) * .4):
+	if CityBoss.available(city) and float(city.rift_hp) > 0.0 and point.distance_to(CityBoss.point(city)) <= CityBoss.hit_radius(city):
 		select_city_part(true)
 		return int(city.id)
 	var nearest: float = INF
@@ -692,6 +696,7 @@ func update_boss_skill(delta: float) -> void:
 	if not enraged and float(boss.hp) < max_hp * .5:
 		enraged = true
 		boss_skill.emit("enrage", "", boss.pos)
+	if CityBoss.update_aim(self,boss,delta): return
 	if skill.is_empty():
 		skill_clock -= delta
 		if skill_clock <= 0.0:
@@ -2532,6 +2537,7 @@ func restore(data: Dictionary) -> bool:
 	rng.state = int(str(data.rng_state))
 	for e in data.get("enemies", []):
 		var restored_enemy: Dictionary = decode_entity(e)
+		if CityBoss.available(restored_enemy): restored_enemy["rift_track"] = 0.0
 		enemies.append(restored_enemy)
 		enemies_by_id[int(restored_enemy.id)] = restored_enemy
 	for p in data.get("shots", []):

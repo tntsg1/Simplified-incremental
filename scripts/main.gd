@@ -59,7 +59,7 @@ var wave_label: Label
 var health_label: Label
 var hint: Label
 var scale_label: Label
-var city_tactics: PanelContainer
+var city_tactics: Node
 var boss_box: Control
 var boss_title: Label
 var boss_timer: Label
@@ -1055,7 +1055,6 @@ func buy_automation_from_hud() -> void:
 		update_hud()
 
 func update_hud() -> void:
-	if is_instance_valid(city_tactics): city_tactics.refresh()
 	stage_label.text = "%02d   %s" %[sim.stage+1,TranslationServer.translate(sim.stage_data().title)]
 	scale_label.text = TranslationServer.translate(sim.stage_data().subtitle)+"     /     "+TranslationServer.translate(sim.stage_data().scale_label)
 	wave_label.text = TranslationServer.translate("巨型威胁") if sim.mode=="boss" else TranslationServer.translate("第 %02d / 10 波") %sim.wave
@@ -1767,6 +1766,11 @@ func _process_frame(delta: float) -> void:
 		time_scale*=resume_fx.time_gate()
 	if dev_god:
 		sim.health = 100.0
+	# Direct weak-point input belongs to the battlefield, never a target menu.
+	var aiming_control: Control = get_viewport().gui_get_hovered_control()
+	var aiming_on_ui: bool = aiming_control != null and aiming_control != ui and ui.is_ancestor_of(aiming_control)
+	sim.city_aim_point = field.to_local(get_global_mouse_position())
+	sim.city_aim_held = menu=="" and sim.manual_held and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not aiming_on_ui
 	var advanced: float = advance_frame(delta, time_scale)
 	# Cosmetic rounds and hit feedback follow the ticks actually processed,
 	# including when a low-end browser cannot sustain the requested speed.
@@ -1889,9 +1893,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				city_tactics.open_modes()
 				return
 			var selected: int = sim.select_target(point)
-			if selected>=0 and not sim.automation:
+			if selected>=0 and (not sim.automation or (sim.stage==0 and sim.CityBoss.available(sim.boss_actor()))):
 				sim.manual_held = true
-				sim.manual_queued = true
+				if not sim.automation: sim.manual_queued = true
 
 func _notification(what: int) -> void:
 	if what==NOTIFICATION_WM_CLOSE_REQUEST:

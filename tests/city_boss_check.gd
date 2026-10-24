@@ -135,10 +135,17 @@ func run() -> void:
 		root.size=resolution
 		await process_frame
 		game.layout(); game.update_hud()
-		game.city_tactics.rift.pressed.emit()
-		check(bool(game.sim.boss_actor().rift_selected), "Fixed part button works")
+		var rift_click:=InputEventMouseButton.new()
+		rift_click.button_index=MOUSE_BUTTON_LEFT; rift_click.pressed=true
+		rift_click.position=root.get_final_transform()*game.field.to_global(game.sim.CityBoss.point(game.sim.boss_actor()))
+		rift_click.global_position=rift_click.position
+		Input.parse_input_event(rift_click)
+		await process_frame
+		rift_click=rift_click.duplicate(); rift_click.pressed=false; Input.parse_input_event(rift_click)
+		await process_frame
+		check(bool(game.sim.boss_actor().rift_selected), "Clicking the crack on the model selects the part")
 		check(game.boss_box.position.x > float(resolution.x)*.5+100, "Boss health clears the central model")
-		check(game.city_tactics.get_global_rect().end.y<float(resolution.y)-104, "Tactics card clears bottom controls")
+		check(not game.city_tactics is Control and game.city_tactics.get_child_count()==0, "No tactical target frame is created")
 		game.field.queue_redraw()
 		await process_frame
 		await RenderingServer.frame_post_draw
@@ -163,7 +170,7 @@ func run() -> void:
 	await process_frame
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("res://build/city-boss/broken-1280.png")
-	check(game.city_tactics.rift.disabled, "Destroyed part button is visibly disabled")
+	check(float(game.sim.boss_actor().rift_hp)==0 and not bool(game.sim.boss_actor().rift_selected), "Destroyed fissure cannot remain selected")
 	# Capture the persistent model after the transient break burst has faded.
 	game.sim.effects.clear()
 	game.field.feedback.clear()
@@ -172,8 +179,9 @@ func run() -> void:
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("res://build/city-boss/scar-1280.png")
 	game.language="en"
-	game.city_tactics.refresh()
-	check(game.city_tactics.body.text.contains("Body"), "Tactics labels follow the chosen language")
+	TranslationServer.set_locale("en")
+	game.update_hud()
+	check(game.sim.CityBoss.words("裂隙","Fissure")=="Fissure", "Model hints follow the chosen language")
 	await process_frame
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("res://build/city-boss/english-1280.png")

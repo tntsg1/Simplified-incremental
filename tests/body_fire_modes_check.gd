@@ -113,7 +113,7 @@ func run() -> void:
 	await create_timer(.6).timeout
 	game.layout()
 	game.update_hud()
-	check(not game.city_tactics.visible, "No permanent top-left missile mode button remains")
+	check(not game.city_tactics is Control, "No permanent top-left missile mode button remains")
 	game.field.banner.clear()
 	var click:=InputEventMouseButton.new()
 	click.button_index=MOUSE_BUTTON_LEFT; click.pressed=true
